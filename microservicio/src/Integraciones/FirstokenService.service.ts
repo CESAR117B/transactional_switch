@@ -14,7 +14,7 @@ export class FirsTokenService {
     private readonly configDb: ConfigDbService // Inyectamos la configuración
   ) {}
 
-  async permanet_token_card(datosTarjeta: TokenizeCardDto): Promise<any> {
+  async permanent_token_card(datosTarjeta: TokenizeCardDto): Promise<any> {
     // 1. Obtenemos la configuración (Súper rápido gracias a tu Map en RAM)
     const config = await this.configDb.getFirstTokenConfig();
 
@@ -50,7 +50,7 @@ export class FirsTokenService {
   }
 
 
-  async temporary_token_card(datosTarjeta: TokenizeCardDto): Promise<any> {
+  async temporal_token_card(datosTarjeta: TokenizeCardDto): Promise<any> {
     // 1. Obtenemos la configuración (Súper rápido gracias a tu Map en RAM)
     const config = await this.configDb.getFirstTokenConfig();
     const urlFinal = `${config.base_url}/routes/${config.routes.temporal_card}`;

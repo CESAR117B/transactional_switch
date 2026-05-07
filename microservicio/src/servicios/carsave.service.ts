@@ -23,9 +23,9 @@ export class CardSaveService {
 
         // 2. Agregamos "await" para que el código se detenga hasta tener el token
         if (cardData.temporal) {
-           tokenResponse = await this.firstoken.temporary_token_card(cardData);
+           tokenResponse = await this.firstoken.temporal_token_card(cardData);
         } else {
-            tokenResponse = await this.firstoken.permanet_token_card(cardData);
+            tokenResponse = await this.firstoken.permanent_token_card(cardData);
         }
 
         // 3. Ahora SÍ puedes extraer el token (ej. tokenResponse.token_id)
