@@ -1,0 +1,180 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+  compilerBuild   = "fast"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model app {
+  id_app            Int             @id(map: "app_pk") @default(autoincrement())
+  key               String          @unique(map: "app_unique") @db.VarChar(300)
+  activo            Boolean?        @default(true)
+  identificador_app String          @unique(map: "app_unique_1") @db.VarChar(300)  
+  app_servicios     app_servicios[] 
+  app_usuario       app_usuario[]   
+  info_app          info_app?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model app_servicios {
+  id_app      Int
+  id_servicio Int
+  app         app?       @relation(fields: [id_app], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "app_servicios_app_fk")
+  servicios   servicios? @relation(fields: [id_servicio], references: [id_servicio], onDelete: Cascade, onUpdate: NoAction, map: "app_servicios_servicios_fk")
+
+  @@id([id_app, id_servicio])
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model app_usuario {
+  id_usuario Int
+  id_app     Int
+  app        app?      @relation(fields: [id_app], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "app_usuario_app_fk")
+  usuarios   usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "app_usuario_usuarios_fk")
+
+  @@id([id_app, id_usuario])
+}
+
+model detalles_transacciones {
+  id_detalle     Int            @id(map: "detalles_transacciones_pk") @default(autoincrement())
+  pago           Decimal?       @db.Decimal
+  comision       Decimal?       @db.Decimal
+  total          Decimal?       @db.Decimal
+  id_transaccion Int?
+  transacciones  transacciones? @relation(fields: [id_transaccion], references: [id_transaccion], onDelete: Cascade, onUpdate: NoAction, map: "detalles_transacciones_transacciones_fk")
+}
+
+model env {
+  id_credencial Int     @id(map: "env_pk") @default(autoincrement())
+  valor         String? @db.VarChar(300)
+  atributo      String? @db.VarChar
+  ambiente      String? @db.VarChar
+  nombre        String? @db.VarChar
+}
+
+model estados {
+  id_estado Int     @id(map: "estados_pk") @default(autoincrement())
+  nombre    String? @db.VarChar
+  categoria String? @db.VarChar
+}
+
+model info_app {
+  id_info       Int     @id(map: "info_app_pk") @default(autoincrement())
+  nombre        String? @db.VarChar(300)
+  desarrollador String? @db.VarChar(100)
+  ruc           String? @db.VarChar(200)
+  id_app        Int     @unique(map: "info_app_unique")
+  app           app     @relation(fields: [id_app], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "info_app_app_fk")
+}
+
+model integraciones {
+  id_integracion          Int                       @id(map: "integraciones_pk") @default(autoincrement())
+  nombre                  String?                   @db.VarChar(200)
+  activo                  Boolean?                  @default(true)
+  codigo                  String?                   @db.VarChar(100)
+  descripcion             String?                   @db.VarChar(300)
+  tipo                    String?                   @db.VarChar(50)
+  servicios_integraciones servicios_integraciones[] 
+  atributos_integraciones atributos_integraciones[]
+}
+
+model logs {
+  id_log  Int       @id(map: "logs_pk") @default(autoincrement())
+  funcion String?   @db.VarChar
+  status  String?   @db.VarChar
+  fecha   DateTime? @db.Date
+  id_app  Int?
+}
+
+model controladores {
+  id_controlador Int     @id(map: "controladores_pk") @default(autoincrement())
+  cmp        String @db.VarChar(500)
+  descripcion String? @db.VarChar(300)
+  servicios_controladores servicios_controladores[]
+}
+
+
+model servicios_controladores {
+  id_servicio     Int
+  id_controlador  Int
+  controladores   controladores? @relation(fields: [id_controlador], references: [id_controlador], onDelete: Cascade, onUpdate: NoAction, map: "servicios_controladores_controladores_fk")
+  servicios       servicios?     @relation(fields: [id_servicio], references: [id_servicio], onDelete: Cascade, onUpdate: NoAction, map: "servicios_controladores_servicios_fk")
+
+  @@id([id_servicio, id_controlador])
+}
+
+model servicios {
+  id_servicio             Int                       @id(map: "servicios_pk") @default(autoincrement())
+  nombre                  String?                   @db.VarChar(100)
+  codigo                  String                    @unique(map: "servicios_unique") @db.VarChar(100)
+  descripcion             String?                   @db.VarChar(300)
+  activo                  Boolean?                  @default(true)
+  app_servicios           app_servicios[]           
+  servicios_integraciones servicios_integraciones[] 
+  servicios_controladores servicios_controladores[]
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model servicios_integraciones {
+  id_integracion Int
+  id_servicio    Int
+  integraciones  integraciones? @relation(fields: [id_integracion], references: [id_integracion], onDelete: Cascade, onUpdate: NoAction, map: "servicios_integraciones_integraciones_fk")
+  servicios      servicios?     @relation(fields: [id_servicio], references: [id_servicio], onDelete: Cascade, onUpdate: NoAction, map: "servicios_integraciones_servicios_fk")
+
+  @@id([id_integracion, id_servicio])
+}
+
+model tarifas {
+  id_tarifa  Int      @id(map: "tarifas_pk") @default(autoincrement())
+  nombre     String?  @db.VarChar
+  descipcion String?  @db.VarChar
+  valor      Decimal? @db.Decimal
+}
+
+model tipos {
+  nombre    String? @db.VarChar
+  categoria String? @db.VarChar
+  id_tipo   Int     @id(map: "tipos_pk") @default(autoincrement())
+}
+
+model transacciones {
+  id_transaccion         Int                      @id(map: "transacciones_pk") @default(autoincrement())
+  serial                 String?                  @db.VarChar
+  fecha                  DateTime?                @db.Date
+  estado_pago            String?                  @db.VarChar
+  detalles_transacciones detalles_transacciones[]
+}
+
+model usuarios {
+  id_usuario  Int           @id(map: "usuarios_pk") @default(autoincrement())
+  nombre      String?       @db.VarChar
+  apellido    String?       @db.VarChar
+  email       String?       @db.VarChar
+  app_usuario app_usuario[] 
+  tokens      tokens[]
+
+}
+
+model tokens {
+  id_token    Int     @id(map: "tokens_pk") @default(autoincrement())
+  token       String? @db.VarChar(300)
+  id_usuario  Int?
+  tipo        String? @db.VarChar(50)
+  usuarios    usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction, map: "tokens_usuarios_fk")
+}
+
+
+model atributos_integraciones {
+  id_atributo_integration Int     @id(map: "atributos_integraciones_pk") @default(autoincrement())
+  valor                   String? @db.VarChar(300)
+  atributo                String? @db.VarChar(300)
+  ambiente                String? @db.VarChar(20)
+  id_integracion          Int?
+  integraciones           integraciones? @relation(fields: [id_integracion], references: [id_integracion], onDelete: Cascade, onUpdate: NoAction, map: "atributos_integraciones_integraciones_fk")
+}
