@@ -19,7 +19,7 @@ export class CardSaveService {
         const tarjetaEnmascarada = `****-****-****-${cardData.card_number.slice(-4)}`;
         this.logger.log(`Iniciando tokenización para la tarjeta: ${tarjetaEnmascarada}`);
 
-        let tokenResponse;
+        let tokenResponse= null;
 
         // 2. Agregamos "await" para que el código se detenga hasta tener el token
         if (cardData.temporal) {
