@@ -41,14 +41,7 @@ model app_usuario {
   @@id([id_app, id_usuario])
 }
 
-model detalles_transacciones {
-  id_detalle     Int            @id(map: "detalles_transacciones_pk") @default(autoincrement())
-  pago           Decimal?       @db.Decimal
-  comision       Decimal?       @db.Decimal
-  total          Decimal?       @db.Decimal
-  id_transaccion Int?
-  transacciones  transacciones? @relation(fields: [id_transaccion], references: [id_transaccion], onDelete: Cascade, onUpdate: NoAction, map: "detalles_transacciones_transacciones_fk")
-}
+
 
 model env {
   id_credencial Int     @id(map: "env_pk") @default(autoincrement())
@@ -143,13 +136,7 @@ model tipos {
   id_tipo   Int     @id(map: "tipos_pk") @default(autoincrement())
 }
 
-model transacciones {
-  id_transaccion         Int                      @id(map: "transacciones_pk") @default(autoincrement())
-  serial                 String?                  @db.VarChar
-  fecha                  DateTime?                @db.Date
-  estado_pago            String?                  @db.VarChar
-  detalles_transacciones detalles_transacciones[]
-}
+
 
 model usuarios {
   id_usuario  Int           @id(map: "usuarios_pk") @default(autoincrement())
@@ -177,4 +164,72 @@ model atributos_integraciones {
   ambiente                String? @db.VarChar(20)
   id_integracion          Int?
   integraciones           integraciones? @relation(fields: [id_integracion], references: [id_integracion], onDelete: Cascade, onUpdate: NoAction, map: "atributos_integraciones_integraciones_fk")
+}
+
+
+// 1. Definimos el ENUM para los estados
+enum TokenStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+// 2. Modelo principal
+
+enum TransactionStatus {
+  SUCCESS
+  FAILURE
+}
+
+model TokenizedCard { // <-- Nombre de modelo en PascalCase (estándar Prisma)
+  idCard          BigInt      @id @default(autoincrement()) @map("id_card")
+  idApp           BigInt      @map("id_app")
+  
+  // Credenciales y Token
+  firstokenToken  String      @map("firstoken_token") @db.Text
+  cardTruncated   String      @map("card_truncated") @db.VarChar(25)
+  franchise       String      @map("franchise") @db.VarChar(20)
+  holderName      String      @map("holder_name") @db.VarChar(100)
+  
+  // Fechas y atajos
+  expirationMonth String      @map("expiration_month") @db.VarChar(2)
+  expirationYear  String      @map("expiration_year") @db.VarChar(4)
+  lastFour        String      @map("last_four") @db.VarChar(4)
+  
+  // Estados y metadata
+  status          TokenStatus @default(PENDING)
+  scheme          String      @default("7") @db.VarChar(5)
+  metadata        Json?       // Opcional para guardar tags o IDs extras
+  
+  // Timestamps y Soft Delete
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  deletedAt       DateTime?   @map("deleted_at")
+
+  @@map("tokenized_cards") // <-- Mapeo explícito a la tabla de la DB
+}
+
+model TransaccionesServicios {
+  idTransaccion   BigInt      @id @default(autoincrement()) @map("id_transaccion")
+  
+  // Identificador del servicio
+  servicio        String      @db.VarChar(30)
+  entidadId       BigInt?     @map("entidad_id")
+  idApp           BigInt      @map("id_app")
+  operation       String      @db.VarChar(50)
+  reference       String      @unique @db.VarChar(60)
+  
+  // Datos
+  requestPayload  Json        @map("request_payload")
+  responsePayload Json        @map("response_payload")
+  
+  // Estado
+  status          TransactionStatus
+  errorMessage    String?     @map("error_message") @db.Text
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@map("transacciones_servicios")
+  @@index([servicio, entidadId])
+  @@index([reference])
 }
