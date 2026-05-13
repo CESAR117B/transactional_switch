@@ -144,17 +144,9 @@ model usuarios {
   apellido    String?       @db.VarChar
   email       String?       @db.VarChar
   app_usuario app_usuario[] 
-  tokens      tokens[]
-
 }
 
-model tokens {
-  id_token    Int     @id(map: "tokens_pk") @default(autoincrement())
-  token       String? @db.VarChar(300)
-  id_usuario  Int?
-  tipo        String? @db.VarChar(50)
-  usuarios    usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction, map: "tokens_usuarios_fk")
-}
+
 
 
 model atributos_integraciones {
