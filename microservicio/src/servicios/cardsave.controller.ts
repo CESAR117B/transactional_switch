@@ -1,8 +1,7 @@
 
 import { MessagePattern, Payload } from "@nestjs/microservices";
 
-import { Controller, Req } from "@nestjs/common";
-import { TokenizeCardDto } from "../dto/tokenize-card.dto";
+import { Controller } from "@nestjs/common";
 import { CardSaveService } from "./carsave.service";
 import { SaveCardInternalDto } from "../dto/save-card-internal.dto";
 
@@ -13,7 +12,7 @@ export class CardSaveController {
     ){}
 
     @MessagePattern({ cmd: 'save_card' })
-    async saveCard(@Req() req: any,@Payload() payload: SaveCardInternalDto) {
+    async saveCard(@Payload() payload: SaveCardInternalDto) {
         
         // Magia de TypeScript: extraemos idApp y metemos el resto en cardData
         const { idApp, ...cardData } = payload;

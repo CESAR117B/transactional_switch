@@ -25,10 +25,4 @@ export class Servicios {
 
     return serviciosMap;
   }
-
-
-  cuanto_paga(appId:number, codigo_servicio:string){
-      return 30;
-  }
-  
 }
