@@ -28,5 +28,5 @@ export class TokenizeCardDto {
 
   @IsBoolean()
   @IsNotEmpty()
-  temporal: boolean
+  temporal: boolean;
 }

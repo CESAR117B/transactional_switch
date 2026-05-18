@@ -48,7 +48,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       // 4. Mapeamos exactamente la respuesta hacia tu modelo de Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
         data: {
-          idApp: BigInt(idApp), // Lo convertimos a BigInt como exige tu BD
+          idApp: idApp, // Lo convertimos a BigInt como exige tu BD
           firstokenToken: cardDetails.token,
           cardTruncated: cardDetails.card_truncated,
           franchise: cardDetails.brand.toUpperCase(), // Ej: DINERS -> UPPERCASE
@@ -139,7 +139,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       // 3. Mapeamos hacia Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
         data: {
-          idApp: BigInt(idApp), 
+          idApp: idApp, 
           firstokenToken: cardDetails.token, // En este caso será el UUID (ej. d54f0486-...)
           cardTruncated: cardDetails.card_truncated,
           franchise: cardDetails.brand.toUpperCase(), 
