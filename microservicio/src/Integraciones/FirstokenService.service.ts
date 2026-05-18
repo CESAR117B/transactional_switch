@@ -6,7 +6,6 @@ import { TokenizeCardDto } from '../dto/tokenize-card.dto';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { response } from 'express';
 
 @Injectable()
 export class FirsTokenService {
