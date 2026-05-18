@@ -62,9 +62,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         }
       });
 
-      
-
-       this.logger.log(`✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`);
+        this.logger.log(`✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`);
 
         this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
