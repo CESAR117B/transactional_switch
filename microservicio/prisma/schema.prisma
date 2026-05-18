@@ -17,6 +17,7 @@ model app {
   app_usuario       app_usuario[]   
   info_app          info_app?
   tokenizedCards    TokenizedCard[]
+  transaccionesServicios TransaccionesServicios[]
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -204,7 +205,7 @@ model TransaccionesServicios {
   servicio        String      @db.VarChar(30)
   entidadId       BigInt?     @map("entidad_id")
   entidadName     String?     @map("entidad_name") @db.VarChar(100)
-  idApp           BigInt      @map("id_app")
+  idApp           Int      @map("id_app")
   operation       String      @db.VarChar(50)
   reference       String      @unique @db.VarChar(60)// Referencia única para evitar duplicados
   
@@ -217,6 +218,7 @@ model TransaccionesServicios {
   errorMessage    String?     @map("error_message") @db.Text// Detalles del error en caso de fallo
 
   createdAt       DateTime    @default(now()) @map("created_at")
+  app             app?        @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
 
   @@map("transacciones_servicios")
   @@index([servicio, entidadId])
