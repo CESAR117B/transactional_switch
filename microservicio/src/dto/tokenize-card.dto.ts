@@ -21,6 +21,10 @@ export class TokenizeCardDto {
   @Length(4, 4)
   card_year: string;
 
+  @IsString()
+  @IsNotEmpty()
+  @Length(3, 3)
+  card_cvv?: string;
 
   @IsBoolean()
   @IsNotEmpty()

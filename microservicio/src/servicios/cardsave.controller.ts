@@ -1,9 +1,10 @@
 
 import { MessagePattern, Payload } from "@nestjs/microservices";
 
-import { Controller } from "@nestjs/common";
+import { Controller, Req } from "@nestjs/common";
 import { TokenizeCardDto } from "../dto/tokenize-card.dto";
 import { CardSaveService } from "./carsave.service";
+import { SaveCardInternalDto } from "../dto/save-card-internal.dto";
 
 @Controller()
 export class CardSaveController {
@@ -11,8 +12,13 @@ export class CardSaveController {
         private cardSaveService: CardSaveService
     ){}
 
-    @MessagePattern({ cmd: 'save_card' }) // Cambiado a 'save_card'
-    async saveCard(@Payload() cardData: TokenizeCardDto) { // Agregamos async
-        return await this.cardSaveService.saveCard(cardData);
+    @MessagePattern({ cmd: 'save_card' })
+    async saveCard(@Req() req: any,@Payload() payload: SaveCardInternalDto) {
+        
+        // Magia de TypeScript: extraemos idApp y metemos el resto en cardData
+        const { idApp, ...cardData } = payload;
+        
+        // Le pasamos los dos parámetros por separado a tu servicio
+        return await this.cardSaveService.saveCard(idApp, cardData);
     }
 }

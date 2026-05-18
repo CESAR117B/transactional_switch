@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { ConfigDbService } from '../config-db/config-db.service';
 import { TokenizeCardDto } from '../dto/tokenize-card.dto';
 import { RpcException } from '@nestjs/microservices';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class FirsTokenService {
@@ -11,37 +12,66 @@ export class FirsTokenService {
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly configDb: ConfigDbService // Inyectamos la configuración
+    private readonly configDb: ConfigDbService, // Inyectamos la configuración
+    private readonly prisma: PrismaService
   ) {}
 
-  async permanent_token_card(datosTarjeta: TokenizeCardDto): Promise<any> {
-    // 1. Obtenemos la configuración (Súper rápido gracias a tu Map en RAM)
+async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promise<any> { 
+    // 1. Obtenemos la configuración
     const config = await this.configDb.getFirstTokenConfig();
-
 
     const urlFinal = `${config.base_url}/routes/${config.routes.permanent_card}`;
     this.logger.debug(`URL de destino: ${urlFinal}`);
 
+    // 👇 Extraemos también 'idApp' para guardarlo en BD, pero NO enviarlo a FirsToken
+    const { temporal, card_cvv, ...payloadLimpio } = datosTarjeta;
+
     try {
-      // 2. Usamos los datos dinámicos para armar la petición
+      // 2. Enviamos la petición limpia a FirsToken
       const response = await firstValueFrom(
-        this.httpService.post(urlFinal, datosTarjeta, {
+        this.httpService.post(urlFinal, payloadLimpio, {
           headers: {
             'Content-Type': 'application/json'
           },
-          timeout: config.timeout // Usamos también el timeout de tu BD
+          timeout: config.timeout 
         })
-      );
-      
-      return response.data;
+      );  
+
+      // 3. Extraemos la data de la respuesta para mayor legibilidad
+      const responseData = response.data;
+      const cardDetails = responseData.custom_field_details.card;
+
+      // 4. Mapeamos exactamente la respuesta hacia tu modelo de Prisma
+      const savedCard = await this.prisma.tokenizedCard.create({
+        data: {
+          idApp: BigInt(idApp), // Lo convertimos a BigInt como exige tu BD
+          firstokenToken: cardDetails.token,
+          cardTruncated: cardDetails.card_truncated,
+          franchise: cardDetails.brand.toUpperCase(), // Ej: DINERS -> UPPERCASE
+          holderName: responseData.card_holder,
+          expirationMonth: responseData.card_month,
+          expirationYear: responseData.card_year,
+          lastFour: cardDetails.last_four,
+          status: 'ACTIVE', // Agregamos un campo para diferenciar temporal de permanente
+          metadata: {
+            bin: cardDetails.bin // Guardamos el BIN en el JSON opcional por si acaso
+          }
+        }
+      });
+
+       this.logger.log(`✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`);
+
+      // Devolvemos la respuesta original de FirsToken, pero le agregamos el ID de la BD
+      // convertido a String para que no rompa el JSON en el Gateway
+      return {
+        ...responseData,
+        db_id: savedCard.idCard.toString()
+      };
       
      } catch (error) {
-      // Extraemos el mensaje real de FirsToken o el mensaje por defecto
       const mensajeError = error.response?.data || error.message;
+      this.logger.error('Fallo en FirsToken o Base de Datos:', mensajeError);
       
-      this.logger.error('Fallo en FirsToken:', mensajeError);
-      
-      // Lanzamos un error pequeño, limpio y seguro para viajar por TCP
       throw new RpcException({
         status: error.response?.status || 500,
         message: mensajeError
@@ -50,30 +80,58 @@ export class FirsTokenService {
   }
 
 
-  async temporal_token_card(datosTarjeta: TokenizeCardDto): Promise<any> {
-    // 1. Obtenemos la configuración (Súper rápido gracias a tu Map en RAM)
+  async temporal_token_card(idApp: number, datosTarjeta: any): Promise<any> {
+    // 1. Obtenemos la configuración
     const config = await this.configDb.getFirstTokenConfig();
     const urlFinal = `${config.base_url}/routes/${config.routes.temporal_card}`;
-    this.logger.debug(`URL de destino: ${urlFinal}`);
+    this.logger.debug(`URL de destino (Temporal): ${urlFinal}`);
+
+    // 👇 Solo sacamos 'temporal'. El 'card_cvv' SÍ viaja en payloadLimpio para tokens temporales
+    const { temporal, ...payloadLimpio } = datosTarjeta;
 
     try {
-      // 2. Usamos los datos dinámicos para armar la petición
+      // 2. Enviamos la petición a FirsToken
       const response = await firstValueFrom(
-        this.httpService.post(urlFinal, datosTarjeta, {
+        this.httpService.post(urlFinal, payloadLimpio, {
           headers: {
             'Content-Type': 'application/json'
           },
-          timeout: config.timeout // Usamos también el timeout de tu BD
+          timeout: config.timeout 
         })
       );
-      return response.data;
+      
+      const responseData = response.data;
+      const cardDetails = responseData.custom_field_details.card;
+
+      // 3. Mapeamos hacia Prisma
+      const savedCard = await this.prisma.tokenizedCard.create({
+        data: {
+          idApp: BigInt(idApp), 
+          firstokenToken: cardDetails.token, // En este caso será el UUID (ej. d54f0486-...)
+          cardTruncated: cardDetails.card_truncated,
+          franchise: cardDetails.brand.toUpperCase(), 
+          holderName: responseData.card_holder,
+          expirationMonth: responseData.card_month,
+          expirationYear: responseData.card_year,
+          lastFour: cardDetails.last_four,
+          metadata: {
+            bin: cardDetails.bin 
+          }
+        }
+      });
+
+      this.logger.log(`⏳ Tarjeta TEMPORAL guardada con ID: ${savedCard.idCard}`);
+
+      // 4. Devolvemos respuesta con el ID de BD casteado a string
+      return {
+        ...responseData,
+        db_id: savedCard.idCard.toString()
+      };
+      
     } catch (error) {
-      // Extraemos el mensaje real de FirsToken o el mensaje por defecto
       const mensajeError = error.response?.data || error.message;
+      this.logger.error('Fallo en FirsToken (Temporal):', mensajeError);
 
-      this.logger.error('Fallo en FirsToken:', mensajeError);
-
-      // Lanzamos un error pequeño, limpio y seguro para viajar por TCP
       throw new RpcException({
         status: error.response?.status || 500,
         message: mensajeError

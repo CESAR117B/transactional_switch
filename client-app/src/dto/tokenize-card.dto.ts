@@ -68,6 +68,19 @@ export class TokenizeCardDto {
   card_year: string;
 
   @ApiProperty({
+    description: 'cvv de la tarjeta de crédito.',
+    example: '123',
+    type: String,
+    minLength: 3,
+    maxLength: 3,
+    pattern: '^[0-9]{3}$'
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Length(3, 3)
+  card_cvv?: string;
+
+  @ApiProperty({
     description: 'Indica si el token a generar es temporal (true) o permanente (false).',
     example: false,
     type: Boolean

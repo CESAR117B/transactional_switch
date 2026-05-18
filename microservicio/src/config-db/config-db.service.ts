@@ -85,7 +85,7 @@ export class ConfigDbService {
                 case 'TRANSACTIONS_URL': config.transactions_url = valor; break;
                 
                 // Aquí guardamos en nuestra variable independiente
-                case 'PERMANENT_CARD': routesConfig.permanent_card = valor; break;
+                case 'PERMANET_CARD': routesConfig.permanent_card = valor; break;
                 case 'TEMPORAL_CARD': routesConfig.temporal_card = valor; break;
                 
                 case 'PAYMENT_SCHEME': config.payment_scheme = valor; break;

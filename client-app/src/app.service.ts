@@ -21,9 +21,15 @@ export class AppService {
   }
 
 
-  async guardarTarjeta(cardData:TokenizeCardDto ) {
+  async guardarTarjeta( idApp: number, cardData:TokenizeCardDto ) {
+
+    const payloadInterno = {
+      idApp: Number(idApp),
+      ...cardData // Agrega card_number, card_holder, etc.
+    };
+
     return firstValueFrom(
-      this.mathClient.send({ cmd: "save_card" }, cardData)
+      this.mathClient.send({ cmd: "save_card" }, payloadInterno)
     );
   }
 }

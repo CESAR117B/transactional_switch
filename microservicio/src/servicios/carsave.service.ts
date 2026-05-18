@@ -12,7 +12,7 @@ export class CardSaveService {
     ){}
 
     // 1. Agregamos "async"
-    async saveCard(cardData: TokenizeCardDto) {
+    async saveCard(idApp: number, cardData: TokenizeCardDto) {
         
         // 🚨 RIESGO RESUELTO: Solo logueamos que se inició el proceso, NUNCA imprimimos el cardData completo.
         // Si necesitas loguear algo, enmascara la tarjeta:
@@ -23,14 +23,11 @@ export class CardSaveService {
 
         // 2. Agregamos "await" para que el código se detenga hasta tener el token
         if (cardData.temporal) {
-           tokenResponse = await this.firstoken.temporal_token_card(cardData);
+           tokenResponse = await this.firstoken.temporal_token_card(idApp, cardData);
         } else {
-            tokenResponse = await this.firstoken.permanent_token_card(cardData);
+            tokenResponse = await this.firstoken.permanent_token_card(idApp, cardData);
         }
 
-        // 3. Ahora SÍ puedes extraer el token (ej. tokenResponse.token_id)
-        // y usar Prisma para guardarlo en tu tabla de clientes/tarjetas
-        // const guardadoBd = await this.prisma.tarjetasGuardadas.create({ ... });
 
         return tokenResponse;
     }
