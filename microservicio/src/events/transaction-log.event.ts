@@ -1,5 +1,4 @@
-// src/events/transaction-log.event.ts
-import { TransactionStatus } from '@prisma/client';
+
 
 export class TransactionLogEvent {
   servicio: string;
@@ -10,6 +9,6 @@ export class TransactionLogEvent {
   reference: string;
   requestPayload: any;
   responsePayload: any;
-  status: TransactionStatus;
+  status: number;
   errorMessage?: string;
 }

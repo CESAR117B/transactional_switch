@@ -134,7 +134,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
 
-      
+       
 
       // 3. Mapeamos hacia Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
@@ -155,6 +155,18 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
 
       this.logger.log(`⏳ Tarjeta TEMPORAL guardada con ID: ${savedCard.idCard}`);
 
+      this.eventEmitter.emit('audit.record', {
+        servicio: 'FIRSTOKEN',
+        entidadId: savedCard.idCard,
+        entidadName: 'TOKENIZED_CARD',
+        idApp: BigInt(idApp),
+        operation: 'TEMPORAL_TOKEN',
+        reference: responseData.custom_field_details.card.token, // El token generado por FirsToken
+        requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
+        responsePayload: response.data,
+        status: response.status,
+      });
+
       // 4. Devolvemos respuesta con el ID de BD casteado a string
       return {
         ...responseData,
@@ -162,6 +174,17 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       };
       
     } catch (error) {
+
+      this.eventEmitter.emit('audit.record', {
+        servicio: 'FIRSTOKEN',
+        idApp: BigInt(idApp),
+        operation: 'TEMPORAL_TOKEN',
+        reference: '',
+        requestPayload: datosTarjeta,
+        responsePayload: error.response?.data || {},
+        status: error.response?.status || 500,
+        errorMessage: error.message,
+      });
       const mensajeError = error.response?.data || error.message;
       this.logger.error('Fallo en FirsToken (Temporal):', mensajeError);
 

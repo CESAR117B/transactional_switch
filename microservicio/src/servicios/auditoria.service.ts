@@ -14,6 +14,7 @@ export class AuditoriaService {
   // cada vez que alguien emita el evento 'audit.record'
   @OnEvent('audit.record', { async: true }) // async: true es clave para no bloquear el hilo principal
   async handleAuditLogEvent(payload: TransactionLogEvent) {
+    console.log('🚨 ¡EL EVENTO SE DISPARÓ EN SEGUNDO PLANO!', payload.reference);
     try {
       // 1. Sanitizamos el request payload (quitar CVV, PAN completo, etc.)
       const sanitizedRequest = this.sanitizePayload(payload.requestPayload);

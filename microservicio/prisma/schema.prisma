@@ -166,12 +166,6 @@ enum TokenStatus {
   REVOKED
 }
 
-// 2. Modelo principal
-
-enum TransactionStatus {
-  SUCCESS
-  FAILURE
-}
 
 model TokenizedCard { // <-- Nombre de modelo en PascalCase (estándar Prisma)
   idCard          BigInt      @id @default(autoincrement()) @map("id_card")
@@ -217,7 +211,7 @@ model TransaccionesServicios {
   responsePayload Json        @map("response_payload")
   
   // Estado
-  status          TransactionStatus
+  status          Int
   errorMessage    String?     @map("error_message") @db.Text// Detalles del error en caso de fallo
 
   createdAt       DateTime    @default(now()) @map("created_at")
