@@ -207,9 +207,10 @@ model TransaccionesServicios {
   // Identificador del servicio
   servicio        String      @db.VarChar(30)
   entidadId       BigInt?     @map("entidad_id")
+  entidadName     String?     @map("entidad_name") @db.VarChar(100)
   idApp           BigInt      @map("id_app")
   operation       String      @db.VarChar(50)
-  reference       String      @unique @db.VarChar(60)
+  reference       String      @unique @db.VarChar(60)// Referencia única para evitar duplicados
   
   // Datos
   requestPayload  Json        @map("request_payload")
@@ -217,7 +218,7 @@ model TransaccionesServicios {
   
   // Estado
   status          TransactionStatus
-  errorMessage    String?     @map("error_message") @db.Text
+  errorMessage    String?     @map("error_message") @db.Text// Detalles del error en caso de fallo
 
   createdAt       DateTime    @default(now()) @map("created_at")
 
