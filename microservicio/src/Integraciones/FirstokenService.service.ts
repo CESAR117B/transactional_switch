@@ -86,7 +86,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
   
       
      } catch (error) {
-     
+     const mensajeError = error.response?.data || error.message;
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
         idApp: idApp,
@@ -95,9 +95,9 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         requestPayload: datosTarjeta,
         responsePayload: error.response?.data || {},
         status: error.response?.status || 500,
-        errorMessage: error.message,
+        errorMessage: mensajeError,
       });
-      const mensajeError = error.response?.data || error.message;
+      
       this.logger.error('Fallo en FirsToken o Base de Datos:', mensajeError);
       
       throw new RpcException({
@@ -171,6 +171,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       };
       
     } catch (error) {
+      const mensajeError = error.response?.data || error.message;
 
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
@@ -180,9 +181,8 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         requestPayload: datosTarjeta,
         responsePayload: error.response?.data || {},
         status: error.response?.status || 500,
-        errorMessage: error.message,
+        errorMessage:mensajeError
       });
-      const mensajeError = error.response?.data || error.message;
       this.logger.error('Fallo en FirsToken (Temporal):', mensajeError);
 
       throw new RpcException({
