@@ -5,6 +5,8 @@ import { ConfigDbService } from '../config-db/config-db.service';
 import { TokenizeCardDto } from '../dto/tokenize-card.dto';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { response } from 'express';
 
 @Injectable()
 export class FirsTokenService {
@@ -13,7 +15,8 @@ export class FirsTokenService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configDb: ConfigDbService, // Inyectamos la configuración
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private eventEmitter: EventEmitter2 // 👈 Inyectas el emisor
   ) {}
 
 async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promise<any> { 
@@ -40,6 +43,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       // 3. Extraemos la data de la respuesta para mayor legibilidad
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
+      
 
       // 4. Mapeamos exactamente la respuesta hacia tu modelo de Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
@@ -59,7 +63,21 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         }
       });
 
+      
+
        this.logger.log(`✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`);
+
+        this.eventEmitter.emit('audit.record', {
+        servicio: 'FIRSTOKEN',
+        entidadId: savedCard.idCard,
+        entidadName: 'TOKENIZED_CARD',
+        idApp: BigInt(idApp),
+        operation: 'TEMPORAL_TOKEN',
+        reference: responseData.custom_field_details.card.token, // El token generado por FirsToken
+        requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
+        responsePayload: response.data,
+        status: response.status,
+      });
 
       // Devolvemos la respuesta original de FirsToken, pero le agregamos el ID de la BD
       // convertido a String para que no rompa el JSON en el Gateway
@@ -67,8 +85,21 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         ...responseData,
         db_id: savedCard.idCard.toString()
       };
+
+  
       
      } catch (error) {
+     
+      this.eventEmitter.emit('audit.record', {
+        servicio: 'FIRSTOKEN',
+        idApp: BigInt(idApp),
+        operation: 'TEMPORAL_TOKEN',
+        reference: '',
+        requestPayload: datosTarjeta,
+        responsePayload: error.response?.data || {},
+        status: error.response?.status || 500,
+        errorMessage: error.message,
+      });
       const mensajeError = error.response?.data || error.message;
       this.logger.error('Fallo en FirsToken o Base de Datos:', mensajeError);
       
@@ -102,6 +133,8 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
+
+      
 
       // 3. Mapeamos hacia Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
