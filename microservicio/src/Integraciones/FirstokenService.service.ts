@@ -71,7 +71,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         entidadId: savedCard.idCard,
         entidadName: 'tokenized_cards',
         idApp: idApp,
-        operation: 'PERMANENT_TOKEN',
+        operation: 'PERMANENT_TOKEN_CARD',
         reference: responseData.custom_field_details.card.token, // El token generado por FirsToken
         requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
         responsePayload: response.data,
@@ -92,7 +92,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
         idApp: idApp,
-        operation: 'PERMANENT_TOKEN',
+        operation: 'PERMANENT_TOKEN_CARD',
         reference: '',
         requestPayload: datosTarjeta,
         responsePayload: error.response?.data || {},
@@ -159,7 +159,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         entidadId: savedCard.idCard,
         entidadName: 'tokenized_cards',
         idApp: idApp,
-        operation: 'TEMPORAL_TOKEN',
+        operation: 'TEMPORAL_TOKEN_CARD',
         reference: responseData.custom_field_details.card.token, // El token generado por FirsToken
         requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
         responsePayload: response.data,
@@ -177,7 +177,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
         idApp: BigInt(idApp),
-        operation: 'TEMPORAL_TOKEN',
+        operation: 'TEMPORAL_TOKEN_CARD',
         reference: '',
         requestPayload: datosTarjeta,
         responsePayload: error.response?.data || {},
