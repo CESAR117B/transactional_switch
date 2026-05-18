@@ -6,9 +6,11 @@ import { AuthModule } from './auth/auth.module';
 import { ServiciosModule } from './servicios/servicios.modules';
 import { IntegracionesModule } from './Integraciones/integraciones.module';
 import { ConfigDbModule } from './config-db/config-db.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
-  imports: [PrismaModule, AuthModule, ServiciosModule, IntegracionesModule, ConfigDbModule],
+  imports: [ EventEmitterModule.forRoot(),
+    PrismaModule, AuthModule, ServiciosModule, IntegracionesModule, ConfigDbModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -3,10 +3,11 @@ import { ServicioController } from "./servicio.controller";
 import { Servicios } from "./servicios";
 import { CardSaveController } from "./cardsave.controller";
 import { CardSaveService } from "./carsave.service";
+import { AuditoriaService } from "./auditoria.service";
 
 @Module({
     controllers:[ServicioController,CardSaveController],
-    providers:[Servicios,CardSaveService],
-    exports:[Servicios,CardSaveService]
+    providers:[Servicios,CardSaveService,AuditoriaService],
+    exports:[Servicios,CardSaveService,AuditoriaService]
 })
 export class ServiciosModule{}
