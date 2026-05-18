@@ -149,8 +149,6 @@ model usuarios {
 }
 
 
-
-
 model atributos_integraciones {
   id_atributo_integration Int     @id(map: "atributos_integraciones_pk") @default(autoincrement())
   valor                   String? @db.VarChar(300)
