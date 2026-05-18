@@ -16,10 +16,6 @@ export class ServicioController {
     }
 
     
-    @MessagePattern({cmd: 'cuanto_paga'})
-    cuantoPaga(@Payload() data: {appId: number, codigo_servicio: string}){
-        return this.servicios.cuanto_paga(data.appId, data.codigo_servicio);
-    }
 
     
 }
