@@ -16,6 +16,7 @@ model app {
   app_servicios     app_servicios[] 
   app_usuario       app_usuario[]   
   info_app          info_app?
+  tokenizedCards    TokenizedCard[]
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -169,7 +170,7 @@ enum TokenStatus {
 
 model TokenizedCard { // <-- Nombre de modelo en PascalCase (estándar Prisma)
   idCard          BigInt      @id @default(autoincrement()) @map("id_card")
-  idApp           BigInt      @map("id_app")
+  idApp           Int      @map("id_app")
   
   // Credenciales y Token
   firstokenToken  String      @map("firstoken_token") @db.Text
@@ -191,6 +192,7 @@ model TokenizedCard { // <-- Nombre de modelo en PascalCase (estándar Prisma)
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
   deletedAt       DateTime?   @map("deleted_at")
+  app             app?        @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
 
   @@map("tokenized_cards") // <-- Mapeo explícito a la tabla de la DB
 }
