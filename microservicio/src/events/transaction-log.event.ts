@@ -1,5 +1,3 @@
-
-
 export class TransactionLogEvent {
   servicio: string;
   entidadId?: bigint;
