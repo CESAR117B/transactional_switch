@@ -4,7 +4,7 @@ export class TransactionLogEvent {
   servicio: string;
   entidadId?: bigint;
   entidadName?: string;
-  idApp: bigint;
+  idApp: number;
   operation: string;
   reference: string;
   requestPayload: any;
