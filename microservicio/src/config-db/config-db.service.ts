@@ -53,7 +53,7 @@ export class ConfigDbService {
         // Asumimos que tenantId es el equivalente al "ambiente" en tu tabla (ej. 'PROD' o 'TENANT_1')
         const integracion = await this.prisma.integraciones.findFirst({
             where: {
-                nombre: 'FIRSTOKEN', // El código fijo de tu integración
+                codigo: 'SRV_FIRSTOKEN', // El código fijo de tu integración
                 activo: true
             },
             include: {
