@@ -175,7 +175,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
 
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
-        idApp: BigInt(idApp),
+        idApp: idApp,
         operation: 'TEMPORAL_TOKEN_CARD',
         reference: '',
         requestPayload: datosTarjeta,
