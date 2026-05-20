@@ -80,7 +80,6 @@ export class ConfigDbService {
             switch (attr.atributo) {
                 case 'API_KEY': config.api_key = valor; break;
                 case 'BASE_URL': config.base_url = valor; break;
-                case 'INBOUND_URL': config.inbound_url = valor; break;
                 case 'PROXY_URL': config.proxy_url = valor; break;
                 case 'TRANSACTIONS_URL': config.transactions_url = valor; break;
                 
