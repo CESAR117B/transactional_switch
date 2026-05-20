@@ -13,9 +13,11 @@ model app {
   key               String          @unique(map: "app_unique") @db.VarChar(300)
   activo            Boolean?        @default(true)
   identificador_app String          @unique(map: "app_unique_1") @db.VarChar(300)  
+  encryptionKey     String?         @map("encryption_key") @db.VarChar(32) 
   app_servicios     app_servicios[] 
   app_usuario       app_usuario[]   
   info_app          info_app?
+
   tokenizedCards    TokenizedCard[]
   transaccionesServicios TransaccionesServicios[]
 }
