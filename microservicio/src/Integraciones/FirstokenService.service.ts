@@ -76,7 +76,8 @@ export class FirsTokenService {
           status: 'ACTIVE', // Agregamos un campo para diferenciar temporal de permanente
           metadata: {
             bin: cardDetails.bin // Guardamos el BIN en el JSON opcional por si acaso
-          }
+          },
+          typeCard: 'PERMANENT' // Indicamos que es una tarjeta permanente
         }
       });
 
@@ -93,11 +94,20 @@ export class FirsTokenService {
         status: response.status,
       });
 
+      const datamap={
+        card_truncated: cardDetails.card_truncated,
+        card_holder: responseData.card_holder,
+        card_month: responseData.card_month,
+        card_year: responseData.card_year,
+        brand: cardDetails.brand,
+        last_four: cardDetails.last_four,
+        token: tokenEncriptado, // Guardamos el token encriptado en el datamap para auditoría, pero el listener se encargará de no loguearlo
+        typeCard: 'PERMANENT'
+      }
       // Devolvemos la respuesta original de FirsToken, pero le agregamos el ID de la BD
       // convertido a String para que no rompa el JSON en el Gateway
       return {
-        ...responseData,
-        db_id: savedCard.idCard.toString()
+        ... datamap
       };
       
      } catch (error) {
@@ -161,8 +171,6 @@ export class FirsTokenService {
         appRecord.encryptionKey
       );
 
-       
-
       // 3. Mapeamos hacia Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
         data: {
@@ -174,6 +182,7 @@ export class FirsTokenService {
           expirationMonth: responseData.card_month,
           expirationYear: responseData.card_year,
           lastFour: cardDetails.last_four,
+          typeCard: 'TEMPORAL', // Indicamos que es una tarjeta temporal
           metadata: {
             bin: cardDetails.bin 
           }
@@ -193,10 +202,20 @@ export class FirsTokenService {
         status: response.status,
       });
 
+       const datamap={
+        card_truncated: cardDetails.card_truncated,
+        card_holder: responseData.card_holder,
+        card_month: responseData.card_month,
+        card_year: responseData.card_year,
+        brand: cardDetails.brand,
+        last_four: cardDetails.last_four,
+        token: tokenEncriptado, // Guardamos el token encriptado en el datamap para auditoría, pero el listener se encargará de no loguearlo
+        typeCard: 'TEMPORAL'
+      }
+
       // 4. Devolvemos respuesta con el ID de BD casteado a string
       return {
-        ...responseData,
-        db_id: savedCard.idCard.toString()
+            ...datamap
       };
       
     } catch (error) {

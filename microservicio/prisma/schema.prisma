@@ -168,6 +168,13 @@ enum TokenStatus {
   REVOKED
 }
 
+enum TipeCard{
+  TEMPORAL
+  PERMANENT
+}
+
+
+
 
 model TokenizedCard { // <-- Nombre de modelo en PascalCase (estándar Prisma)
   idCard          BigInt      @id @default(autoincrement()) @map("id_card")
@@ -186,6 +193,7 @@ model TokenizedCard { // <-- Nombre de modelo en PascalCase (estándar Prisma)
   
   // Estados y metadata
   status          TokenStatus @default(PENDING)
+  typeCard        TipeCard?   @map("type_card")   
   scheme          String      @default("7") @db.VarChar(5)
   metadata        Json?       // Opcional para guardar tags o IDs extras
   
