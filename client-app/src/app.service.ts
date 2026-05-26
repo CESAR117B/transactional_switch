@@ -3,6 +3,8 @@ import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs"; // <-- Importación moderna de RxJS
 import { TokenizeCardDto } from "./dto/tokenize-card.dto";
 
+
+
 @Injectable()
 export class AppService {
   // Inyectamos mágicamente el cliente usando el nombre que le dimos en el AppModule
@@ -30,6 +32,16 @@ export class AppService {
 
     return firstValueFrom(
       this.mathClient.send({ cmd: "save_card" }, payloadInterno)
+    );
+  }
+
+    async encrypkeyApp(appId: number) {
+    // 1. Armamos el objeto con la propiedad idApp que espera el microservicio
+    const payloadInterno = { idApp: Number(appId) };
+
+    // 2. Usamos .send() en lugar de .emit() y retornamos el resultado
+    return firstValueFrom(
+      this.mathClient.send({ cmd: 'add_app_encryption_key' }, payloadInterno)
     );
   }
 }

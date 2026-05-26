@@ -1,8 +1,7 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AppService } from './app.service';
 import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { ApiKeyGuard } from './api-key.guard';
-import { RequireService } from './require-service.decorator';
 
 @ApiTags('App') // Etiqueta general para agrupar los endpoints de esta clase
 @ApiSecurity('AppId') 
@@ -18,5 +17,12 @@ export class AppController {
       
     const appId = request.appAuth.id_app; 
     return this.appService.get_data(appId);
+  }
+
+  @ApiOperation({ summary: 'Generar claves de encriptación para todas las aplicaciones.' })
+  @Post('migrate-encryption-keys')
+  async migrateEncryptionKeys(@Req() request: any) {
+    const appId = request.appAuth.id_app;
+    return this.appService.encrypkeyApp(appId);
   }
 }

@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionLogEvent } from '../events/transaction-log.event';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuditoriaService {
@@ -15,9 +16,12 @@ export class AuditoriaService {
   @OnEvent('audit.record', { async: true }) // async: true es clave para no bloquear el hilo principal
   async handleAuditLogEvent(payload: TransactionLogEvent) {
     console.log('🚨 ¡EL EVENTO SE DISPARÓ EN SEGUNDO PLANO!', payload.reference);
+    const transactionReference = crypto.randomUUID();
     try {
       // 1. Sanitizamos el request payload (quitar CVV, PAN completo, etc.)
       const sanitizedRequest = this.sanitizePayload(payload.requestPayload);
+
+      
 
       // 2. Guardamos en la base de datos
       await this.prisma.transaccionesServicios.create({
@@ -27,7 +31,7 @@ export class AuditoriaService {
           entidadName: payload.entidadName,
           idApp: payload.idApp,
           operation: payload.operation,
-          reference: payload.reference,
+          reference: transactionReference,
           requestPayload: sanitizedRequest,
           responsePayload: payload.responsePayload,
           status: payload.status,
@@ -35,10 +39,10 @@ export class AuditoriaService {
         },
       });
 
-      this.logger.debug(`📝 Auditoría guardada en 2do plano [Ref: ${payload.reference}]`);
+      this.logger.debug(`📝 Auditoría guardada en 2do plano [Ref: ${transactionReference}]`);
     } catch (error) {
       // Si la auditoría falla, NO rompe la transacción principal de la tarjeta
-      this.logger.error(`❌ Error guardando auditoría [Ref: ${payload.reference}]:`, error.message);
+      this.logger.error(`❌ Error guardando auditoría [Ref: ${transactionReference}]:`, error.message);
     }
   }
 

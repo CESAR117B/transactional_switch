@@ -174,7 +174,7 @@ model TokenizedCard { // <-- Nombre de modelo en PascalCase (estándar Prisma)
   idApp           Int      @map("id_app")
   
   // Credenciales y Token
-  firstokenToken  String      @map("firstoken_token") @db.Text
+  firstToken  String      @map("first_token") @db.Text
   cardTruncated   String      @map("card_truncated") @db.VarChar(25)
   franchise       String      @map("franchise") @db.VarChar(20)
   holderName      String      @map("holder_name") @db.VarChar(100)

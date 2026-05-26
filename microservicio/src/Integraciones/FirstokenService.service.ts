@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { ConfigDbService } from '../config-db/config-db.service';
@@ -6,6 +6,7 @@ import { TokenizeCardDto } from '../dto/tokenize-card.dto';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { UniversalCryptoService } from '../servicios/universal-crypto.service';
 
 @Injectable()
 export class FirsTokenService {
@@ -15,10 +16,13 @@ export class FirsTokenService {
     private readonly httpService: HttpService,
     private readonly configDb: ConfigDbService, // Inyectamos la configuración
     private readonly prisma: PrismaService,
-    private eventEmitter: EventEmitter2 // 👈 Inyectas el emisor
+    private eventEmitter: EventEmitter2, // 👈 Inyectas el emisor
+    private readonly universalCryptoService: UniversalCryptoService
   ) {}
 
-async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promise<any> { 
+// ... asegúrate de tener las demás importaciones necesarias
+
+  async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promise<any> { 
     // 1. Obtenemos la configuración
     const config = await this.configDb.getFirstTokenConfig();
 
@@ -43,12 +47,26 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
       
+      // 🔐 4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
+      const appRecord = await this.prisma.app.findUnique({
+        where: { id_app: idApp }, // Verifica si necesitas BigInt(idApp) dependiendo de tu esquema
+        select: { encryptionKey: true }
+      });
 
-      // 4. Mapeamos exactamente la respuesta hacia tu modelo de Prisma
+      if (!appRecord || !appRecord.encryptionKey) {
+        throw new InternalServerErrorException(`La app con ID ${idApp} no tiene una llave de encriptación configurada.`);
+      }
+
+      const tokenEncriptado = this.universalCryptoService.encrypt(
+        cardDetails.token, 
+        appRecord.encryptionKey
+      );
+
+      // 5. Mapeamos exactamente la respuesta hacia tu modelo de Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
         data: {
-          idApp: idApp, // Lo convertimos a BigInt como exige tu BD
-          firstokenToken: cardDetails.token,
+          idApp: idApp, // Lo convertimos a BigInt como exige tu BD si es necesario
+          firstToken: tokenEncriptado, // 👈 AQUÍ GUARDAMOS LA CADENA ENCRIPTADA
           cardTruncated: cardDetails.card_truncated,
           franchise: cardDetails.brand.toUpperCase(), // Ej: DINERS -> UPPERCASE
           holderName: responseData.card_holder,
@@ -62,15 +80,14 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         }
       });
 
-        this.logger.log(`✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`);
+      this.logger.log(`✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`);
 
-        this.eventEmitter.emit('audit.record', {
+      this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
         entidadId: savedCard.idCard,
         entidadName: 'tokenized_cards',
         idApp: idApp,
         operation: 'PERMANENT_TOKEN_CARD',
-        reference: responseData.custom_field_details.card.token, // El token generado por FirsToken
         requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
         responsePayload: response.data,
         status: response.status,
@@ -82,11 +99,9 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         ...responseData,
         db_id: savedCard.idCard.toString()
       };
-
-  
       
      } catch (error) {
-     const mensajeError = error.response?.data || error.message;
+      const mensajeError = error.response?.data || error.message;
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
         idApp: idApp,
@@ -137,7 +152,7 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
       const savedCard = await this.prisma.tokenizedCard.create({
         data: {
           idApp: idApp, 
-          firstokenToken: cardDetails.token, // En este caso será el UUID (ej. d54f0486-...)
+          firstToken: cardDetails.token, // En este caso será el UUID (ej. d54f0486-...)
           cardTruncated: cardDetails.card_truncated,
           franchise: cardDetails.brand.toUpperCase(), 
           holderName: responseData.card_holder,
@@ -158,7 +173,6 @@ async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promis
         entidadName: 'tokenized_cards',
         idApp: idApp,
         operation: 'TEMPORAL_TOKEN_CARD',
-        reference: responseData.custom_field_details.card.token, // El token generado por FirsToken
         requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
         responsePayload: response.data,
         status: response.status,
