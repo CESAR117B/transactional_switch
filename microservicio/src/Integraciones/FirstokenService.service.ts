@@ -146,13 +146,28 @@ export class FirsTokenService {
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
 
+      // 🔐 4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
+      const appRecord = await this.prisma.app.findUnique({
+        where: { id_app: idApp }, // Verifica si necesitas BigInt(idApp) dependiendo de tu esquema
+        select: { encryptionKey: true }
+      });
+
+      if (!appRecord || !appRecord.encryptionKey) {
+        throw new InternalServerErrorException(`La app con ID ${idApp} no tiene una llave de encriptación configurada.`);
+      }
+
+      const tokenEncriptado = this.universalCryptoService.encrypt(
+        cardDetails.token, 
+        appRecord.encryptionKey
+      );
+
        
 
       // 3. Mapeamos hacia Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
         data: {
           idApp: idApp, 
-          firstToken: cardDetails.token, // En este caso será el UUID (ej. d54f0486-...)
+          firstToken: tokenEncriptado, // En este caso será el UUID (ej. d54f0486-...)
           cardTruncated: cardDetails.card_truncated,
           franchise: cardDetails.brand.toUpperCase(), 
           holderName: responseData.card_holder,
