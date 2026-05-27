@@ -23,8 +23,8 @@ export class ApiKeyGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const appId = request.headers['x-app-id'];
-    const appKey = request.headers['x-app-key'];
+    const appId = request.headers['app_id'];
+    const appKey = request.headers['app_key'];
 
     if (!appId || !appKey) {
       throw new UnauthorizedException('Faltan credenciales de aplicación');

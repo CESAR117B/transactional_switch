@@ -7,11 +7,9 @@ async function bootstrap() {
    const config = new DocumentBuilder()
     .setTitle('Switch de pagos - API Gateway')
     .setDescription('Documentación de la API con Swagger')
-    .setVersion('1.6')
-    // 👇 1. Le enseñamos a Swagger que existe el header x-app-id
-    .addApiKey({ type: 'apiKey', name: 'x-app-id', in: 'header' }, 'AppId')
-    // 👇 2. Le enseñamos a Swagger que existe el header x-app-key
-    .addApiKey({ type: 'apiKey', name: 'x-app-key', in: 'header' }, 'AppKey')
+    .setVersion('1.7')
+    .addApiKey({ type: 'apiKey', name: 'app_id', in: 'header' }, 'App_ID')
+    .addApiKey({ type: 'apiKey', name: 'app_key', in: 'header' }, 'AppKey')
     .build();
     
   const document = SwaggerModule.createDocument(app, config);
