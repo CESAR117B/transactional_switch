@@ -17,6 +17,8 @@ model app {
   app_servicios     app_servicios[] 
   app_usuario       app_usuario[]   
   info_app          info_app?
+  fecha_creacion     DateTime?       @map("fecha_creacion") @db.Date
+  fecha_actualizacion DateTime?       @map("fecha_actualizacion") @db.Date
 
   tokenizedCards    TokenizedCard[]
   transaccionesServicios TransaccionesServicios[]
@@ -77,6 +79,8 @@ model integraciones {
   codigo                  String?                   @db.VarChar(100)
   descripcion             String?                   @db.VarChar(300)
   tipo                    String?                   @db.VarChar(50)
+  fecha_creacion         DateTime?                 @map("fecha_creacion") @db.Date
+  fecha_actualizacion     DateTime?                 @map("fecha_actualizacion") @db.Date
   servicios_integraciones servicios_integraciones[] 
   atributos_integraciones atributos_integraciones[]
 }
@@ -112,6 +116,8 @@ model servicios {
   codigo                  String                    @unique(map: "servicios_unique") @db.VarChar(100)
   descripcion             String?                   @db.VarChar(300)
   activo                  Boolean?                  @default(true)
+  fecha_creacion         DateTime?                  @map("fecha_creacion") @db.Date
+  fecha_actualizacion     DateTime?                 @map("fecha_actualizacion") @db.Date
   app_servicios           app_servicios[]           
   servicios_integraciones servicios_integraciones[] 
   servicios_controladores servicios_controladores[]
@@ -147,6 +153,8 @@ model usuarios {
   nombre      String?       @db.VarChar
   apellido    String?       @db.VarChar
   email       String?       @db.VarChar
+  fecha_creacion DateTime?     @map("fecha_creacion") @db.Date
+  fecha_actualizacion DateTime? @map("fecha_actualizacion") @db.Date
   app_usuario app_usuario[] 
 }
 
@@ -168,7 +176,7 @@ enum TokenStatus {
   REVOKED
 }
 
-enum TipeCard{
+enum TipeCard {
   TEMPORAL
   PERMANENT
 }
