@@ -8,7 +8,7 @@ async function bootstrap() {
     .setTitle('Switch de pagos - API Gateway')
     .setDescription('Documentación de la API con Swagger')
     .setVersion('1.7')
-    .addApiKey({ type: 'apiKey', name: 'app_id', in: 'header' }, 'App_ID')
+    .addApiKey({ type: 'apiKey', name: 'app_id', in: 'header' }, 'AppId')
     .addApiKey({ type: 'apiKey', name: 'app_key', in: 'header' }, 'AppKey')
     .build();
     
