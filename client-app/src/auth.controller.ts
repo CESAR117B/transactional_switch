@@ -31,6 +31,7 @@ export class AuthController {
 
     // 2. Si es válida, firmamos un token que expire en 1 hora
     const payload = { 
+      id_app: appInfo.id_app,
       sub: appInfo.identificador, 
       servicios: appInfo.servicios, 
       permisos: appInfo.permisos 

@@ -42,6 +42,7 @@ export class ApiKeyGuard implements CanActivate {
 
       // 5. Mapeamos el payload del JWT a la estructura 'appInfo' que ya usabas
       const appInfo = {
+        id_app: payload.id_app,
         identificador: payload.sub,
         servicios: payload.servicios || [],
         permisos: payload.permisos || [],
