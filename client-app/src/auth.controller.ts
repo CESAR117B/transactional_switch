@@ -1,8 +1,11 @@
 import { Body, Controller, Inject, Post, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ClientProxy } from "@nestjs/microservices";
+import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { firstValueFrom } from "rxjs";
+import { LoginDto } from "./dto/auth.dto";
 
+@ApiTags('App')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -11,7 +14,12 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  async login(@Body() credentials: { app_id: string; app_key: string }) {
+  @ApiOperation({ 
+    summary: 'Iniciar sesión de la aplicación', 
+    description: 'Valida las credenciales maestras de la app y retorna un token JWT válido por 1 hora.' 
+  })
+  @ApiResponse({ status: 401, description: 'Credenciales inválidas.' })
+  async login(@Body() credentials: LoginDto) {
     // 1. Validamos las credenciales enviando el mensaje al microservicio (como hacías en el Guard)
     const appInfo = await firstValueFrom(
       this.mathClient.send({ cmd: 'validar_app' }, { identificador: credentials.app_id, key: credentials.app_key })

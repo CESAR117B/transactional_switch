@@ -2,53 +2,62 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
-  Inject,
   UnauthorizedException,
   ForbiddenException,
-  Logger, // <--- 1. Importamos el Logger
+  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom, catchError, throwError } from 'rxjs';
+import { JwtService } from '@nestjs/jwt'; // Importamos el servicio de JWT
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
-  // 2. Instanciamos el Logger con el nombre de esta clase para identificarlo en la consola
   private readonly logger = new Logger(ApiKeyGuard.name); 
 
   constructor(
-    @Inject('MATH_SERVICE') private readonly mathClient: ClientProxy,
-    private reflector: Reflector,
+    private readonly jwtService: JwtService, // Inyectamos el JwtService (Reemplaza al mathClient)
+    private readonly reflector: Reflector,
   ) {}
 
-   async canActivate(context: ExecutionContext): Promise<boolean> {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    // Nota: Express/Fastify convierten los headers a minúsculas automáticamente
-    const appId = request.headers['app_id'];
-    const appKey = request.headers['app_key'];
+    
+    // 3. Extraemos el header estándar 'Authorization: Bearer <token>'
+    const authHeader = request.headers['authorization'];
 
-    if (!appId || !appKey) {
-      throw new UnauthorizedException('Faltan credenciales de aplicación (app_id o app_key)');
+    if (!authHeader) {
+      throw new UnauthorizedException('Falta el token de autenticación (Authorization Header)');
+    }
+
+    const [type, token] = authHeader.split(' ');
+
+    if (type !== 'Bearer' || !token) {
+      throw new UnauthorizedException('Formato de token inválido. Debe ser Bearer <token>');
     }
 
     try {
-      const appInfo = await firstValueFrom(
-        this.mathClient.send({ cmd: 'validar_app' }, { identificador: appId, key: appKey }).pipe(
-          catchError((error) => throwError(() => new UnauthorizedException(error.message))),
-        ),
-      );
+      // 4. Verificamos el token matemáticamente usando tu firma secreta
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: process.env.JWT_SECRET,
+      });
+
+      // 5. Mapeamos el payload del JWT a la estructura 'appInfo' que ya usabas
+      const appInfo = {
+        identificador: payload.sub,
+        servicios: payload.servicios || [],
+        permisos: payload.permisos || [],
+      };
 
       request.appAuth = appInfo;
 
-      // 👇 1. LOGS SEGUROS: Usamos ?. para evitar que .join() rompa la app si vienen nulos
-      this.logger.log(`✅ App Autenticada: ${appInfo.identificador}`);
+      //  TUS CÁMARAS DE SEGURIDAD (Se mantienen intactas) 
+      this.logger.log(`✅ App Autenticada vía JWT: ${appInfo.identificador}`);
       this.logger.log(`📦 Servicios habilitados: [${appInfo.servicios?.join(', ') || 'Ninguno'}]`);
       this.logger.log(`🔑 Controladores permitidos: [${appInfo.permisos?.join(', ') || 'Ninguno'}]`);
 
       const servicioExigido = this.reflector.get<string>('servicio_requerido', context.getClass());
       const comandoExigido = this.reflector.get<string>('comando_requerido', context.getHandler());
 
-      // 👇 2. VALIDACIONES SEGURAS: Verificamos que existan antes de usar .includes()
+      //  TUS VALIDACIONES (Se mantienen exactamente igual) 
       if (servicioExigido) {
         if (!appInfo.servicios || !appInfo.servicios.includes(servicioExigido)) {
           this.logger.warn(`⛔ Bloqueo: La app no tiene el servicio [${servicioExigido}]`);
@@ -66,13 +75,19 @@ export class ApiKeyGuard implements CanActivate {
       return true;
 
     } catch (error) {
-      // 👇 3. Imprimimos el error real en la consola de NestJS para que no sea un misterio la próxima vez
-      if (!(error instanceof ForbiddenException) && !(error instanceof UnauthorizedException)) {
-        this.logger.error(`Error interno en ApiKeyGuard: ${error.message}`, error.stack);
+      // Manejo inteligente de errores específicos de JWT
+      if (error.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('El token ha expirado. Por favor, solicita uno nuevo en /auth/login.');
+      }
+      if (error.name === 'JsonWebTokenError') {
+        throw new UnauthorizedException('Token inválido o corrupto.');
       }
       
       if (error instanceof ForbiddenException) throw error;
-      throw new UnauthorizedException('Error de autenticación con el microservicio: ' + error.message);
+      if (error instanceof UnauthorizedException) throw error;
+
+      this.logger.error(`Error interno en ApiKeyGuard: ${error.message}`, error.stack);
+      throw new UnauthorizedException('Error de autenticación: ' + error.message);
     }
   }
 }
