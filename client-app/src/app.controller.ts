@@ -5,7 +5,7 @@ import { ApiKeyGuard } from './api-key.guard';
 
 @ApiTags('App') // Etiqueta general para agrupar los endpoints de esta clase
 @ApiSecurity('AppId') 
-@ApiSecurity('AppKey')
+@ApiSecurity('AppKey') 
 @UseGuards(ApiKeyGuard) // Protegemos esta ruta con nuestro guard de API Key
 @Controller('app')
 export class AppController {
