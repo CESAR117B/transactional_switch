@@ -5,7 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
    const config = new DocumentBuilder()
-    .setTitle('Switch de pagos - API Gateway')
+    .setTitle('API Gateway')
     .setDescription('Documentación de la API con Swagger')
     .setVersion('1.7')
     .addBearerAuth()
