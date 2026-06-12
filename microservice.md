@@ -16,7 +16,7 @@ Este documento describe la arquitectura técnica, el modelo de datos y los flujo
 
 Para mitigar riesgos por exposición constante de credenciales maestras (`APP_ID` y `API_KEY`), el sistema migró a un esquema de desacoplamiento temporal.
 
-### Paso 1: Intercambio Inicial (Handshake)
+### Intercambio Inicial (Handshake)
 Una aplicación externa realiza una petición única de autenticación. El Gateway delega la verificación al microservicio y, si las credenciales existen y la App está activa, genera un JWT firmado con el secreto del servidor.
 
 * **Payload del JWT emitido:**
