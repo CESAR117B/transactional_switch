@@ -35,7 +35,7 @@ export class AppService {
     );
   }
 
-    async encrypkeyApp(appId: number) {
+  async encrypkeyApp(appId: number) {
     // 1. Armamos el objeto con la propiedad idApp que espera el microservicio
     const payloadInterno = { idApp: Number(appId) };
 
