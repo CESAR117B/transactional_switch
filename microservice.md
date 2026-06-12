@@ -4,22 +4,7 @@ Este documento describe la arquitectura técnica, el modelo de datos y los flujo
 
 ---
 
-### 🏛️ 1. Arquitectura del Sistema
-
-El ecosistema utiliza una arquitectura distribuida basada en **Seguridad Perimetral (Edge Security)** y **Client Credentials con JWT**.
-
-[ App (Cliente) ]
-│
-│ (HTTPS / JWT Bearer Token) <-- Cacheado por 55 min en Symfony
-▼
-[ NestJS API Gateway (Frontera) ] ──(Verifica JWT localmente en microsegundos)
-│
-│ (TCP / Redis / gRPC) ─── [ Solo para Auth Inicial: { cmd: 'validar_app' } ]
-▼
-[ NestJS Microservice (Bóveda) ] ─── [ Base de Datos (Prisma / PostgreSQL) ]
-
-
-### Componentes del Ecosistema
+### 1. Componentes del Ecosistema
 
 1. **App Cliente:** Consume la API del Switch. Genera tokens criptográficos locales para resguardar la base de datos de manera simétrica y consume endpoints protegidos por JWT.
 2. **API Gateway (NestJS):** Actúa como proxy reverso y guardián perimetral. Emite tokens JWT válidos por 1 hora mediante `/auth/login` y valida los accesos de los endpoints del negocio mediante el `ApiKeyGuard` de forma matemática sin consultar la base de datos en cada petición.
