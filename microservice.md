@@ -1,4 +1,4 @@
-## Documentación de Arquitectura de Seguridad y Uso del Switch de Pagos
+## Documentación de Arquitectura de Seguridad y Uso del Switch Transaccional
 
 Este documento describe la arquitectura técnica, el modelo de datos y los flujos de integración del ecosistema del Switch de Pagos, conectando una aplicación cliente, un **API Gateway** perimetral (NestJS) y un **Microservicio** interno de lógica de negocio (NestJS/Prisma).
 
