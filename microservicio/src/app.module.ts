@@ -14,6 +14,6 @@ import { IntegracionesModule } from './Integraciones/integraciones.module';
   imports: [ EventEmitterModule.forRoot(),
     PrismaModule, AuthModule, ServiciosModule, IntegracionesModule, ConfigDbModule, EncriptionKeysModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService]
 })
 export class AppModule {}
