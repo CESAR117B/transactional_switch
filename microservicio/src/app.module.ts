@@ -4,10 +4,11 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ServiciosModule } from './servicios/servicios.modules';
-import { IntegracionesModule } from './Integraciones/integraciones.module';
+
 import { ConfigDbModule } from './config-db/config-db.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EncriptionKeysModule } from './keys/encription.keys.module';
+import { IntegracionesModule } from './Integraciones/integraciones.module';
 
 @Module({
   imports: [ EventEmitterModule.forRoot(),
