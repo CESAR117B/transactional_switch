@@ -2,7 +2,10 @@ allowBuilds:
   '@scarf/scarf': true
   unrs-resolver: true
 
+minimumReleaseAgeExclude:
+  - globals@17.11.0
+
 overrides:
   brace-expansion: ">=5.0.8"
   "js-yaml": ">=5.2.2"
-
+  "fast-uri": ">=3.1.5"
