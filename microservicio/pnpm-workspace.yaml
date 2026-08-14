@@ -5,9 +5,13 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - globals@17.11.0
+  - '@nestjs/common@11.2.1'
+  - '@nestjs/core@11.2.1'
+  - '@nestjs/microservices@11.2.1'
+  - '@nestjs/platform-express@11.2.1'
+  - '@nestjs/testing@11.2.1'
 
 overrides:
   brace-expansion: ">=5.0.8"
   fast-uri: ">=3.1.5"
   js-yaml: " >=4.3.1"
-
