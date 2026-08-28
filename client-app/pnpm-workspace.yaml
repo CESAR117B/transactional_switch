@@ -70,6 +70,7 @@ minimumReleaseAgeExclude:
   - jest-worker@30.5.0
   - jest@30.5.0
   - pretty-format@30.5.0
+  - multer@2.3.0
 
 overrides:
   brace-expansion: ">=5.0.8"
