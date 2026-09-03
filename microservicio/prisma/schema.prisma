@@ -9,23 +9,21 @@ datasource db {
 }
 
 model app {
-  id_app            Int             @id(map: "app_pk") @default(autoincrement())
-  key               String          @unique(map: "app_unique") @db.VarChar(300)
-  activo            Boolean?        @default(true)
-  identificador_app String          @unique(map: "app_unique_1") @db.VarChar(300)  
-  encryptionKey     String?         @map("encryption_key") @db.VarChar(32) 
-  app_servicios     app_servicios[] 
-  app_usuario       app_usuario[]   
-  info_app          info_app?
-  fecha_creacion     DateTime?       @map("fecha_creacion") @db.Date
+  id_app              Int             @id(map: "app_pk") @default(autoincrement())
+  key                 String          @unique(map: "app_unique") @db.VarChar(300)
+  activo              Boolean?        @default(true)
+  identificador_app   String          @unique(map: "app_unique_1") @db.VarChar(300)
+  encryptionKey       String?         @map("encryption_key") @db.VarChar(32)
+  app_servicios       app_servicios[]
+  info_app            info_app?
+  fecha_creacion      DateTime?       @map("fecha_creacion") @db.Date
   fecha_actualizacion DateTime?       @map("fecha_actualizacion") @db.Date
 
-  tokenizedCards    TokenizedCard[]
+  tokenizedCards         TokenizedCard[]
   transaccionesServicios TransaccionesServicios[]
-  app_comisiones    app_comisiones[]
-  suscripciones     suscripciones[]
+  app_comisiones         app_comisiones[]
+  suscripciones          suscripciones[]
 }
-
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model app_servicios {
@@ -38,16 +36,6 @@ model app_servicios {
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model app_usuario {
-  id_usuario Int
-  id_app     Int
-  app        app?      @relation(fields: [id_app], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "app_usuario_app_fk")
-  usuarios   usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "app_usuario_usuarios_fk")
-
-  @@id([id_app, id_usuario])
-}
-
-
 
 model env {
   id_credencial Int     @id(map: "env_pk") @default(autoincrement())
@@ -56,7 +44,6 @@ model env {
   ambiente      String? @db.VarChar
   nombre        String? @db.VarChar
 }
-
 
 model info_app {
   id_info       Int     @id(map: "info_app_pk") @default(autoincrement())
@@ -74,9 +61,9 @@ model integraciones {
   codigo                  String?                   @db.VarChar(100)
   descripcion             String?                   @db.VarChar(300)
   tipo                    String?                   @db.VarChar(50)
-  fecha_creacion         DateTime?                 @map("fecha_creacion") @db.Date
+  fecha_creacion          DateTime?                 @map("fecha_creacion") @db.Date
   fecha_actualizacion     DateTime?                 @map("fecha_actualizacion") @db.Date
-  servicios_integraciones servicios_integraciones[] 
+  servicios_integraciones servicios_integraciones[]
   atributos_integraciones atributos_integraciones[]
 }
 
@@ -89,18 +76,17 @@ model logs {
 }
 
 model controladores {
-  id_controlador Int     @id(map: "controladores_pk") @default(autoincrement())
-  cmp        String @db.VarChar(500)
-  descripcion String? @db.VarChar(300)
+  id_controlador          Int                       @id(map: "controladores_pk") @default(autoincrement())
+  cmp                     String                    @db.VarChar(500)
+  descripcion             String?                   @db.VarChar(300)
   servicios_controladores servicios_controladores[]
 }
 
-
 model servicios_controladores {
-  id_servicio     Int
-  id_controlador  Int
-  controladores   controladores? @relation(fields: [id_controlador], references: [id_controlador], onDelete: Cascade, onUpdate: NoAction, map: "servicios_controladores_controladores_fk")
-  servicios       servicios?     @relation(fields: [id_servicio], references: [id_servicio], onDelete: Cascade, onUpdate: NoAction, map: "servicios_controladores_servicios_fk")
+  id_servicio    Int
+  id_controlador Int
+  controladores  controladores? @relation(fields: [id_controlador], references: [id_controlador], onDelete: Cascade, onUpdate: NoAction, map: "servicios_controladores_controladores_fk")
+  servicios      servicios?     @relation(fields: [id_servicio], references: [id_servicio], onDelete: Cascade, onUpdate: NoAction, map: "servicios_controladores_servicios_fk")
 
   @@id([id_servicio, id_controlador])
 }
@@ -111,10 +97,10 @@ model servicios {
   codigo                  String                    @unique(map: "servicios_unique") @db.VarChar(100)
   descripcion             String?                   @db.VarChar(300)
   activo                  Boolean?                  @default(true)
-  fecha_creacion         DateTime?                  @map("fecha_creacion") @db.Date
+  fecha_creacion          DateTime?                 @map("fecha_creacion") @db.Date
   fecha_actualizacion     DateTime?                 @map("fecha_actualizacion") @db.Date
-  app_servicios           app_servicios[]           
-  servicios_integraciones servicios_integraciones[] 
+  app_servicios           app_servicios[]
+  servicios_integraciones servicios_integraciones[]
   servicios_controladores servicios_controladores[]
 }
 
@@ -135,29 +121,23 @@ model tarifas {
   valor      Decimal? @db.Decimal
 }
 
-
-
-
 model usuarios {
-  id_usuario  Int           @id(map: "usuarios_pk") @default(autoincrement())
-  nombre      String?       @db.VarChar
-  apellido    String?       @db.VarChar
-  email       String?       @db.VarChar
-  fecha_creacion DateTime?     @map("fecha_creacion") @db.Date
+  id_usuario          Int       @id(map: "usuarios_pk") @default(autoincrement())
+  nombre              String?   @db.VarChar
+  apellido            String?   @db.VarChar
+  email               String?   @db.VarChar
+  fecha_creacion      DateTime? @map("fecha_creacion") @db.Date
   fecha_actualizacion DateTime? @map("fecha_actualizacion") @db.Date
-  app_usuario app_usuario[] 
 }
 
-
 model atributos_integraciones {
-  id_atributo_integration Int     @id(map: "atributos_integraciones_pk") @default(autoincrement())
-  valor                   String? @db.VarChar(300)
-  atributo                String? @db.VarChar(300)
-  ambiente                String? @db.VarChar(20)
+  id_atributo_integration Int            @id(map: "atributos_integraciones_pk") @default(autoincrement())
+  valor                   String?        @db.VarChar(300)
+  atributo                String?        @db.VarChar(300)
+  ambiente                String?        @db.VarChar(20)
   id_integracion          Int?
   integraciones           integraciones? @relation(fields: [id_integracion], references: [id_integracion], onDelete: Cascade, onUpdate: NoAction, map: "atributos_integraciones_integraciones_fk")
 }
-
 
 // 1. Definimos el ENUM para los estados
 enum TokenStatus {
@@ -171,62 +151,103 @@ enum TipeCard {
   PERMANENT
 }
 
+model TokenizedCard {
+  idCard BigInt @id @default(autoincrement()) @map("id_card")
+  idApp  Int    @map("id_app")
 
-model TokenizedCard { // <-- Nombre de modelo en PascalCase (estándar Prisma)
-  idCard          BigInt      @id @default(autoincrement()) @map("id_card")
-  idApp           Int      @map("id_app")
-  
   // Credenciales y Token
-  firstToken  String      @map("first_token") @db.Text
-  cardTruncated   String      @map("card_truncated") @db.VarChar(25)
-  franchise       String      @map("franchise") @db.VarChar(20)
-  holderName      String      @map("holder_name") @db.VarChar(100)
-  
+  firstToken    String @map("first_token") @db.Text
+  cardTruncated String @map("card_truncated") @db.VarChar(25)
+  franchise     String @map("franchise") @db.VarChar(20)
+  holderName    String @map("holder_name") @db.VarChar(100)
+
   // Fechas y atajos
-  expirationMonth String      @map("expiration_month") @db.VarChar(2)
-  expirationYear  String      @map("expiration_year") @db.VarChar(4)
-  lastFour        String      @map("last_four") @db.VarChar(4)
-  
+  expirationMonth String @map("expiration_month") @db.VarChar(2)
+  expirationYear  String @map("expiration_year") @db.VarChar(4)
+  lastFour        String @map("last_four") @db.VarChar(4)
+
   // Estados y metadata
-  status          TokenStatus @default(PENDING)
-  typeCard        TipeCard?   @map("type_card")   
-  scheme          String      @default("7") @db.VarChar(5)
-  metadata        Json?       // Opcional para guardar tags o IDs extras
-  
+  status   TokenStatus @default(PENDING)
+  typeCard TipeCard?   @map("type_card")
+  scheme   String      @default("7") @db.VarChar(5)
+  metadata Json? // Opcional para guardar tags o IDs extras
+
   // Timestamps y Soft Delete
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
-  deletedAt       DateTime?   @map("deleted_at")
-  app             app?        @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  app       app?      @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
 
   @@map("tokenized_cards") // <-- Mapeo explícito a la tabla de la DB
 }
 
 model TransaccionesServicios {
-  idTransaccion   BigInt      @id @default(autoincrement()) @map("id_transaccion")
-  
+  idTransaccion BigInt @id @default(autoincrement()) @map("id_transaccion")
+
   // Identificador del servicio
-  servicio        String      @db.VarChar(30)
-  entidadId       BigInt?     @map("entidad_id")
-  entidadName     String?     @map("entidad_name") @db.VarChar(100)
-  idApp           Int      @map("id_app")
-  operation       String      @db.VarChar(50)
-  reference       String      @unique @db.VarChar(60)// Referencia única para evitar duplicados
-  
+  servicio    String  @db.VarChar(30)
+  entidadId   BigInt? @map("entidad_id")
+  entidadName String? @map("entidad_name") @db.VarChar(100)
+  idApp       Int     @map("id_app")
+  operation   String  @db.VarChar(50)
+  reference   String  @unique @db.VarChar(60) // Referencia única para evitar duplicados
+
   // Datos
-  requestPayload  Json        @map("request_payload")
-  responsePayload Json        @map("response_payload")
-  
+  requestPayload  Json @map("request_payload")
+  responsePayload Json @map("response_payload")
+
   // Estado
-  status          Int
-  errorMessage    String?     @map("error_message") @db.Text// Detalles del error en caso de fallo
+  status       Int
+  errorMessage String? @map("error_message") @db.Text // Detalles del error en caso de fallo
 
-  createdAt       DateTime    @default(now()) @map("created_at")
-  app             app?        @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
+  createdAt DateTime                        @default(now()) @map("created_at")
+  app       app?                            @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
+  detalles  TransaccionesBancariasDetalle[]
 
-  @@map("transacciones_servicios")
   @@index([servicio, entidadId])
   @@index([reference])
+  @@map("transacciones_servicios")
+}
+
+model TransaccionesBancariasDetalle {
+  id_detalle    String @id @default(uuid()) @map("id_detalle") @db.Uuid
+  idTransaccion BigInt @map("id_transaccion")
+  secuencia     Int    @map("secuencia")
+
+  // Identificación del Beneficiario
+  beneficiarioTipoId         String  @map("beneficiario_tipo_id") @db.VarChar(2) // C: Cédula, R: RUC, P: Pasaporte
+  beneficiarioIdentificacion String  @map("beneficiario_identificacion") @db.VarChar(20)
+  beneficiarioNombre         String  @map("beneficiario_nombre") @db.VarChar(100)
+  beneficiarioCuenta         String? @map("beneficiario_cuenta") @db.VarChar(34)
+  beneficiarioBancoCodigo    String? @map("beneficiario_banco_codigo") @db.VarChar(10)
+
+  // Valores y Tipos de Pago
+  monto               Decimal @db.Decimal(12, 2)
+  moneda              String  @default("USD") @map("moneda") @db.VarChar(3)
+  formaPago           String  @map("forma_pago") @db.VarChar(10) // CTA, CHQ, EFE, SPI
+  referenciaDocumento String? @map("referencia_documento") @db.VarChar(50)
+
+  // Campos Específicos para Transferencias al Exterior (Transfer Full)
+  codigoSwiftAba       String? @map("codigo_swift_aba") @db.VarChar(20)
+  conceptoInvisibles   String? @map("concepto_invisibles") @db.VarChar(100)
+  codigoExoneracionIsd String? @map("codigo_exoneracion_isd") @db.VarChar(10)
+
+  // Conciliación Transaccional Individual
+  estadoItem       String  @default("PENDIENTE") @map("estado_item") @db.VarChar(20) // PENDIENTE, PROCESADO, ERROR
+  codigoRespuesta  String? @map("codigo_respuesta") @db.VarChar(20)
+  mensajeRespuesta String? @map("mensaje_respuesta") @db.Text
+
+  // Tiempos y Relaciones
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  transaccionServicio TransaccionesServicios @relation(fields: [idTransaccion], references: [idTransaccion], onDelete: Cascade, map: "transacciones_detalle_transaccion_fk")
+
+  @@unique([idTransaccion, secuencia])
+  @@index([idTransaccion])
+  @@index([beneficiarioIdentificacion])
+  @@index([estadoItem])
+  @@map("transacciones_bancarias_detalle")
 }
 
 enum tipcomisiones {
@@ -234,23 +255,22 @@ enum tipcomisiones {
   PORCENTAJE
 }
 
-
 model comisiones {
-  id_comision Int     @id(map: "comisiones_pk") @default(autoincrement())
-  nombre      String? @db.VarChar
-  descripcion String? @db.VarChar
-  tipo        tipcomisiones? @map("tipo") 
-  valor       Decimal? @db.Decimal
-  fecha_creacion DateTime? @map("fecha_creacion") @db.Date
-  fecha_actualizacion DateTime? @map("fecha_actualizacion") @db.Date
-  app_comisiones app_comisiones[]
+  id_comision         Int              @id(map: "comisiones_pk") @default(autoincrement())
+  nombre              String?          @db.VarChar
+  descripcion         String?          @db.VarChar
+  tipo                tipcomisiones?   @map("tipo")
+  valor               Decimal?         @db.Decimal
+  fecha_creacion      DateTime?        @map("fecha_creacion") @db.Date
+  fecha_actualizacion DateTime?        @map("fecha_actualizacion") @db.Date
+  app_comisiones      app_comisiones[]
 }
 
 model app_comisiones {
   id_app      Int
   id_comision Int
-  app         app?      @relation(fields: [id_app], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "app_comisiones_app_fk")
-  comisiones   comisiones? @relation(fields: [id_comision], references: [id_comision], onDelete: Cascade, onUpdate: NoAction, map: "app_comisiones_comisiones_fk")
+  app         app?        @relation(fields: [id_app], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "app_comisiones_app_fk")
+  comisiones  comisiones? @relation(fields: [id_comision], references: [id_comision], onDelete: Cascade, onUpdate: NoAction, map: "app_comisiones_comisiones_fk")
 
   @@id([id_app, id_comision])
 }
@@ -266,7 +286,7 @@ model planes {
   descripcion         String?         @db.VarChar
   valor               Decimal?        @db.Decimal(10, 2)
   moneda              String          @default("USD") @db.VarChar(3) // 👈 Importante para el cobro
-  frecuencia          concurrencia?         
+  frecuencia          concurrencia?
   fecha_creacion      DateTime?       @default(now()) @map("fecha_creacion") @db.Date
   fecha_actualizacion DateTime?       @updatedAt @map("fecha_actualizacion") @db.Date
   suscripciones       suscripciones[]
@@ -280,17 +300,17 @@ enum estadoSuscripcion {
 }
 
 model suscripciones {
-  id_suscripcion          Int                       @id(map: "suscripciones_pk") @default(autoincrement())
-  id_plan                 Int
-  id_app                  Int
-  id_tarjeta_cobro        Int?                      // 👈 Token asociado para el cobro automático
-  current_period_start    DateTime?                 @map("fecha_inicio") @db.Date
-  current_period_end      DateTime?                 @map("fecha_fin") @db.Date
-  cancel_at_period_end    Boolean                   @default(false) @map("cancelar_al_final") // 👈 Corregido a Boolean
-  estado                  estadoSuscripcion?        @default(ACTIVA) @map("estado")
-  fecha_creacion          DateTime?                 @default(now()) @map("fecha_creacion") @db.Date
-  fecha_actualizacion     DateTime?                 @updatedAt @map("fecha_actualizacion") @db.Date
-  
+  id_suscripcion       Int                @id(map: "suscripciones_pk") @default(autoincrement())
+  id_plan              Int
+  id_app               Int
+  id_tarjeta_cobro     Int? 
+  current_period_start DateTime?          @map("fecha_inicio") @db.Date
+  current_period_end   DateTime?          @map("fecha_fin") @db.Date
+  cancel_at_period_end Boolean            @default(false) @map("cancelar_al_final") // Corregido a Boolean
+  estado               estadoSuscripcion? @default(ACTIVA) @map("estado")
+  fecha_creacion       DateTime?          @default(now()) @map("fecha_creacion") @db.Date
+  fecha_actualizacion  DateTime?          @updatedAt @map("fecha_actualizacion") @db.Date
+
   plan                    planes?                   @relation(fields: [id_plan], references: [id_plan], onDelete: Cascade, onUpdate: NoAction, map: "suscripciones_planes_fk")
   app                     app?                      @relation(fields: [id_app], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "suscripciones_app_fk")
   suscripciones_historial suscripciones_historial[]
@@ -303,18 +323,18 @@ enum estadoPago {
 }
 
 model suscripciones_historial {
-  id_historial      Int               @id(map: "suscripciones_historial_pk") @default(autoincrement())
-  id_suscripcion    Int
-  subtotal          Decimal?          @db.Decimal(10, 2)
-  iva               Decimal?          @db.Decimal(10, 2)
-  total             Decimal?          @db.Decimal(10, 2)
-  referencia_cobro  String?           @db.VarChar(100) // 👈 Para guardar el ID de la transacción exitosa o fallida
-  fecha_registro    DateTime?         @default(now()) @map("fecha_registro") @db.Date
-  fecha_pago        DateTime?         @map("fecha_pago") @db.Date
-  estado_pago       estadoPago?       @default(PENDIENTE) @map("estado_pago")
-  
-  suscripcion       suscripciones?    @relation(fields: [id_suscripcion], references: [id_suscripcion], onDelete: Cascade, onUpdate: NoAction, map: "suscripciones_historial_suscripciones_fk")
-  facturas          facturas[]        // 👈 Agregada la relación inversa
+  id_historial     Int         @id(map: "suscripciones_historial_pk") @default(autoincrement())
+  id_suscripcion   Int
+  subtotal         Decimal?    @db.Decimal(10, 2)
+  iva              Decimal?    @db.Decimal(10, 2)
+  total            Decimal?    @db.Decimal(10, 2)
+  referencia_cobro String?     @db.VarChar(100) 
+  fecha_registro   DateTime?   @default(now()) @map("fecha_registro") @db.Date
+  fecha_pago       DateTime?   @map("fecha_pago") @db.Date
+  estado_pago      estadoPago? @default(PENDIENTE) @map("estado_pago")
+
+  suscripcion suscripciones? @relation(fields: [id_suscripcion], references: [id_suscripcion], onDelete: Cascade, onUpdate: NoAction, map: "suscripciones_historial_suscripciones_fk")
+  facturas    facturas[] 
 }
 
 enum EstadoFactura {
@@ -324,13 +344,13 @@ enum EstadoFactura {
 }
 
 model facturas {
-  id_factura        Int                       @id(map: "facturas_pk") @default(autoincrement())
-  id_historial      Int                       @unique // 👈 Suele ser 1 a 1 con el historial
-  numero_factura    String?                   @db.VarChar(50) // 👈 Identificador secuencial (Ej: FAC-001)
-  fecha_registro    DateTime?                 @default(now()) @map("fecha_registro") @db.Date
-  fecha_emision     DateTime?                 @map("fecha_emision") @db.Date
-  fecha_vencimiento DateTime?                 @map("fecha_vencimiento") @db.Date
-  estado            EstadoFactura?            @default(PENDIENTE) @map("estado")
-  
-  historial         suscripciones_historial   @relation(fields: [id_historial], references: [id_historial], onDelete: Cascade) // 👈 Relación reparada
+  id_factura        Int            @id(map: "facturas_pk") @default(autoincrement())
+  id_historial      Int            @unique // Suele ser 1 a 1 con el historial
+  numero_factura    String?        @db.VarChar(50) // Identificador secuencial (Ej: FAC-001)
+  fecha_registro    DateTime?      @default(now()) @map("fecha_registro") @db.Date
+  fecha_emision     DateTime?      @map("fecha_emision") @db.Date
+  fecha_vencimiento DateTime?      @map("fecha_vencimiento") @db.Date
+  estado            EstadoFactura? @default(PENDIENTE) @map("estado")
+
+  historial suscripciones_historial @relation(fields: [id_historial], references: [id_historial], onDelete: Cascade) // 👈 Relación reparada
 }
