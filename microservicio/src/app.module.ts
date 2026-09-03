@@ -8,7 +8,7 @@ import { ServiciosModule } from './servicios/servicios.modules';
 import { ConfigDbModule } from './config-db/config-db.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EncriptionKeysModule } from './keys/encription.keys.module';
-import { IntegracionesModule } from './Integraciones/Integraciones.module';
+import { IntegracionesModule } from './Integraciones/integraciones.module';
 
 
 @Module({
