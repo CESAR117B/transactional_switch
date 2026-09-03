@@ -17,6 +17,14 @@ export interface FirstTokenConfig {
     retry_attempts: number;  
 }
 
+export interface ProdubancoConfig {
+    wsdl_url: string;
+    empresa: string;
+    usuario: string;
+    password: string;          // WDS API
+}
+
+
 interface CacheItem<T> {
   data: T;
   expiresAt: number;
@@ -30,11 +38,13 @@ export class ConfigDbService {
 
     // Corregido: Instanciamos el Map vacío para poder usar .get() y .set()
     private firstTokenConfigCache = new Map<string, CacheItem<FirstTokenConfig>>();
+    private produbancoConfigCache = new Map<string, CacheItem<ProdubancoConfig>>();
 
     constructor(private readonly prisma: PrismaService){}
 
     clearCache() {
         this.firstTokenConfigCache.clear();
+        this.produbancoConfigCache.clear();
         this.logger.log('Cache limpiada exitosamente');
     }
 
@@ -108,6 +118,71 @@ export class ConfigDbService {
 
         // 6. Guardamos el resultado final en el Map de caché
         this.firstTokenConfigCache.set('FIRSTOKEN', {
+            data: finalConfig,
+            expiresAt: Date.now() + this.CACHE_TTL
+        });
+
+        return finalConfig;
+    }
+
+
+    async getProdubancoConfig(): Promise<ProdubancoConfig> {
+
+        const cached = this.produbancoConfigCache.get('PRODUBANCO');
+        
+        if (cached && cached.expiresAt > Date.now()) {
+            this.logger.debug(`Configuración de Produbanco recuperada desde caché`);
+            return cached.data;
+        }
+
+        this.logger.log(`Consultando configuración de Produbanco en Base de Datos`);
+
+        const integracion = await this.prisma.integraciones.findFirst({
+            where: {
+                codigo: 'SPR_PRODUBANCO', // El código fijo de tu integración
+                activo: true
+            },
+            include: {
+                atributos_integraciones: true
+            }
+        });
+
+        if (!integracion || integracion.atributos_integraciones.length === 0) {
+            throw new RpcException({ 
+                status: 404, 
+                message: `Configuración de Produbanco no encontrada o inactiva en la base de datos` 
+            });
+        }
+
+        const config: Partial<ProdubancoConfig> = {};
+
+        integracion.atributos_integraciones.forEach(attr => {
+            const valor = (attr.valor || '').trim(); 
+            
+            switch (attr.atributo) {
+                case 'PRODUBANCO_WSDL_URL': config.wsdl_url = valor; break;
+                case 'PRODUBANCO_EMPRESA': config.empresa = valor; break;
+                case 'PRODUBANCO_USUARIO': config.usuario = valor; break;
+                case 'PRODUBANCO_PASSWORD': config.password = valor; break;
+            }
+        });
+
+        // Validación de campos obligatorios (igual que getFirstTokenConfig)
+        if (!config.wsdl_url || !config.empresa || !config.usuario || !config.password) {
+            const faltantes: string[] = [];
+            if (!config.wsdl_url) faltantes.push('PRODUBANCO_WSDL_URL');
+            if (!config.empresa) faltantes.push('PRODUBANCO_EMPRESA');
+            if (!config.usuario) faltantes.push('PRODUBANCO_USUARIO');
+            if (!config.password) faltantes.push('PRODUBANCO_PASSWORD');
+            throw new RpcException({
+                status: 500,
+                message: `Faltan atributos obligatorios de Produbanco en BD: ${faltantes.join(', ')}`,
+            });
+        }
+
+        const finalConfig = config as ProdubancoConfig;
+
+        this.produbancoConfigCache.set('PRODUBANCO', {
             data: finalConfig,
             expiresAt: Date.now() + this.CACHE_TTL
         });

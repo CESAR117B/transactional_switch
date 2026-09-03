@@ -37,7 +37,8 @@
     "dotenv": "^17.4.2",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "soap": "^1.11.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
@@ -84,9 +85,8 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   },
-
-   "overrides": {
-    "brace-expansion":"^5.0.8",
+  "overrides": {
+    "brace-expansion": "^5.0.8",
     "js-yaml": "^4.1.2",
     "@hono/node-server": "^1.19.13"
   }
