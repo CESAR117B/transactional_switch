@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../prisma/prisma.service'; // Ajusta la ruta a tu PrismaService
 import { ProdubancoSoapService } from '../Integraciones/ProdubancoSoap.service';
 import { CrearPagoLoteDto, PagoDetalleItemDto } from './dto/crear-pago-lote.dto';
@@ -269,19 +270,19 @@ ${lineasDetalle}
 
   private validarLotePago(data: CrearPagoLoteDto): void {
     if (!data.cuentaEmpresa || !data.referenciaLote) {
-      throw new BadRequestException('Falta la cuenta de origen o la referencia del lote.');
+      throw new RpcException({ statusCode: 400, message: 'Falta la cuenta de origen o la referencia del lote.' });
     }
     if (!data.detalles || !Array.isArray(data.detalles) || data.detalles.length === 0) {
-      throw new BadRequestException('El lote de pagos debe incluir al menos un detalle.');
+      throw new RpcException({ statusCode: 400, message: 'El lote de pagos debe incluir al menos un detalle.' });
     }
   }
 
   private validarLoteTransferencia(data: CrearTransferenciaLoteDto): void {
     if (!data.cuentaEmpresa || !data.referenciaLote) {
-      throw new BadRequestException('Falta la cuenta de origen o la referencia del lote.');
+      throw new RpcException({ statusCode: 400, message: 'Falta la cuenta de origen o la referencia del lote.' });
     }
     if (!data.detalles || !Array.isArray(data.detalles) || data.detalles.length === 0) {
-      throw new BadRequestException('El lote de transferencias debe incluir al menos un detalle.');
+      throw new RpcException({ statusCode: 400, message: 'El lote de transferencias debe incluir al menos un detalle.' });
     }
   }
 }
