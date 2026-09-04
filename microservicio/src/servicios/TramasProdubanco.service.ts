@@ -99,7 +99,7 @@ export class TramasProdubancoService {
       data: {
         servicio: 'PRODUBANCO',
         idApp: idApp,
-        operation: 'PAGO_MASIVO',
+        operation: 'SPR_PRODUBANCO-PAGO',
         reference: data.referenciaLote,
         requestPayload: JSON.parse(JSON.stringify(data)),
         responsePayload: {},
@@ -131,7 +131,7 @@ export class TramasProdubancoService {
       data: {
         servicio: 'PRODUBANCO',
         idApp: idApp,
-        operation: 'TRANSFERENCIA_EXTERIOR',
+        operation: 'SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR',
         reference: data.referenciaLote,
         requestPayload: JSON.parse(JSON.stringify(data)),
         responsePayload: {},
