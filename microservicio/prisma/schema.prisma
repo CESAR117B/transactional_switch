@@ -185,12 +185,13 @@ model TransaccionesServicios {
   idTransaccion BigInt @id @default(autoincrement()) @map("id_transaccion")
 
   // Identificador del servicio
-  servicio    String  @db.VarChar(30)
-  entidadId   BigInt? @map("entidad_id")
-  entidadName String? @map("entidad_name") @db.VarChar(100)
-  idApp       Int     @map("id_app")
-  operation   String  @db.VarChar(50)
-  reference   String  @unique @db.VarChar(60) // Referencia única para evitar duplicados
+  servicio      String  @db.VarChar(30)
+  entidadId     BigInt? @map("entidad_id")
+  entidadName   String? @map("entidad_name") @db.VarChar(100)
+  idApp         Int     @map("id_app")
+  operation     String  @db.VarChar(50)
+  reference     String  @db.Text // Cifrado con UniversalCryptoService (iv:authTag:cipher)
+  referenceHash String? @unique @map("reference_hash") @db.VarChar(64) // sha256(referenciaLote) para unicidad/busqueda deterministica - nullable para migracion, luego NOT NULL tras backfill
 
   // Datos
   requestPayload  Json @map("request_payload")
@@ -205,7 +206,7 @@ model TransaccionesServicios {
   detalles  TransaccionesBancariasDetalle[]
 
   @@index([servicio, entidadId])
-  @@index([reference])
+  @@index([referenceHash])
   @@map("transacciones_servicios")
 }
 
@@ -214,11 +215,11 @@ model TransaccionesBancariasDetalle {
   idTransaccion BigInt @map("id_transaccion")
   secuencia     Int    @map("secuencia")
 
-  // Identificación del Beneficiario
+  // Identificación del Beneficiario - cifrados con UniversalCryptoService (iv:authTag:cipher) -> Text
   beneficiarioTipoId         String  @map("beneficiario_tipo_id") @db.VarChar(2) // C: Cédula, R: RUC, P: Pasaporte
-  beneficiarioIdentificacion String  @map("beneficiario_identificacion") @db.VarChar(20)
+  beneficiarioIdentificacion String  @map("beneficiario_identificacion") @db.Text
   beneficiarioNombre         String  @map("beneficiario_nombre") @db.VarChar(100)
-  beneficiarioCuenta         String? @map("beneficiario_cuenta") @db.VarChar(34)
+  beneficiarioCuenta         String? @map("beneficiario_cuenta") @db.Text
   beneficiarioBancoCodigo    String? @map("beneficiario_banco_codigo") @db.VarChar(10)
 
   // Valores y Tipos de Pago
@@ -228,7 +229,7 @@ model TransaccionesBancariasDetalle {
   referenciaDocumento String? @map("referencia_documento") @db.VarChar(50)
 
   // Campos Específicos para Transferencias al Exterior (Transfer Full)
-  codigoSwiftAba       String? @map("codigo_swift_aba") @db.VarChar(20)
+  codigoSwiftAba       String? @map("codigo_swift_aba") @db.Text
   conceptoInvisibles   String? @map("concepto_invisibles") @db.VarChar(100)
   codigoExoneracionIsd String? @map("codigo_exoneracion_isd") @db.VarChar(10)
 
@@ -303,7 +304,7 @@ model suscripciones {
   id_suscripcion       Int                @id(map: "suscripciones_pk") @default(autoincrement())
   id_plan              Int
   id_app               Int
-  id_tarjeta_cobro     Int? 
+  id_tarjeta_cobro     Int?
   current_period_start DateTime?          @map("fecha_inicio") @db.Date
   current_period_end   DateTime?          @map("fecha_fin") @db.Date
   cancel_at_period_end Boolean            @default(false) @map("cancelar_al_final") // Corregido a Boolean
@@ -328,13 +329,13 @@ model suscripciones_historial {
   subtotal         Decimal?    @db.Decimal(10, 2)
   iva              Decimal?    @db.Decimal(10, 2)
   total            Decimal?    @db.Decimal(10, 2)
-  referencia_cobro String?     @db.VarChar(100) 
+  referencia_cobro String?     @db.VarChar(100)
   fecha_registro   DateTime?   @default(now()) @map("fecha_registro") @db.Date
   fecha_pago       DateTime?   @map("fecha_pago") @db.Date
   estado_pago      estadoPago? @default(PENDIENTE) @map("estado_pago")
 
   suscripcion suscripciones? @relation(fields: [id_suscripcion], references: [id_suscripcion], onDelete: Cascade, onUpdate: NoAction, map: "suscripciones_historial_suscripciones_fk")
-  facturas    facturas[] 
+  facturas    facturas[]
 }
 
 enum EstadoFactura {

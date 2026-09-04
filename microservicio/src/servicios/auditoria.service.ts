@@ -17,13 +17,14 @@ export class AuditoriaService {
   async handleAuditLogEvent(payload: TransactionLogEvent) {
     console.log('🚨 ¡EL EVENTO SE DISPARÓ EN SEGUNDO PLANO!', payload.reference);
     const transactionReference = crypto.randomUUID();
+    const referenceHash = crypto.createHash('sha256').update(transactionReference, 'utf8').digest('hex');
     try {
       // 1. Sanitizamos el request payload (quitar CVV, PAN completo, etc.)
       const sanitizedRequest = this.sanitizePayload(payload.requestPayload);
 
-      
-
       // 2. Guardamos en la base de datos
+      // Opcion 1: reference plaintext (UUID no sensible) + referenceHash para mantener unique/index compat con PRODUBANCO cifrado
+      // Mantiene referenceHash nullable en schema para no romper Firstoken si luego se hace NOT NULL
       await this.prisma.transaccionesServicios.create({
         data: {
           servicio: payload.servicio,
@@ -32,6 +33,7 @@ export class AuditoriaService {
           idApp: payload.idApp,
           operation: payload.operation,
           reference: transactionReference,
+          referenceHash,
           requestPayload: sanitizedRequest,
           responsePayload: payload.responsePayload,
           status: payload.status,

@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service'; // Ajusta la ruta a tu
 import { ProdubancoSoapService } from '../Integraciones/ProdubancoSoap.service';
 import { CrearPagoLoteDto, PagoDetalleItemDto } from './dto/crear-pago-lote.dto';
 import { CrearTransferenciaLoteDto, TransferenciaDetalleItemDto } from './dto/crear-transferencia-lote.dto';
+import { UniversalCryptoService } from './universal-crypto.service';
+import * as crypto from 'crypto';
 
 
 // Estados transaccionales internos
@@ -20,6 +22,7 @@ export class TramasProdubancoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly soapProdubanco: ProdubancoSoapService,
+    private readonly universalCryptoService: UniversalCryptoService,
   ) {}
 
   /**
@@ -91,26 +94,69 @@ export class TramasProdubancoService {
   // MÉTODOS DE PERSISTENCIA EN BD (PRISMA)
   // ==========================================
 
+  // Helpers de cifrado - server cifra, client descifra con la misma encryptionKey (32 chars)
+  private async getEncryptionKey(idApp: number): Promise<string> {
+    const appRecord = await this.prisma.app.findUnique({
+      where: { id_app: idApp },
+      select: { encryptionKey: true },
+    });
+    if (!appRecord || !appRecord.encryptionKey) {
+      throw new RpcException({
+        statusCode: 500,
+        message: `La app con ID ${idApp} no tiene llave de encriptación configurada. Genere una con add_app_encryption_key. El client desencripta con la misma llave.`,
+      });
+    }
+    if (appRecord.encryptionKey.length !== 32) {
+      throw new RpcException({
+        statusCode: 500,
+        message: `La llave de encriptación de la app ${idApp} debe tener exactamente 32 caracteres.`,
+      });
+    }
+    return appRecord.encryptionKey;
+  }
+
+  private sha256(value: string): string {
+    return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
+  }
+
   /**
    * Crea el registro de Cabecera y Detalle para Pagos Locales[cite: 4].
+   * Cifra en BD: cuentaEmpresa, identificacion, cuenta, reference (via referenceEncrypted + referenceHash unique). Client desencripta con encryptionKey.
    */
   private async guardarTransaccionPagoBD(idApp: number, data: CrearPagoLoteDto) {
+    const secretKey = await this.getEncryptionKey(idApp);
+    const referenceEncrypted = this.universalCryptoService.encrypt(data.referenciaLote, secretKey);
+    const referenceHash = this.sha256(data.referenciaLote);
+
+    // Payload cifrado: cuentaEmpresa + identificacion + cuenta dentro de detalles
+    const payloadCifrado = {
+      ...JSON.parse(JSON.stringify(data)),
+      cuentaEmpresa: this.universalCryptoService.encrypt(data.cuentaEmpresa, secretKey),
+      referenciaLote: referenceEncrypted, // tambien cifrado en payload para no exponer referencia
+      detalles: data.detalles.map((d) => ({
+        ...JSON.parse(JSON.stringify(d)),
+        identificacion: this.universalCryptoService.encrypt(d.identificacion, secretKey),
+        cuenta: d.cuenta ? this.universalCryptoService.encrypt(d.cuenta, secretKey) : d.cuenta,
+      })),
+    };
+
     return this.prisma.transaccionesServicios.create({
       data: {
         servicio: 'PRODUBANCO',
         idApp: idApp,
         operation: 'SPR_PRODUBANCO-PAGO',
-        reference: data.referenciaLote,
-        requestPayload: JSON.parse(JSON.stringify(data)),
+        reference: referenceEncrypted,
+        referenceHash,
+        requestPayload: payloadCifrado,
         responsePayload: {},
         status: EstadoTransaccion.PENDIENTE,
         detalles: {
           create: data.detalles.map((item: PagoDetalleItemDto) => ({
             secuencia: item.secuencia,
             beneficiarioTipoId: item.tipoId,
-            beneficiarioIdentificacion: item.identificacion,
+            beneficiarioIdentificacion: this.universalCryptoService.encrypt(item.identificacion, secretKey),
             beneficiarioNombre: item.nombre,
-            beneficiarioCuenta: item.cuenta || null,
+            beneficiarioCuenta: item.cuenta ? this.universalCryptoService.encrypt(item.cuenta, secretKey) : null,
             beneficiarioBancoCodigo: item.formaPago === 'CTA' ? '0036' : item.bancoCodigo || null,
             monto: item.monto,
             moneda: 'USD',
@@ -125,30 +171,47 @@ export class TramasProdubancoService {
 
   /**
    * Crea el registro de Cabecera y Detalle para Transferencias al Exterior[cite: 4].
+   * Cifra en BD: cuentaEmpresa, identificacion (beneficiarioCuenta), cuenta (beneficiarioCuenta), reference.
    */
   private async guardarTransaccionTransferenciaBD(idApp: number, data: CrearTransferenciaLoteDto) {
+    const secretKey = await this.getEncryptionKey(idApp);
+    const referenceEncrypted = this.universalCryptoService.encrypt(data.referenciaLote, secretKey);
+    const referenceHash = this.sha256(data.referenciaLote);
+
+    const payloadCifrado = {
+      ...JSON.parse(JSON.stringify(data)),
+      cuentaEmpresa: this.universalCryptoService.encrypt(data.cuentaEmpresa, secretKey),
+      referenciaLote: referenceEncrypted,
+      detalles: data.detalles.map((d) => ({
+        ...JSON.parse(JSON.stringify(d)),
+        beneficiarioCuenta: this.universalCryptoService.encrypt(d.beneficiarioCuenta, secretKey),
+        codigoSwiftAba: d.codigoSwiftAba ? this.universalCryptoService.encrypt(d.codigoSwiftAba, secretKey) : d.codigoSwiftAba,
+      })),
+    };
+
     return this.prisma.transaccionesServicios.create({
       data: {
         servicio: 'PRODUBANCO',
         idApp: idApp,
         operation: 'SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR',
-        reference: data.referenciaLote,
-        requestPayload: JSON.parse(JSON.stringify(data)),
+        reference: referenceEncrypted,
+        referenceHash,
+        requestPayload: payloadCifrado,
         responsePayload: {},
         status: EstadoTransaccion.PENDIENTE,
         detalles: {
           create: data.detalles.map((item: TransferenciaDetalleItemDto) => ({
             secuencia: item.secuencia,
             beneficiarioTipoId: 'P', // Pasaporte o identificación internacional por defecto
-            beneficiarioIdentificacion: item.beneficiarioCuenta,
+            beneficiarioIdentificacion: this.universalCryptoService.encrypt(item.beneficiarioCuenta, secretKey),
             beneficiarioNombre: item.beneficiarioNombre,
-            beneficiarioCuenta: item.beneficiarioCuenta,
-            beneficiarioBancoCodigo: item.codigoSwiftAba,
+            beneficiarioCuenta: this.universalCryptoService.encrypt(item.beneficiarioCuenta, secretKey),
+            beneficiarioBancoCodigo: item.codigoSwiftAba ? this.universalCryptoService.encrypt(item.codigoSwiftAba, secretKey) : item.codigoSwiftAba,
             monto: item.monto,
             moneda: 'USD',
             formaPago: 'SPI',
             referenciaDocumento: item.referencia || null,
-            codigoSwiftAba: item.codigoSwiftAba,
+            codigoSwiftAba: item.codigoSwiftAba ? this.universalCryptoService.encrypt(item.codigoSwiftAba, secretKey) : item.codigoSwiftAba,
             conceptoInvisibles: item.conceptoInvisibles,
             codigoExoneracionIsd: item.codigoExoneracionIsd || '0',
             estadoItem: 'PENDIENTE',
