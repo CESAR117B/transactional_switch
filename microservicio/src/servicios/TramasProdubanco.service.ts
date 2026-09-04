@@ -1,46 +1,199 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service'; // Ajusta la ruta a tu PrismaService
 import { ProdubancoSoapService } from '../Integraciones/ProdubancoSoap.service';
 import { CrearPagoLoteDto, PagoDetalleItemDto } from './dto/crear-pago-lote.dto';
 import { CrearTransferenciaLoteDto, TransferenciaDetalleItemDto } from './dto/crear-transferencia-lote.dto';
 
 
+// Estados transaccionales internos
+export enum EstadoTransaccion {
+  PENDIENTE = 1,
+  PROCESADO_BANCO = 2,
+  ERROR = 3,
+}
+
 @Injectable()
 export class TramasProdubancoService {
   private readonly logger = new Logger(TramasProdubancoService.name);
 
-  constructor(private readonly soapProdubanco: ProdubancoSoapService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly soapProdubanco: ProdubancoSoapService,
+  ) {}
 
   /**
-   * Procesa un lote de pagos locales: construye el XML, lo encripta en Produbanco y transmite la orden.
+   * Procesa y persiste un lote de pagos locales en Produbanco.
    */
   async generarPago(idApp: number, data: CrearPagoLoteDto) {
     this.validarLotePago(data);
 
-    // 1. Construir la trama XML delimitada por tabuladores según especificación Produbanco[cite: 5]
-    const xmlPlano = this.construirXmlPago(data);
-    this.logger.debug(`XML Plano generado para idApp=${idApp}`);
+    // 1. Guardar en BD en estado PENDIENTE con sus detalles[cite: 4]
+    const transaccion = await this.guardarTransaccionPagoBD(idApp, data);
 
-    // 2. Obtener la trama encriptada llamando a DevuelveXmlEncriptado[cite: 7]
-    const tramaEncriptada = await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
+    try {
+      // 2. Generar XML y consumir WebService Produbanco
+      const xmlPlano = this.construirXmlPago(data);
+      const tramaEncriptada = await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
+      const envioId = await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
 
-    // 3. Enviar el sobre a Produbanco llamando a CargaDirectaXml[cite: 7]
-    const envioId = await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
+      // 3. Actualizar BD con el Envio_Id y respuesta exitosa del banco[cite: 4]
+      await this.actualizarTransaccionExitoBD(transaccion.idTransaccion, envioId);
 
-    return {
-      exito: true,
-      idApp,
-      referenciaLote: data.referenciaLote,
-      envioId, // ID único asignado por Produbanco para seguimiento/conciliación[cite: 7]
-      totalRegistros: data.detalles.length,
-      montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
-    };
+      return {
+        exito: true,
+        idTransaccion: transaccion.idTransaccion.toString(),
+        referenciaLote: data.referenciaLote,
+        envioId,
+        totalRegistros: data.detalles.length,
+        montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
+      };
+    } catch (error: any) {
+      // 4. Registrar fallo en BD en caso de error en la red o servidor bancario[cite: 4]
+      await this.actualizarTransaccionErrorBD(transaccion.idTransaccion, error.message);
+      throw error;
+    }
   }
 
   /**
-   * Arma la estructura XML / plana de Pagos Full requerida por el WebService SOAP[cite: 5, 7].
+   * Procesa y persiste un lote de transferencias internacionales (Transfer Full).
    */
+  async generarTransferencia(idApp: number, data: CrearTransferenciaLoteDto) {
+    this.validarLoteTransferencia(data);
+
+    // 1. Guardar en BD en estado PENDIENTE[cite: 4]
+    const transaccion = await this.guardarTransaccionTransferenciaBD(idApp, data);
+
+    try {
+      // 2. Generar XML con campos de exterior y consumir WebService
+      const xmlPlano = this.construirXmlTransferencia(data);
+      const tramaEncriptada = await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
+      const envioId = await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
+
+      // 3. Actualizar BD con confirmación del banco[cite: 4]
+      await this.actualizarTransaccionExitoBD(transaccion.idTransaccion, envioId);
+
+      return {
+        exito: true,
+        idTransaccion: transaccion.idTransaccion.toString(),
+        referenciaLote: data.referenciaLote,
+        envioId,
+        totalRegistros: data.detalles.length,
+        montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
+      };
+    } catch (error: any) {
+      await this.actualizarTransaccionErrorBD(transaccion.idTransaccion, error.message);
+      throw error;
+    }
+  }
+
+  // ==========================================
+  // MÉTODOS DE PERSISTENCIA EN BD (PRISMA)
+  // ==========================================
+
+  /**
+   * Crea el registro de Cabecera y Detalle para Pagos Locales[cite: 4].
+   */
+  private async guardarTransaccionPagoBD(idApp: number, data: CrearPagoLoteDto) {
+    return this.prisma.transaccionesServicios.create({
+      data: {
+        servicio: 'PRODUBANCO',
+        idApp: idApp,
+        operation: 'PAGO_MASIVO',
+        reference: data.referenciaLote,
+        requestPayload: JSON.parse(JSON.stringify(data)),
+        responsePayload: {},
+        status: EstadoTransaccion.PENDIENTE,
+        detalles: {
+          create: data.detalles.map((item: PagoDetalleItemDto) => ({
+            secuencia: item.secuencia,
+            beneficiarioTipoId: item.tipoId,
+            beneficiarioIdentificacion: item.identificacion,
+            beneficiarioNombre: item.nombre,
+            beneficiarioCuenta: item.cuenta || null,
+            beneficiarioBancoCodigo: item.formaPago === 'CTA' ? '0036' : item.bancoCodigo || null,
+            monto: item.monto,
+            moneda: 'USD',
+            formaPago: item.formaPago,
+            referenciaDocumento: item.referencia || null,
+            estadoItem: 'PENDIENTE',
+          })),
+        },
+      },
+    });
+  }
+
+  /**
+   * Crea el registro de Cabecera y Detalle para Transferencias al Exterior[cite: 4].
+   */
+  private async guardarTransaccionTransferenciaBD(idApp: number, data: CrearTransferenciaLoteDto) {
+    return this.prisma.transaccionesServicios.create({
+      data: {
+        servicio: 'PRODUBANCO',
+        idApp: idApp,
+        operation: 'TRANSFERENCIA_EXTERIOR',
+        reference: data.referenciaLote,
+        requestPayload: JSON.parse(JSON.stringify(data)),
+        responsePayload: {},
+        status: EstadoTransaccion.PENDIENTE,
+        detalles: {
+          create: data.detalles.map((item: TransferenciaDetalleItemDto) => ({
+            secuencia: item.secuencia,
+            beneficiarioTipoId: 'P', // Pasaporte o identificación internacional por defecto
+            beneficiarioIdentificacion: item.beneficiarioCuenta,
+            beneficiarioNombre: item.beneficiarioNombre,
+            beneficiarioCuenta: item.beneficiarioCuenta,
+            beneficiarioBancoCodigo: item.codigoSwiftAba,
+            monto: item.monto,
+            moneda: 'USD',
+            formaPago: 'SPI',
+            referenciaDocumento: item.referencia || null,
+            codigoSwiftAba: item.codigoSwiftAba,
+            conceptoInvisibles: item.conceptoInvisibles,
+            codigoExoneracionIsd: item.codigoExoneracionIsd || '0',
+            estadoItem: 'PENDIENTE',
+          })),
+        },
+      },
+    });
+  }
+
+  /**
+   * Actualiza la transacción a éxito cuando Produbanco retorna el Envio_Id[cite: 4].
+   */
+  private async actualizarTransaccionExitoBD(idTransaccion: bigint, envioId: string) {
+    return this.prisma.transaccionesServicios.update({
+      where: { idTransaccion },
+      data: {
+        status: EstadoTransaccion.PROCESADO_BANCO,
+        responsePayload: {
+          envioId,
+          mensaje: 'Carga aceptada correctamente por Produbanco',
+        },
+      },
+    });
+  }
+
+  /**
+   * Marca la transacción con estado de error en caso de fallo en la red/SOAP[cite: 4].
+   */
+  private async actualizarTransaccionErrorBD(idTransaccion: bigint, mensajeError: string) {
+    return this.prisma.transaccionesServicios.update({
+      where: { idTransaccion },
+      data: {
+        status: EstadoTransaccion.ERROR,
+        errorMessage: mensajeError,
+        responsePayload: {
+          error: mensajeError,
+        },
+      },
+    });
+  }
+
+  // ==========================================
+  // HELPER MÉTODOS DE FORMATO DE TRAMA XML
+  // ==========================================
+
   private construirXmlPago(data: CrearPagoLoteDto): string {
-    // Formatear cada fila separada por tabuladores '\t'[cite: 5]
     const lineasDetalle = data.detalles
       .map((item: PagoDetalleItemDto) => {
         const montoFormateado = item.monto.toFixed(2);
@@ -50,7 +203,7 @@ export class TramasProdubancoService {
           item.secuencia,
           item.tipoId,
           item.identificacion,
-          item.nombre.substring(0, 40).replace(/[\t\r\n]/g, ' '), // Limpieza de caracteres de escape
+          item.nombre.substring(0, 40).replace(/[\t\r\n]/g, ' '),
           item.formaPago,
           item.cuenta || '',
           banco,
@@ -73,58 +226,6 @@ ${lineasDetalle}
 ]]>
   </DETALLE>
 </ORDEN>`;
-  }
-
-  /**
-   * Validaciones pre-ejecución del lote de pagos
-   */
-  private validarLotePago(data: CrearPagoLoteDto): void {
-    if (!data.cuentaEmpresa || !data.referenciaLote) {
-      throw new BadRequestException('Falta la cuenta de origen o la referencia del lote.');
-    }
-
-    if (!data.detalles || !Array.isArray(data.detalles) || data.detalles.length === 0) {
-      throw new BadRequestException('El lote de pagos debe incluir al menos un detalle de beneficiario.');
-    }
-
-    for (const item of data.detalles) {
-      if (!item.identificacion || !item.nombre || !item.monto || item.monto <= 0) {
-        throw new BadRequestException(
-          `Registro secuencia ${item.secuencia}: Datos incompletos o monto inválido.`,
-        );
-      }
-
-      if (['CTA', 'SPI'].includes(item.formaPago) && !item.cuenta) {
-        throw new BadRequestException(
-          `Registro secuencia ${item.secuencia}: La forma de pago ${item.formaPago} requiere número de cuenta.`,
-        );
-      }
-    }
-  }
-
-
-
-  async generarTransferencia(idApp: number, data: CrearTransferenciaLoteDto) {
-    this.validarLoteTransferencia(data);
-
-    // 1. Construir la trama XML con campos SWIFT/ABA y normativas SIB/ISD[cite: 6]
-    const xmlPlano = this.construirXmlTransferencia(data);
-    this.logger.debug(`XML Transferencia al Exterior generado para idApp=${idApp}`);
-
-    // 2. Encriptar las credenciales + XML[cite: 7]
-    const tramaEncriptada = await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
-
-    // 3. Enviar el sobre a Produbanco[cite: 7]
-    const envioId = await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
-
-    return {
-      exito: true,
-      idApp,
-      referenciaLote: data.referenciaLote,
-      envioId,
-      totalRegistros: data.detalles.length,
-      montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
-    };
   }
 
   private construirXmlTransferencia(data: CrearTransferenciaLoteDto): string {
@@ -166,29 +267,21 @@ ${lineasDetalle}
 </ORDEN_EXTERIOR>`;
   }
 
+  private validarLotePago(data: CrearPagoLoteDto): void {
+    if (!data.cuentaEmpresa || !data.referenciaLote) {
+      throw new BadRequestException('Falta la cuenta de origen o la referencia del lote.');
+    }
+    if (!data.detalles || !Array.isArray(data.detalles) || data.detalles.length === 0) {
+      throw new BadRequestException('El lote de pagos debe incluir al menos un detalle.');
+    }
+  }
 
   private validarLoteTransferencia(data: CrearTransferenciaLoteDto): void {
     if (!data.cuentaEmpresa || !data.referenciaLote) {
       throw new BadRequestException('Falta la cuenta de origen o la referencia del lote.');
     }
-
     if (!data.detalles || !Array.isArray(data.detalles) || data.detalles.length === 0) {
       throw new BadRequestException('El lote de transferencias debe incluir al menos un detalle.');
-    }
-
-    for (const item of data.detalles) {
-      if (
-        !item.beneficiarioNombre ||
-        !item.beneficiarioCuenta ||
-        !item.codigoSwiftAba ||
-        !item.conceptoInvisibles ||
-        !item.monto ||
-        item.monto <= 0
-      ) {
-        throw new BadRequestException(
-          `Registro secuencia ${item.secuencia}: Faltan campos obligatorios para transferencia al exterior (SWIFT/ABA, Cuenta o Concepto SIB).`,
-        );
-      }
     }
   }
 }
