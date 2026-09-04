@@ -5,6 +5,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { SaveCardsController } from './savecards.controller';
 import { ServiciosController } from './servicios.controller';
 import { AuthController } from './auth.controller';
+import { TramasProdubancoController } from './TramasProdubanco.controller';
 import { JwtModule } from '@nestjs/jwt';
 
 @Module({
@@ -26,7 +27,7 @@ import { JwtModule } from '@nestjs/jwt';
       signOptions: { expiresIn: '1h' }, // Configuración por defecto para la expiración
     })
   ],
-  controllers: [AppController,SaveCardsController,ServiciosController,AuthController],
+  controllers: [AppController,SaveCardsController,ServiciosController,AuthController,TramasProdubancoController],
   providers: [AppService],
 })
 export class AppModule {}
