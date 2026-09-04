@@ -13,9 +13,8 @@ export class ProdubancoSoapService {
   constructor(private readonly configDb: ConfigDbService) {}
 
   private async getClient(): Promise<soap.Client> {
-    // FIX: await obligatorio - antes se accedia a Promise.wds_url = undefined
     const config = await this.configDb.getProdubancoConfig();
-    const wsdlUrl = config.wsdl_url || config.wsdl_url;
+    const wsdlUrl = config.wsdl_url;
 
     if (!wsdlUrl) {
       throw new InternalServerErrorException(
@@ -23,12 +22,10 @@ export class ProdubancoSoapService {
       );
     }
 
-    // Reutilizar cliente si WSDL no cambió
     if (this.client && this.cachedWsdlUrl === wsdlUrl) {
       return this.client;
     }
 
-    // Evitar race condition: si ya hay creación en curso, reutilizar promesa
     if (this.clientPromise) {
       return this.clientPromise;
     }
@@ -36,15 +33,19 @@ export class ProdubancoSoapService {
     this.logger.log(`Creando cliente SOAP Produbanco: ${wsdlUrl}`);
     this.cachedWsdlUrl = wsdlUrl;
 
+    // Configuración de timeout para evitar peticiones colgadas
+    const options = {
+      timeout: 15000, // 15 segundos de timeout de red
+    } as soap.IOptions;
+
     this.clientPromise = soap
-      .createClientAsync(wsdlUrl)
+      .createClientAsync(wsdlUrl, options)
       .then((c) => {
         this.client = c;
         return c;
       })
       .catch((err) => {
-        // Invalidar cache en fallo para reintentar próximo llamado
-        this.cachedWsdlUrl = null;
+        this.clearClientCache();
         throw err;
       })
       .finally(() => {
@@ -59,7 +60,6 @@ export class ProdubancoSoapService {
    */
   async autenticarYEncriptar(xmlContenido: string): Promise<string> {
     try {
-      // FIX: una sola llamada await a config (antes 3 llamadas sin await)
       const config = await this.configDb.getProdubancoConfig();
       const client = await this.getClient();
 
@@ -80,10 +80,9 @@ export class ProdubancoSoapService {
         `Invocando DevuelveXmlEncriptado empresa=${payload.empresa} usuario=${payload.usuario}`,
       );
 
-      // Invocación del método DevuelveXmlEncriptado del WebService
       const [result] = await (client as any).DevuelveXmlEncriptadoAsync(payload);
-
       const tramaEncriptada = result?.DevuelveXmlEncriptadoResult;
+
       if (!tramaEncriptada) {
         throw new Error(
           'Respuesta inválida o rechazada por las credenciales de Produbanco.',
@@ -92,10 +91,9 @@ export class ProdubancoSoapService {
 
       return tramaEncriptada;
     } catch (error: any) {
-      // Invalidar cliente SOAP en errores de autenticación/red para forzar recreación
-      this.client = null;
+      // Limpieza total del caché en caso de fallo de red o transporte
+      this.clearClientCache();
 
-      // Preservar RpcException de ConfigDbService (404/500 por BD) sin envolver
       if (error instanceof RpcException) {
         this.logger.error(
           'Configuración Produbanco no disponible',
@@ -113,7 +111,31 @@ export class ProdubancoSoapService {
     }
   }
 
-  /** Para testing: limpiar cliente cacheado */
+  /**
+   * Envía el sobre encriptado a Produbanco para procesar la orden masiva.
+   */
+  async cargarDirectaXml(tramaEncriptada: string): Promise<string> {
+    try {
+      const client = await this.getClient();
+      const [result] = await (client as any).CargaDirectaXmlAsync({
+        xmlEntrada: tramaEncriptada,
+      });
+
+      const envioId = result?.CargaDirectaXmlResult;
+      if (!envioId) {
+        throw new Error('No se recibió un Envio_Id válido desde Produbanco.');
+      }
+
+      return envioId;
+    } catch (error: any) {
+      this.clearClientCache();
+      throw new InternalServerErrorException(
+        `Fallo al ejecutar CargaDirectaXml en Produbanco: ${error.message}`,
+      );
+    }
+  }
+
+  /** Limpia el estado interno cacheado del cliente SOAP */
   clearClientCache() {
     this.client = null;
     this.clientPromise = null;
