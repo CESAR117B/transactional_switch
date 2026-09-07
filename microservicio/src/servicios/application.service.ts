@@ -35,7 +35,7 @@ export class ApplicationService {
     return {
       idApp: updatedApp.id_app.toString(),
       message: '✅ Llave de encriptación generada y guardada con éxito.',
-      encryption_key: newEncryptionKey, // 👈 Esta es la que deben poner en su .env
+      encryption_key: newEncryptionKey, 
     };
   }
 
