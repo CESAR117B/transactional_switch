@@ -27,8 +27,7 @@ export class CardSaveService {
         } else {
             tokenResponse = await this.firstoken.permanent_token_card(idApp, cardData);
         }
-
-
+        
         return tokenResponse;
     }
 }
