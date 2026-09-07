@@ -25,5 +25,6 @@
     "useUnknownInCatchVariables": false,
     "types": ["multer", "node"]
   },
-  "exclude": ["node_modules", "dist", "test", "prisma.config.ts", "scripts"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test", "prisma.config.ts", "prisma", "scripts", "scripts/**/*"]
 }
