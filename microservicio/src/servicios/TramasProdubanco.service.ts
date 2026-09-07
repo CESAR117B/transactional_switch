@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../prisma/prisma.service'; // Ajusta la ruta a tu PrismaService
 import { ProdubancoSoapService } from '../Integraciones/ProdubancoSoap.service';
-import { CrearPagoLoteDto, PagoDetalleItemDto } from './dto/crear-pago-lote.dto';
-import { CrearTransferenciaLoteDto, TransferenciaDetalleItemDto } from './dto/crear-transferencia-lote.dto';
+import { CrearPagoLoteDto, PagoDetalleItemDto } from '../dto/crear-pago-lote.dto';
+import { CrearTransferenciaLoteDto, TransferenciaDetalleItemDto } from '../dto/crear-transferencia-lote.dto';
 import { UniversalCryptoService } from './universal-crypto.service';
 import * as crypto from 'crypto';
 

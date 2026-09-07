@@ -1,8 +1,9 @@
 import { Controller, Logger } from "@nestjs/common";
 import { TramasProdubancoService } from "./TramasProdubanco.service";
 import { MessagePattern, Payload, RpcException } from "@nestjs/microservices";
-import { CrearPagoLoteDto, GenerarPagoPayloadDto } from "./dto/crear-pago-lote.dto";
-import { CrearTransferenciaLoteDto, GenerarTransferenciaPayloadDto } from "./dto/crear-transferencia-lote.dto";
+import { GenerarPagoPayloadDto } from "../dto/crear-pago-lote.dto";
+import { GenerarTransferenciaPayloadDto } from "../dto/crear-transferencia-lote.dto";
+
 
 @Controller()
 export class TramasProdubancoController {
