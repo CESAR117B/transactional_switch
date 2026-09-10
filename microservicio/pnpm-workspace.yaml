@@ -1,6 +1,7 @@
 allowBuilds:
   '@parcel/watcher': false
   '@prisma/engines': true
+  '@swc/core': true
   prisma: true
   unrs-resolver: true
 
@@ -82,6 +83,7 @@ minimumReleaseAgeExclude:
   - jest@30.5.0
   - pretty-format@30.5.0
   - '@eslint/plugin-kit@0.7.3'
+  - soap@1.12.0
 
 overrides:
   brace-expansion: ">=5.0.8"

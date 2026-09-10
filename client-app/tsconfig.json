@@ -1,19 +1,22 @@
 {
   "compilerOptions": {
-    "module": "node16",
-    "moduleResolution": "node16",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
     "esModuleInterop": true,
     "isolatedModules": true,
     "declaration": true,
+    "useDefineForClassFields": false,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2021",
+    "resolveJsonModule": true,
+    "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "incremental": false, 
+    "incremental": false,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
@@ -24,5 +27,6 @@
     "useUnknownInCatchVariables": false,
     "types": ["multer", "node"]
   },
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test"]
 }
