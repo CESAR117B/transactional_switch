@@ -16,7 +16,7 @@ export class FirsTokenService {
     private readonly httpService: HttpService,
     private readonly configDb: ConfigDbService, // Inyectamos la configuración
     private readonly prisma: PrismaService,
-    private eventEmitter: EventEmitter2, // 👈 Inyectas el emisor
+    private eventEmitter: EventEmitter2, // Inyectamos el EventEmitter para auditoría
     private readonly universalCryptoService: UniversalCryptoService
   ) {}
 
@@ -29,7 +29,7 @@ export class FirsTokenService {
     const urlFinal = `${config.base_url}/routes/${config.routes.permanent_card}`;
     this.logger.debug(`URL de destino: ${urlFinal}`);
 
-    // 👇 Extraemos también 'idApp' para guardarlo en BD, pero NO enviarlo a FirsToken
+    //  Extraemos también 'idApp' para guardarlo en BD, pero NO enviarlo a FirsToken
     const { temporal, card_cvv, ...payloadLimpio } = datosTarjeta;
 
     try {
@@ -47,7 +47,7 @@ export class FirsTokenService {
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
       
-      // 🔐 4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
+      // 4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
       const appRecord = await this.prisma.app.findUnique({
         where: { id_app: idApp }, // Verifica si necesitas BigInt(idApp) dependiendo de tu esquema
         select: { encryptionKey: true }
@@ -139,7 +139,7 @@ export class FirsTokenService {
     const urlFinal = `${config.base_url}/routes/${config.routes.temporal_card}`;
     this.logger.debug(`URL de destino (Temporal): ${urlFinal}`);
 
-    // 👇 Solo sacamos 'temporal'. El 'card_cvv' SÍ viaja en payloadLimpio para tokens temporales
+    //  Solo sacamos 'temporal'. El 'card_cvv' SÍ viaja en payloadLimpio para tokens temporales
     const { temporal, ...payloadLimpio } = datosTarjeta;
 
     try {
@@ -156,7 +156,7 @@ export class FirsTokenService {
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
 
-      // 🔐 4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
+      //  4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
       const appRecord = await this.prisma.app.findUnique({
         where: { id_app: idApp }, // Verifica si necesitas BigInt(idApp) dependiendo de tu esquema
         select: { encryptionKey: true }
