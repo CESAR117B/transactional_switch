@@ -22,7 +22,7 @@ import { JwtModule } from '@nestjs/jwt';
     ]),
 
     JwtModule.register({
-      global: true, // 🌟 Al poner true, evitas tener que importarlo en cada submódulo de tu Gateway
+      global: true, //  Al poner true, evitas tener que importarlo en cada submódulo de tu Gateway
       secret: process.env.JWT_SECRET || 'una_clave_secreta_provisional_123', // Usa tu variable del .env
       signOptions: { expiresIn: '1h' }, // Configuración por defecto para la expiración
     })
