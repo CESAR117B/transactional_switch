@@ -64,20 +64,20 @@ export class ProdubancoSoapService {
       const client = await this.getClient();
 
       const payload = {
-        empresa: config.empresa,
-        usuario: config.usuario,
-        clave: config.password,
-        xmlEntrada: xmlContenido,
+        strComputador: '127.0.0.1', 
+        strUsuario: config.usuario,
+        strXmlInput: xmlContenido,
+        Empresa: config.empresa,
       };
 
-      if (!payload.empresa || !payload.usuario || !payload.clave) {
+      if (!payload.strUsuario || !payload.Empresa) {
         throw new Error(
-          'Credenciales incompletas de Produbanco (empresa/usuario/clave vacíos)',
+          'Credenciales incompletas de Produbanco (empresa/usuario vacíos)',
         );
       }
 
       this.logger.debug(
-        `Invocando DevuelveXmlEncriptado empresa=${payload.empresa} usuario=${payload.usuario}`,
+        `Invocando DevuelveXmlEncriptado empresa=${payload.strComputador} usuario=${payload.strUsuario} Empresa=${payload.Empresa} xmlInputLength=${payload.strXmlInput.length}`,
       );
 
       const [result] = await (client as any).DevuelveXmlEncriptadoAsync(payload);
@@ -114,26 +114,33 @@ export class ProdubancoSoapService {
   /**
    * Envía el sobre encriptado a Produbanco para procesar la orden masiva.
    */
-  async cargarDirectaXml(tramaEncriptada: string): Promise<string> {
-    try {
-      const client = await this.getClient();
-      const [result] = await (client as any).CargaDirectaXmlAsync({
-        xmlEntrada: tramaEncriptada,
-      });
+   async cargarDirectaXml(tramaEncriptada: string): Promise<string> {
+  try {
+    const config = await this.configDb.getProdubancoConfig(); // Se agregan las credenciales de config
+    const client = await this.getClient();
 
-      const envioId = result?.CargaDirectaXmlResult;
-      if (!envioId) {
-        throw new Error('No se recibió un Envio_Id válido desde Produbanco.');
-      }
+    const payload = {
+      strXmlInput: tramaEncriptada,
+      strUsuario: config.usuario,
+      strComputador: '127.0.0.1', // Usar la IP autorizada en Produbanco
+      Empresa: config.empresa,
+    };
 
-      return envioId;
-    } catch (error: any) {
-      this.clearClientCache();
-      throw new InternalServerErrorException(
-        `Fallo al ejecutar CargaDirectaXml en Produbanco: ${error.message}`,
-      );
+    const [result] = await (client as any).CargaDirectaXmlAsync(payload);
+
+    const envioId = result?.CargaDirectaXmlResult;
+    if (!envioId) {
+      throw new Error('No se recibió un Envio_Id válido desde Produbanco.');
     }
+
+    return envioId;
+  } catch (error: any) {
+    this.clearClientCache();
+    throw new InternalServerErrorException(
+      `Fallo al ejecutar CargaDirectaXml en Produbanco: ${error.message}`,
+    );
   }
+}
 
   /** Limpia el estado interno cacheado del cliente SOAP */
   clearClientCache() {
