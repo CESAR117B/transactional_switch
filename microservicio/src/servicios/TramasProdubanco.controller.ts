@@ -13,7 +13,6 @@ export class TramasProdubancoController {
         private readonly tramasProdubancoService: TramasProdubancoService
     ){}
 
-    @MessagePattern({cmd: 'pago'})
     @MessagePattern({cmd: 'generar_pago'})
     async generarPago(@Payload() payload: GenerarPagoPayloadDto) {
         const { idApp, data } = payload;
@@ -36,7 +35,11 @@ export class TramasProdubancoController {
         }
     }
 
-    @MessagePattern({cmd: 'transferencia'})
+    @MessagePattern({cmd: 'pago'})
+    async generarPagoAlias(@Payload() payload: GenerarPagoPayloadDto) {
+        return this.generarPago(payload);
+    }
+
     @MessagePattern({cmd: 'generar_transferencia'})
     async generarTransferencia(@Payload() payload: GenerarTransferenciaPayloadDto) {
         const { idApp, data } = payload;
@@ -56,5 +59,10 @@ export class TramasProdubancoController {
             this.logger.error(`Error generarTransferencia idApp=${idApp} ref=${data.referenciaLote}: ${message}`, error?.stack);
             throw new RpcException({ statusCode: status, message, error: error?.error });
         }
+    }
+
+    @MessagePattern({cmd: 'transferencia'})
+    async generarTransferenciaAlias(@Payload() payload: GenerarTransferenciaPayloadDto) {
+        return this.generarTransferencia(payload);
     }
 }

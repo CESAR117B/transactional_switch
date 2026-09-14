@@ -140,6 +140,53 @@ export class TramasProdubancoService {
       })),
     };
 
+    // Opción A - Idempotencia: si referenceHash ya existe, permite reintento solo si estado=ERROR
+    const existing = await this.prisma.transaccionesServicios.findUnique({
+      where: { referenceHash },
+      select: { idTransaccion: true, status: true, idApp: true },
+    });
+    if (existing) {
+      if (existing.status === EstadoTransaccion.ERROR) {
+        this.logger.warn(`Reintentando lote con referencia duplicada ${data.referenciaLote} (hash=${referenceHash}) idTransaccion=${existing.idTransaccion} status=ERROR -> reciclando`);
+        // Borra detalles previos y recrea con payload actualizado, resetea a PENDIENTE
+        await this.prisma.transaccionesBancariasDetalle.deleteMany({
+          where: { idTransaccion: existing.idTransaccion },
+        });
+        return this.prisma.transaccionesServicios.update({
+          where: { idTransaccion: existing.idTransaccion },
+          data: {
+            idApp,
+            reference: referenceEncrypted,
+            requestPayload: payloadCifrado,
+            responsePayload: {},
+            status: EstadoTransaccion.PENDIENTE,
+            errorMessage: null,
+            detalles: {
+              create: data.detalles.map((item: PagoDetalleItemDto) => ({
+                secuencia: item.secuencia,
+                beneficiarioTipoId: item.tipoId,
+                beneficiarioIdentificacion: this.universalCryptoService.encrypt(item.identificacion, secretKey),
+                beneficiarioNombre: item.nombre,
+                beneficiarioCuenta: item.cuenta ? this.universalCryptoService.encrypt(item.cuenta, secretKey) : null,
+                beneficiarioBancoCodigo: item.formaPago === 'CTA' ? '0036' : item.bancoCodigo || null,
+                monto: item.monto,
+                moneda: 'USD',
+                formaPago: item.formaPago,
+                referenciaDocumento: item.referencia || null,
+                estadoItem: 'PENDIENTE',
+              })),
+            },
+          },
+        });
+      }
+      // PENDIENTE o PROCESADO_BANCO -> conflicto, cliente debe usar nueva referenciaLote
+      throw new RpcException({
+        statusCode: 409,
+        message: `Lote con referencia ${data.referenciaLote} ya existe (estado=${existing.status === EstadoTransaccion.PENDIENTE ? 'PENDIENTE' : existing.status === EstadoTransaccion.PROCESADO_BANCO ? 'PROCESADO_BANCO' : existing.status}). Use una referenciaLote nueva.`,
+        error: 'Conflict',
+      });
+    }
+
     return this.prisma.transaccionesServicios.create({
       data: {
         servicio: 'PRODUBANCO',
@@ -188,6 +235,53 @@ export class TramasProdubancoService {
         codigoSwiftAba: d.codigoSwiftAba ? this.universalCryptoService.encrypt(d.codigoSwiftAba, secretKey) : d.codigoSwiftAba,
       })),
     };
+
+    const existing = await this.prisma.transaccionesServicios.findUnique({
+      where: { referenceHash },
+      select: { idTransaccion: true, status: true },
+    });
+    if (existing) {
+      if (existing.status === EstadoTransaccion.ERROR) {
+        this.logger.warn(`Reintentando transferencia con referencia duplicada ${data.referenciaLote} (hash=${referenceHash}) idTransaccion=${existing.idTransaccion} status=ERROR -> reciclando`);
+        await this.prisma.transaccionesBancariasDetalle.deleteMany({
+          where: { idTransaccion: existing.idTransaccion },
+        });
+        return this.prisma.transaccionesServicios.update({
+          where: { idTransaccion: existing.idTransaccion },
+          data: {
+            idApp,
+            reference: referenceEncrypted,
+            requestPayload: payloadCifrado,
+            responsePayload: {},
+            status: EstadoTransaccion.PENDIENTE,
+            errorMessage: null,
+            detalles: {
+              create: data.detalles.map((item: TransferenciaDetalleItemDto) => ({
+                secuencia: item.secuencia,
+                beneficiarioTipoId: 'P',
+                beneficiarioIdentificacion: this.universalCryptoService.encrypt(item.beneficiarioCuenta, secretKey),
+                beneficiarioNombre: item.beneficiarioNombre,
+                beneficiarioCuenta: this.universalCryptoService.encrypt(item.beneficiarioCuenta, secretKey),
+                beneficiarioBancoCodigo: item.codigoSwiftAba ? this.universalCryptoService.encrypt(item.codigoSwiftAba, secretKey) : item.codigoSwiftAba,
+                monto: item.monto,
+                moneda: 'USD',
+                formaPago: 'SPI',
+                referenciaDocumento: item.referencia || null,
+                codigoSwiftAba: item.codigoSwiftAba ? this.universalCryptoService.encrypt(item.codigoSwiftAba, secretKey) : item.codigoSwiftAba,
+                conceptoInvisibles: item.conceptoInvisibles,
+                codigoExoneracionIsd: item.codigoExoneracionIsd || '0',
+                estadoItem: 'PENDIENTE',
+              })),
+            },
+          },
+        });
+      }
+      throw new RpcException({
+        statusCode: 409,
+        message: `Transferencia con referencia ${data.referenciaLote} ya existe (estado=${existing.status === EstadoTransaccion.PENDIENTE ? 'PENDIENTE' : existing.status === EstadoTransaccion.PROCESADO_BANCO ? 'PROCESADO_BANCO' : existing.status}). Use nueva referenciaLote.`,
+        error: 'Conflict',
+      });
+    }
 
     return this.prisma.transaccionesServicios.create({
       data: {

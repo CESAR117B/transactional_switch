@@ -17,9 +17,11 @@ export class ProdubancoSoapService {
     const wsdlUrl = config.wsdl_url;
 
     if (!wsdlUrl) {
-      throw new InternalServerErrorException(
-        'WSDL URL de Produbanco no configurada en BD (PRODUBANCO_WSDL_URL)',
-      );
+      throw new RpcException({
+        statusCode: 500,
+        message: 'WSDL URL de Produbanco no configurada en BD (PRODUBANCO_WSDL_URL)',
+        error: 'Internal Server Error',
+      });
     }
 
     if (this.client && this.cachedWsdlUrl === wsdlUrl) {
@@ -103,11 +105,19 @@ export class ProdubancoSoapService {
       }
 
       const stack = error?.stack || JSON.stringify(error);
-      const message = error?.message || 'Error desconocido SOAP';
-      this.logger.error('Error en autenticación SOAP con Produbanco', stack);
-      throw new InternalServerErrorException(
-        `Fallo al autenticar/encriptar con Produbanco: ${message}`,
-      );
+      const rawMessage: string = error?.message || 'Error desconocido SOAP';
+      const code: string = error?.code || '';
+      // Punto 1: ENOTFOUND = DNS sin VPN/IP no whitelisted; diferenciar 502 Bad Gateway de 500
+      const isNetworkDns =
+        /ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNREFUSED|ENETUNREACH/i.test(rawMessage) ||
+        /ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNREFUSED|ENETUNREACH/i.test(code);
+      const wsdlHint = (await this.configDb.getProdubancoConfig().catch(() => ({ wsdl_url: 'desconocida' } as any)))?.wsdl_url;
+      this.logger.error(`Error en autenticación SOAP con Produbanco [${code || 'no-code'}] wsdl=${wsdlHint}`, stack);
+      throw new RpcException({
+        statusCode: isNetworkDns ? 502 : 500,
+        message: `Fallo al autenticar/encriptar con Produbanco: ${rawMessage}${isNetworkDns ? ' (DNS no resuelve servicios.produbanco.com.ec - requiere VPN/IP whitelisted de Produbanco o PRODUBANCO_MOCK=true para dev)' : ''}`,
+        error: isNetworkDns ? 'Bad Gateway' : 'Internal Server Error',
+      });
     }
   }
 
@@ -135,10 +145,18 @@ export class ProdubancoSoapService {
 
     return envioId;
   } catch (error: any) {
+    if (error instanceof RpcException) throw error;
     this.clearClientCache();
-    throw new InternalServerErrorException(
-      `Fallo al ejecutar CargaDirectaXml en Produbanco: ${error.message}`,
-    );
+    const rawMessage: string = error?.message || 'Error desconocido SOAP';
+    const code: string = error?.code || '';
+    const isNetworkDns =
+      /ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNREFUSED|ENETUNREACH/i.test(rawMessage) ||
+      /ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNREFUSED|ENETUNREACH/i.test(code);
+    throw new RpcException({
+      statusCode: isNetworkDns ? 502 : 500,
+      message: `Fallo al ejecutar CargaDirectaXml en Produbanco: ${rawMessage}${isNetworkDns ? ' (DNS no resuelve - requiere VPN)' : ''}`,
+      error: isNetworkDns ? 'Bad Gateway' : 'Internal Server Error',
+    });
   }
 }
 

@@ -17,13 +17,26 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true, // <--- ¡ESTA ES LA MAGIA QUE FALTABA!
+      transformOptions: { enableImplicitConversion: true },
       exceptionFactory: (errors) => {
-        // ... (tu código de RpcException que ya teníamos)
-        const messages = errors.map(error => Object.values(error.constraints || {})).flat();
+        const flatten = (errs: any[], parent = ''): string[] =>
+          errs.flatMap((e) => {
+            const prefix = parent ? `${parent}.${e.property}` : e.property;
+            const own = e.constraints ? Object.values(e.constraints as Record<string, string>) : [];
+            // Prefija con path para nested (ej: data.detalles.0.monto)
+            const prefixed = own.map((m) => (parent ? `${prefix}: ${m}` : m));
+            if (e.children?.length) {
+              return [...prefixed, ...flatten(e.children, prefix)];
+            }
+            return prefixed;
+          });
+        const messages = flatten(errors);
+        // Fallback si queda vacío por estructura inesperada
+        const finalMessages = messages.length ? messages : ['Validation failed'];
         return new RpcException({
           statusCode: 400,
-          message: messages,
-          error: 'Bad Request'
+          message: finalMessages,
+          error: 'Bad Request',
         });
       },
     }),

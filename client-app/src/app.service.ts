@@ -2,8 +2,8 @@ import { Injectable, Inject } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs"; // <-- Importación moderna de RxJS
 import { TokenizeCardDto } from "./dto/tokenize-card.dto";
-import { CrearPagoLoteDto } from "./dto/crear-pago-lote.dto";
-import { CrearTransferenciaLoteDto } from "./dto/crear-transferencia-lote.dto";
+import { CrearPagoLoteDto, GenerarPagoPayloadDto} from "./dto/crear-pago-lote.dto";
+import { GenerarTransferenciaPayloadDto } from "./dto/crear-transferencia-lote.dto";
 
 
 
@@ -54,7 +54,7 @@ export class AppService {
     );
   }
 
-  async generarTransferencia(idApp: number, data: CrearTransferenciaLoteDto) {
+  async generarTransferencia(idApp: number, data: GenerarTransferenciaPayloadDto) {
     const payload = { idApp: Number(idApp), data };
     return firstValueFrom(
       this.mathClient.send({ cmd: 'generar_transferencia' }, payload)
