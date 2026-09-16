@@ -124,7 +124,7 @@ export class ProdubancoSoapService {
   /**
    * Envía el sobre encriptado a Produbanco para procesar la orden masiva.
    */
-   async cargarDirectaXml(tramaEncriptada: string): Promise<string> {
+  async cargarDirectaXml(tramaEncriptada: string): Promise<string> {
   try {
     const config = await this.configDb.getProdubancoConfig(); // Se agregan las credenciales de config
     const client = await this.getClient();
