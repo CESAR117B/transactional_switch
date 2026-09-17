@@ -66,7 +66,7 @@ export class ProdubancoSoapService {
       const client = await this.getClient();
 
       const payload = {
-        strComputador: '', 
+        strComputador: config.ip, 
         strUsuario: config.usuario,
         strXmlInput: xmlContenido,
         Empresa: config.empresa,
@@ -132,7 +132,7 @@ export class ProdubancoSoapService {
     const payload = {
       strXmlInput: tramaEncriptada,
       strUsuario: config.usuario,
-      strComputador: '', // Usar la IP autorizada en Produbanco
+      strComputador: config.ip, // Usar la IP autorizada en Produbanco
       Empresa: config.empresa,
     };
 

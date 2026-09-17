@@ -22,6 +22,7 @@ export interface ProdubancoConfig {
     empresa: string;
     usuario: string;
     password: string;
+    ip: string;
 }
 
 
@@ -163,15 +164,17 @@ export class ConfigDbService {
                 case 'PRODUBANCO_WSDL_URL': config.wsdl_url = valor; break;
                 case 'PRODUBANCO_EMPRESA': config.empresa = valor; break;
                 case 'PRODUBANCO_USUARIO': config.usuario = valor; break;
+                case 'PRODUBANCO_IP': config.ip = valor; break;
             }
         });
 
         // Validación de campos obligatorios (igual que getFirstTokenConfig)
-        if (!config.wsdl_url || !config.empresa || !config.usuario) {
+        if (!config.wsdl_url || !config.empresa || !config.usuario || !config.ip) {
             const faltantes: string[] = [];
             if (!config.wsdl_url) faltantes.push('PRODUBANCO_WSDL_URL');
             if (!config.empresa) faltantes.push('PRODUBANCO_EMPRESA');
             if (!config.usuario) faltantes.push('PRODUBANCO_USUARIO');
+            if (!config.ip) faltantes.push('PRODUBANCO_IP');
             throw new RpcException({
                 status: 500,
                 message: `Faltan atributos obligatorios de Produbanco en BD: ${faltantes.join(', ')}`,
