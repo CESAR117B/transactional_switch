@@ -5,7 +5,7 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
-  "packageManager": "pnpm@12.4.2",
+  "packageManager": "pnpm@12.5.0",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "build": "tsc --noEmit && nest build --builder swc",
