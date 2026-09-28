@@ -7,11 +7,11 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - globals@17.11.0
-  - '@nestjs/common@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0'
-  - '@nestjs/core@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0'
-  - '@nestjs/microservices@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0'
-  - '@nestjs/platform-express@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0'
-  - '@nestjs/testing@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0'
+  - '@nestjs/common@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1'
+  - '@nestjs/core@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1'
+  - '@nestjs/microservices@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1'
+  - '@nestjs/platform-express@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1'
+  - '@nestjs/testing@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1'
   - '@prisma/adapter-pg@7.10.0'
   - '@prisma/client-runtime-utils@7.10.0'
   - '@prisma/client@7.10.0'
@@ -84,9 +84,9 @@ minimumReleaseAgeExclude:
   - pretty-format@30.5.0
   - '@eslint/plugin-kit@0.7.3'
   - soap@1.12.0 || 1.13.1
-  - '@nestjs/schematics@12.0.1 || 12.0.2 || 12.0.3 || 12.0.4 || 12.0.5'
+  - '@nestjs/schematics@12.0.1 || 12.0.2 || 12.0.3 || 12.0.4 || 12.0.5 || 12.0.6'
   - '@nestjs/axios@12.0.1'
-  - '@nestjs/cli@12.0.1 || 12.0.3 || 12.0.6 || 12.0.7'
+  - '@nestjs/cli@12.0.1 || 12.0.3 || 12.0.6 || 12.0.7 || 12.0.8'
   - '@nestjs/event-emitter@12.0.1'
   - prettier@3.9.7 || 3.9.8 || 3.9.9
   - dotenv@18.0.2 || 18.0.3 || 18.0.4
