@@ -6,7 +6,7 @@ allowBuilds:
   unrs-resolver: true
 
 minimumReleaseAgeExclude:
-  - globals@17.11.0
+  - globals@17.11.0 || 17.13.0
   - '@nestjs/common@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1 || 12.1.2'
   - '@nestjs/core@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1 || 12.1.2'
   - '@nestjs/microservices@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1 || 12.1.2'
@@ -89,7 +89,7 @@ minimumReleaseAgeExclude:
   - '@nestjs/cli@12.0.1 || 12.0.3 || 12.0.6 || 12.0.7 || 12.0.8'
   - '@nestjs/event-emitter@12.0.1'
   - prettier@3.9.7 || 3.9.8 || 3.9.9
-  - dotenv@18.0.2 || 18.0.3 || 18.0.4
+  - dotenv@18.0.2 || 18.0.3 || 18.0.4 || 18.0.5
   - ts-jest@29.4.13 || 29.4.14
   - '@angular-devkit/core@22.2.0'
   - '@angular-devkit/schematics-cli@22.2.0'
@@ -107,6 +107,10 @@ minimumReleaseAgeExclude:
   - '@swc/core-win32-ia32-msvc@1.16.13'
   - '@swc/core-win32-x64-msvc@1.16.13'
   - '@swc/core@1.16.13'
+  - pg-cloudflare@1.4.1
+  - pg-connection-string@2.14.1
+  - pg-protocol@1.16.1
+  - pg@8.23.1
 
 overrides:
   brace-expansion: ">=5.0.12"
