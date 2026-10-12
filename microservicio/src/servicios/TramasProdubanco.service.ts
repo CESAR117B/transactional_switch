@@ -327,10 +327,10 @@ export class TramasProdubancoService {
               create: data.detalles.map(
                 (item: TransferenciaDetalleItemDto) => ({
                   secuencia: item.secuencia,
-                  beneficiarioTipoId: 'P',
+                  beneficiarioTipoId: item.tipoId,
                   beneficiarioIdentificacion:
                     this.universalCryptoService.encrypt(
-                      item.beneficiarioCuenta,
+                      item.identificacion,
                       secretKey,
                     ),
                   beneficiarioNombre: item.beneficiarioNombre,
@@ -339,13 +339,10 @@ export class TramasProdubancoService {
                     secretKey,
                   ),
                   beneficiarioBancoCodigo: item.codigoSwiftAba
-                    ? this.universalCryptoService.encrypt(
-                        item.codigoSwiftAba,
-                        secretKey,
-                      )
-                    : item.codigoSwiftAba,
+                    ? item.codigoSwiftAba.substring(0, 10)
+                    : null,
                   monto: item.monto,
-                  moneda: 'USD',
+                  moneda: item.moneda || 'USD',
                   formaPago: 'SPI',
                   referenciaDocumento: item.referencia || null,
                   codigoSwiftAba: item.codigoSwiftAba
@@ -383,9 +380,9 @@ export class TramasProdubancoService {
         detalles: {
           create: data.detalles.map((item: TransferenciaDetalleItemDto) => ({
             secuencia: item.secuencia,
-            beneficiarioTipoId: 'P', // Pasaporte o identificación internacional por defecto
+            beneficiarioTipoId: item.tipoId,
             beneficiarioIdentificacion: this.universalCryptoService.encrypt(
-              item.beneficiarioCuenta,
+              item.identificacion,
               secretKey,
             ),
             beneficiarioNombre: item.beneficiarioNombre,
@@ -394,13 +391,10 @@ export class TramasProdubancoService {
               secretKey,
             ),
             beneficiarioBancoCodigo: item.codigoSwiftAba
-              ? this.universalCryptoService.encrypt(
-                  item.codigoSwiftAba,
-                  secretKey,
-                )
-              : item.codigoSwiftAba,
+              ? item.codigoSwiftAba.substring(0, 10)
+              : null,
             monto: item.monto,
-            moneda: 'USD',
+            moneda: item.moneda || 'USD',
             formaPago: 'SPI',
             referenciaDocumento: item.referencia || null,
             codigoSwiftAba: item.codigoSwiftAba
@@ -565,44 +559,76 @@ ${itemsXml}
   }
 
   private construirXmlTransferencia(data: CrearTransferenciaLoteDto): string {
-    const lineasDetalle = data.detalles
-      .map((item: TransferenciaDetalleItemDto) => {
-        const montoFormateado = item.monto.toFixed(2);
-        const comision = item.tipoComision || 'OUR';
+    const cuentaEmpresa = data.cuentaEmpresa.padStart(11, '0');
 
-        return [
-          item.secuencia,
-          item.beneficiarioNombre.substring(0, 35).replace(/[\t\r\n]/g, ' '),
-          item.beneficiarioDireccion.substring(0, 35).replace(/[\t\r\n]/g, ' '),
-          item.beneficiarioCuenta,
-          item.bancoDestinoNombre.substring(0, 35).replace(/[\t\r\n]/g, ' '),
-          (item.bancoDestinoDireccion || '')
-            .substring(0, 35)
-            .replace(/[\t\r\n]/g, ' '),
-          item.codigoSwiftAba,
-          item.bancoIntermediarioSwift || '',
-          montoFormateado,
-          item.conceptoInvisibles,
-          item.codigoExoneracionIsd || '0',
-          comision,
-          item.referencia || '',
-        ].join('\t');
-      })
-      .join('\n');
+    const items = data.detalles.map((item: TransferenciaDetalleItemDto) => {
+      // F20 RFB obligatorio: detalle!relación!gastos! (máx 43 chars, sin espacios)
+      const rfb = `PAGO!COMERCIAL!${item.tipoComision || 'BEN'}!`;
+      // F23 (INV) Facturas: referencia sin espacios, máx 26
+      const refFacturas = (item.referencia || '')
+        .replace(/\s+/g, '')
+        .substring(0, 26);
+
+      return [
+        'PA', // F1  Código de orientación
+        cuentaEmpresa, // F2  Cuenta empresa (11 dígitos)
+        String(item.secuencia), // F3  Secuencial
+        item.comprobante || '', // F4  Comprobante (opcional)
+        item.beneficiarioCuenta.substring(0, 34), // F5  Contrapartida (cuenta beneficiario)
+        item.moneda || 'USD', // F6  Moneda (default USD)
+        String(Math.round(item.monto * 100)).padStart(13, '0'), // F7  Valor 11+2 sin punto
+        'CTA', // F8  Forma de pago (formato exterior solo CTA)
+        item.codigoSwiftAba, // F9  SWIFT/ABA banco destino
+        item.tipoCuenta, // F10 Tipo de cuenta destino
+        item.beneficiarioCuenta.substring(0, 34), // F11 Número de cuenta beneficiario
+        item.tipoId, // F12 Tipo ID beneficiario
+        item.identificacion, // F13 Número ID beneficiario
+        item.beneficiarioNombre.substring(0, 70).replace(/[\t\r\n]/g, ' '), // F14 Nombre
+        '', // F15 Dirección (no ingresar)
+        '', // F16 Ciudad (no ingresar)
+        '', // F17 Teléfono (no ingresar)
+        '', // F18 Localidad (no ingresar)
+        '', // F19 Referencia (no ingresar)
+        rfb, // F20 RFB: PAGO!COMERCIAL!{OUR|BEN|SHA}!
+        '', // F21 (opcional)
+        '', // F22 (opcional)
+        refFacturas, // F23 (INV) Facturas / doc referencia
+        item.motivoTransferencia, // F24 Motivo SIB "codigo,exencion"
+        '', // F25 (opcional)
+        '', // F26 (opcional)
+        '', // F27 (opcional)
+        '', // F28 (opcional)
+        '', // F29 (opcional)
+        '', // F30 DAU/DAI (opcional)
+        '', // F31 Registro (opcional)
+        '', // F32 Fecha registro (opcional)
+        item.codigoExoneracionIsd || '', // F33 Nro. Formulario ISD (opcional)
+        (item.bancoIntermediarioSwift || '').substring(0, 11), // F34 Banco intermediario
+        '', // F35 Cta. banco intermediario (opcional)
+        '', // F36 Contrato reaseguro (opcional)
+        '', // F37 Código cotización (opcional)
+      ]
+        .map((campo) => this.escapeXml(campo))
+        .join('\t');
+    });
+
+    const itemsXml = items.map((linea) => `  <Item>${linea}</Item>`).join('\n');
 
     return `<?xml version="1.0" encoding="utf-8"?>
-<ORDEN_EXTERIOR>
-  <CABECERA>
-    <CUENTA_ORIGEN>${data.cuentaEmpresa}</CUENTA_ORIGEN>
-    <REFERENCIA>${data.referenciaLote}</REFERENCIA>
-    <REGISTROS>${data.detalles.length}</REGISTROS>
-  </CABECERA>
-  <DETALLE>
-<![CDATA[
-${lineasDetalle}
-]]>
-  </DETALLE>
-</ORDEN_EXTERIOR>`;
+<Envelope>
+  <Empresa>${this.escapeXml(data.empresa)}</Empresa>
+  <Id_Empresa>${this.escapeXml(data.idEmpresa)}</Id_Empresa>
+  <Servicio>${this.escapeXml(data.servicio)}</Servicio>
+  <Id_Servicio>${this.escapeXml(data.idServicio)}</Id_Servicio>
+  <TipoCuenta>${this.escapeXml(data.tipoCuentaEmpresa)}</TipoCuenta>
+  <NumeroCuenta>${cuentaEmpresa}</NumeroCuenta>
+  <Referencia>${this.escapeXml(data.referenciaLote)}</Referencia>
+  <FechaInicio>${data.fechaInicio}</FechaInicio>
+  <FechaVencimiento>${data.fechaVencimiento}</FechaVencimiento>
+  <Cabecera></Cabecera>
+${itemsXml}
+  <NumRecs>${data.detalles.length}</NumRecs>
+</Envelope>`;
   }
 
   private validarLotePago(data: CrearPagoLoteDto): void {

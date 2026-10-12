@@ -17,11 +17,46 @@ import {
 import { Type } from 'class-transformer';
 
 export type TipoComision = 'OUR' | 'BEN' | 'SHA'; // OUR: Corre por cuenta del ordenante, BEN: Beneficiario, SHA: Compartido
+export type TipoIdentificacion = 'C' | 'R' | 'P'; // C: Cédula, R: RUC, P: Pasaporte
+export type TipoCuentaBanco = 'CTE' | 'AHO'; // CTE: Corriente, AHO: Ahorros
 
 export class TransferenciaDetalleItemDto {
   @IsInt({ message: 'secuencia debe ser entero' })
   @Min(1, { message: 'secuencia debe ser >= 1' })
   secuencia: number;
+
+  @IsEnum(['C', 'R', 'P'], { message: 'tipoId debe ser C, R o P' })
+  tipoId: TipoIdentificacion;
+
+  @IsString()
+  @IsNotEmpty({ message: 'identificacion es requerida' })
+  @Length(5, 13, { message: 'identificacion entre 5 y 13 caracteres' })
+  identificacion: string; // F12/F13 Tipo y Número ID beneficiario (obligatorio)
+
+  @IsEnum(['CTE', 'AHO'], {
+    message: 'tipoCuenta debe ser CTE o AHO',
+  })
+  tipoCuenta: TipoCuentaBanco; // F10 Tipo de cuenta destino (obligatorio)
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20, { message: 'comprobante máx 20 caracteres' })
+  comprobante?: string; // F4 Comprobante de pago (opcional)
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z]{3}$/, {
+    message: 'moneda debe ser ISO-3 mayúsculas (ej: USD, EUR)',
+  })
+  moneda?: string; // F6 Moneda (opcional, default USD)
+
+  @IsString()
+  @IsNotEmpty({ message: 'motivoTransferencia es requerido' })
+  @Matches(/^\d{1,3},\d{1,2}$/, {
+    message:
+      'motivoTransferencia debe ser "codigo,ejencion" (ej: 106,0) según catálogo SIB',
+  })
+  motivoTransferencia: string; // F24 Motivo de la transferencia + código de exención
 
   @IsString()
   @IsNotEmpty({ message: 'beneficiarioNombre es requerido' })
@@ -69,9 +104,10 @@ export class TransferenciaDetalleItemDto {
   @IsPositive({ message: 'monto debe ser positivo' })
   monto: number;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'conceptoInvisibles es requerido' })
-  conceptoInvisibles: string; // Motivo/concepto según catálogo SIB
+  @MaxLength(100, { message: 'conceptoInvisibles máx 100 caracteres' })
+  conceptoInvisibles?: string; // Informativo; la trama usa RFB fijo PAGO!COMERCIAL!
 
   @IsOptional()
   @IsString()
@@ -95,10 +131,41 @@ export class CrearTransferenciaLoteDto {
   @IsNotEmpty({ message: 'cuentaEmpresa es requerida' })
   cuentaEmpresa: string;
 
+  @IsEnum(['CTE', 'AHO'], { message: 'tipoCuentaEmpresa debe ser CTE o AHO' })
+  tipoCuentaEmpresa: TipoCuentaBanco;
+
+  @IsString()
+  @IsNotEmpty({ message: 'empresa es requerida' })
+  empresa: string; // Razón social de la empresa ordenante
+
+  @IsString()
+  @IsNotEmpty({ message: 'idEmpresa es requerida' })
+  idEmpresa: string; // ID asignado por Produbanco
+
+  @IsString()
+  @IsNotEmpty({ message: 'servicio es requerido' })
+  servicio: string; // Código de servicio de exterior (confirmar con Produbanco)
+
+  @IsString()
+  @IsNotEmpty({ message: 'idServicio es requerido' })
+  idServicio: string; // ID de servicio de exterior (confirmar con Produbanco)
+
   @IsString()
   @IsNotEmpty({ message: 'referenciaLote es requerida' })
   @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
   referenciaLote: string;
+
+  @IsString()
+  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
+    message: 'fechaInicio debe tener el formato DD/MM/YYYY',
+  })
+  fechaInicio: string;
+
+  @IsString()
+  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
+    message: 'fechaVencimiento debe tener el formato DD/MM/YYYY',
+  })
+  fechaVencimiento: string;
 
   @IsArray({ message: 'detalles debe ser un arreglo' })
   @ArrayMinSize(1, { message: 'detalles debe tener al menos 1 elemento' })

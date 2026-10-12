@@ -18,6 +18,8 @@ import {
 import { Type } from 'class-transformer';
 
 export type TipoComision = 'OUR' | 'BEN' | 'SHA'; // OUR: Corre por cuenta del ordenante, BEN: Beneficiario, SHA: Compartido
+export type TipoIdentificacion = 'C' | 'R' | 'P'; // C: Cédula, R: RUC, P: Pasaporte
+export type TipoCuentaBanco = 'CTE' | 'AHO'; // CTE: Corriente, AHO: Ahorros
 
 export class TransferenciaDetalleItemDto {
   @ApiProperty({
@@ -29,6 +31,75 @@ export class TransferenciaDetalleItemDto {
   @IsInt({ message: 'secuencia debe ser entero' })
   @Min(1, { message: 'secuencia debe ser >= 1' })
   secuencia: number;
+
+  @ApiProperty({
+    description: 'Tipo de identificación del beneficiario',
+    example: 'C',
+    enum: ['C', 'R', 'P'],
+  })
+  @IsEnum(['C', 'R', 'P'], { message: 'tipoId debe ser C, R o P' })
+  tipoId: TipoIdentificacion;
+
+  @ApiProperty({
+    description:
+      'Número de identificación del beneficiario (cédula 10, RUC 13, pasaporte hasta 13)',
+    example: '1723456789',
+    type: String,
+    minLength: 5,
+    maxLength: 13,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'identificacion es requerida' })
+  @Length(5, 13, { message: 'identificacion entre 5 y 13 caracteres' })
+  identificacion: string; // F12/F13 Tipo y Número ID beneficiario (obligatorio)
+
+  @ApiProperty({
+    description: 'Tipo de cuenta destino del beneficiario',
+    example: 'CTE',
+    enum: ['CTE', 'AHO'],
+  })
+  @IsEnum(['CTE', 'AHO'], {
+    message: 'tipoCuenta debe ser CTE o AHO',
+  })
+  tipoCuenta: TipoCuentaBanco; // F10 Tipo de cuenta destino (obligatorio)
+
+  @ApiPropertyOptional({
+    description: 'Comprobante de pago (egreso, planilla, etc.)',
+    example: 'COMP-001',
+    type: String,
+    maxLength: 20,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20, { message: 'comprobante máx 20 caracteres' })
+  comprobante?: string; // F4 Comprobante de pago (opcional)
+
+  @ApiPropertyOptional({
+    description: 'Código de moneda ISO-3 (default USD)',
+    example: 'USD',
+    type: String,
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z]{3}$/, {
+    message: 'moneda debe ser ISO-3 mayúsculas (ej: USD, EUR)',
+  })
+  moneda?: string; // F6 Moneda (opcional, default USD)
+
+  @ApiProperty({
+    description:
+      'Motivo de la transferencia según catálogo SIB, seguido de coma y código de exención (0 = sin exención)',
+    example: '106,0',
+    type: String,
+    pattern: '^\\d{1,3},\\d{1,2}$',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'motivoTransferencia es requerido' })
+  @Matches(/^\d{1,3},\d{1,2}$/, {
+    message:
+      'motivoTransferencia debe ser "codigo,ejencion" (ej: 106,0) según catálogo SIB',
+  })
+  motivoTransferencia: string; // F24 Motivo de la transferencia + código de exención
 
   @ApiProperty({
     description: 'Nombre completo o razón social del beneficiario',
@@ -130,15 +201,17 @@ export class TransferenciaDetalleItemDto {
   @IsPositive({ message: 'monto debe ser positivo' })
   monto: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
-      'Concepto o motivo de la transferencia según catálogo SIB / código de invisibles',
+      'Concepto informativo del pago (la trama usa RFB fijo PAGO!COMERCIAL!COMISIÓN)',
     example: 'PAGO_PROVEEDOR',
     type: String,
+    maxLength: 100,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'conceptoInvisibles es requerido' })
-  conceptoInvisibles: string; // Motivo/concepto según catálogo SIB
+  @MaxLength(100, { message: 'conceptoInvisibles máx 100 caracteres' })
+  conceptoInvisibles?: string; // Informativo; la trama usa RFB fijo PAGO!COMERCIAL!
 
   @ApiPropertyOptional({
     description:
@@ -187,6 +260,50 @@ export class CrearTransferenciaLoteDto {
   cuentaEmpresa: string;
 
   @ApiProperty({
+    description: 'Tipo de cuenta de la empresa ordenante',
+    example: 'CTE',
+    enum: ['CTE', 'AHO'],
+  })
+  @IsEnum(['CTE', 'AHO'], { message: 'tipoCuentaEmpresa debe ser CTE o AHO' })
+  tipoCuentaEmpresa: TipoCuentaBanco;
+
+  @ApiProperty({
+    description: 'Razón social de la empresa ordenante',
+    example: 'MI EMPRESA S.A.',
+    type: String,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'empresa es requerida' })
+  empresa: string;
+
+  @ApiProperty({
+    description: 'ID de la empresa asignado por Produbanco',
+    example: '24672',
+    type: String,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'idEmpresa es requerida' })
+  idEmpresa: string;
+
+  @ApiProperty({
+    description: 'Código del servicio de exterior (confirmar con Produbanco)',
+    example: 'PE',
+    type: String,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'servicio es requerido' })
+  servicio: string;
+
+  @ApiProperty({
+    description: 'ID del servicio de exterior asignado por Produbanco',
+    example: '80',
+    type: String,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'idServicio es requerido' })
+  idServicio: string;
+
+  @ApiProperty({
     description: 'Referencia o identificador único del lote de transferencias',
     example: 'LOTE-TRANSF-2026-001',
     type: String,
@@ -196,6 +313,28 @@ export class CrearTransferenciaLoteDto {
   @IsNotEmpty({ message: 'referenciaLote es requerida' })
   @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
   referenciaLote: string;
+
+  @ApiProperty({
+    description: 'Fecha de inicio del lote en formato DD/MM/YYYY',
+    example: '12/10/2026',
+    type: String,
+  })
+  @IsString()
+  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
+    message: 'fechaInicio debe tener el formato DD/MM/YYYY',
+  })
+  fechaInicio: string;
+
+  @ApiProperty({
+    description: 'Fecha de vencimiento del lote en formato DD/MM/YYYY',
+    example: '18/10/2026',
+    type: String,
+  })
+  @IsString()
+  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
+    message: 'fechaVencimiento debe tener el formato DD/MM/YYYY',
+  })
+  fechaVencimiento: string;
 
   @ApiProperty({
     description:

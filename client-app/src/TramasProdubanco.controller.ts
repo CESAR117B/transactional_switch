@@ -4,7 +4,7 @@ import { ApiKeyGuard } from './api-key.guard';
 import { RequireService } from "./require-service.decorator";
 import { AppService } from "./app.service";
 import { CrearPagoLoteDto, GenerarPagoPayloadDto } from "./dto/crear-pago-lote.dto";
-import { GenerarTransferenciaPayloadDto } from "./dto/crear-transferencia-lote.dto";
+import { CrearTransferenciaLoteDto } from "./dto/crear-transferencia-lote.dto";
 
 @ApiTags('Servicios')
 @ApiBearerAuth()
@@ -26,7 +26,7 @@ async generarPago(@Req() req: any, @Body() dto: CrearPagoLoteDto) {
 
     @ApiOperation({ summary: 'Generar lote de transferencias al exterior Produbanco (Transfer Full)' })
     @Post('transferencia')
-    async generarTransferencia(@Req() req: any, @Body() dto: GenerarTransferenciaPayloadDto) {
+    async generarTransferencia(@Req() req: any, @Body() dto: CrearTransferenciaLoteDto) {
         const idApp = req.appAuth?.id_app;
         if (!idApp) {
             throw new BadRequestException('No se pudo identificar la App desde el token');
