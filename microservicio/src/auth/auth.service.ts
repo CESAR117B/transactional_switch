@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../prisma/prisma.service';
 
-
 @Injectable()
 export class AuthService {
   constructor(private prisma: PrismaService) {}
@@ -17,21 +16,27 @@ export class AuthService {
             servicios: {
               include: {
                 servicios_controladores: {
-                  include: { controladores: true } // Aquí está el 'cmp'
-                }
-              }
-            }
-          }
-        }
-      }
+                  include: { controladores: true }, // Aquí está el 'cmp'
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     // Validaciones de seguridad básicas
     if (!app || app.activo === false) {
-      throw new RpcException({ status: 401, message: 'App no registrada o inactiva' });
+      throw new RpcException({
+        status: 401,
+        message: 'App no registrada o inactiva',
+      });
     }
     if (app.key !== key) {
-      throw new RpcException({ status: 401, message: 'Credenciales inválidas' });
+      throw new RpcException({
+        status: 401,
+        message: 'Credenciales inválidas',
+      });
     }
 
     // 2. Extraemos los comandos ('cmp') asignados a la App.
@@ -55,11 +60,11 @@ export class AuthService {
 
     // ... (lógica de controladores públicos) ...
 
-    return { 
-      id_app: app.id_app, 
+    return {
+      id_app: app.id_app,
       identificador: app.identificador_app,
       permisos: Array.from(comandosPermitidos),
-      servicios: Array.from(serviciosPermitidos) // <-- Lo enviamos a la App Cliente
+      servicios: Array.from(serviciosPermitidos), // <-- Lo enviamos a la App Cliente
     };
   }
 }

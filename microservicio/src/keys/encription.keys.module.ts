@@ -1,10 +1,7 @@
-import { Module } from "@nestjs/common";
-import { EncriptionKeysController } from "./encription.keys.controller";
-
+import { Module } from '@nestjs/common';
+import { EncriptionKeysController } from './encription.keys.controller';
 
 @Module({
-    controllers: [EncriptionKeysController]
-})                                                  
-export class EncriptionKeysModule {
-
-}
+  controllers: [EncriptionKeysController],
+})
+export class EncriptionKeysModule {}

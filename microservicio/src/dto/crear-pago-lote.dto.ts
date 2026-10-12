@@ -39,11 +39,15 @@ export class PagoDetalleItemDto {
   @Length(3, 100, { message: 'nombre entre 3 y 100 caracteres' })
   nombre: string;
 
-  @IsEnum(['CTA', 'SPI', 'CHQ', 'EFE'], { message: 'formaPago debe ser CTA, SPI, CHQ o EFE' })
+  @IsEnum(['CTA', 'SPI', 'CHQ', 'EFE'], {
+    message: 'formaPago debe ser CTA, SPI, CHQ o EFE',
+  })
   formaPago: FormaPago;
 
   @IsOptional()
-  @IsEnum(['CTE', 'AHO', 'TAR'], { message: 'tipoCuenta debe ser CTE, AHO o TAR' })
+  @IsEnum(['CTE', 'AHO', 'TAR'], {
+    message: 'tipoCuenta debe ser CTE, AHO o TAR',
+  })
   tipoCuenta?: TipoCuenta; // Requerido para CTA y SPI
 
   @IsOptional()
@@ -56,7 +60,10 @@ export class PagoDetalleItemDto {
   @Length(2, 10, { message: 'bancoCodigo entre 2 y 10 caracteres' })
   bancoCodigo?: string; // Código de banco destino (ej: "0036" para Produbanco)
 
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'monto debe ser numérico con máx 2 decimales' })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'monto debe ser numérico con máx 2 decimales' },
+  )
   @IsPositive({ message: 'monto debe ser positivo' })
   monto: number;
 
@@ -81,40 +88,41 @@ export class CrearPagoLoteDto {
   @IsNotEmpty({ message: 'cuentaEmpresa es requerida' })
   cuentaEmpresa: string;
 
-  @IsOptional()
   @IsEnum(['CTE', 'AHO'], { message: 'tipoCuentaEmpresa debe ser CTE o AHO' })
-  tipoCuentaEmpresa?: TipoCuenta;
+  tipoCuentaEmpresa: TipoCuenta;
 
-  @IsOptional()
   @IsString()
-  empresa?: string; // Razón social de la empresa ordenante
+  @IsNotEmpty({ message: 'empresa es requerida' })
+  empresa: string; // Razón social de la empresa ordenante
 
-  @IsOptional()
   @IsString()
-  idEmpresa?: string; // ID asignado por Produbanco (ej: "343")
+  @IsNotEmpty({ message: 'idEmpresa es requerida' })
+  idEmpresa: string; // ID asignado por Produbanco (ej: "343")
 
-  @IsOptional()
   @IsString()
-  servicio?: string; // Código de servicio (ej: "PV")
+  @IsNotEmpty({ message: 'servicio es requerido' })
+  servicio: string; // Código de servicio (ej: "PV")
 
-  @IsOptional()
   @IsString()
-  idServicio?: string; // ID de servicio asignado por Produbanco (ej: "75")
+  @IsNotEmpty({ message: 'idServicio es requerido' })
+  idServicio: string; // ID de servicio asignado por Produbanco (ej: "75")
 
   @IsString()
   @IsNotEmpty({ message: 'referenciaLote es requerida' })
   @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
   referenciaLote: string;
 
-  @IsOptional()
   @IsString()
-  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, { message: 'fechaInicio debe tener el formato DD/MM/YYYY' })
-  fechaInicio?: string;
+  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
+    message: 'fechaInicio debe tener el formato DD/MM/YYYY',
+  })
+  fechaInicio: string;
 
-  @IsOptional()
   @IsString()
-  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, { message: 'fechaVencimiento debe tener el formato DD/MM/YYYY' })
-  fechaVencimiento?: string;
+  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
+    message: 'fechaVencimiento debe tener el formato DD/MM/YYYY',
+  })
+  fechaVencimiento: string;
 
   @IsArray({ message: 'detalles debe ser un arreglo' })
   @ArrayMinSize(1, { message: 'detalles debe tener al menos 1 elemento' })

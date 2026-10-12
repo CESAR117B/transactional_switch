@@ -14,18 +14,20 @@ export class UniversalCryptoService {
    */
   encrypt(text: string, secretKey: string): string {
     if (secretKey.length !== 32) {
-      throw new Error('La llave de encriptación debe tener exactamente 32 caracteres.');
+      throw new Error(
+        'La llave de encriptación debe tener exactamente 32 caracteres.',
+      );
     }
 
-    // 1. Vector de Inicialización (IV): Necesario y debe ser aleatorio por cada encriptación. 
+    // 1. Vector de Inicialización (IV): Necesario y debe ser aleatorio por cada encriptación.
     // 12 bytes es el tamaño estándar recomendado para el algoritmo GCM.
     const iv = crypto.randomBytes(12);
 
     // 2. Creamos la instancia del cifrador
     const cipher = crypto.createCipheriv(
-      this.algorithm, 
-      Buffer.from(secretKey, 'utf8'), 
-      iv
+      this.algorithm,
+      Buffer.from(secretKey, 'utf8'),
+      iv,
     );
 
     // 3. Procesamos el texto
@@ -47,13 +49,17 @@ export class UniversalCryptoService {
    */
   decrypt(encryptedPackage: string, secretKey: string): string {
     if (secretKey.length !== 32) {
-      throw new Error('La llave de encriptación debe tener exactamente 32 caracteres.');
+      throw new Error(
+        'La llave de encriptación debe tener exactamente 32 caracteres.',
+      );
     }
 
     // 1. Desarmamos el paquete
     const parts = encryptedPackage.split(':');
     if (parts.length !== 3) {
-      throw new Error('Formato de encriptación inválido. Se esperaba IV:AuthTag:Texto');
+      throw new Error(
+        'Formato de encriptación inválido. Se esperaba IV:AuthTag:Texto',
+      );
     }
 
     const iv = Buffer.from(parts[0], 'base64');
@@ -62,11 +68,11 @@ export class UniversalCryptoService {
 
     // 2. Creamos la instancia del descifrador
     const decipher = crypto.createDecipheriv(
-      this.algorithm, 
-      Buffer.from(secretKey, 'utf8'), 
-      iv
+      this.algorithm,
+      Buffer.from(secretKey, 'utf8'),
+      iv,
     );
-    
+
     // 3. Le pasamos el Auth Tag para que verifique que la data es íntegra
     decipher.setAuthTag(authTag);
 

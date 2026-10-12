@@ -50,15 +50,22 @@ export class TransferenciaDetalleItemDto {
 
   @IsString()
   @IsNotEmpty({ message: 'codigoSwiftAba es requerido' })
-  @Matches(/^[A-Z0-9]{8,11}$/, { message: 'codigoSwiftAba debe ser SWIFT/BIC 8-11 alfanumérico mayúsculas' })
+  @Matches(/^[A-Z0-9]{8,11}$/, {
+    message: 'codigoSwiftAba debe ser SWIFT/BIC 8-11 alfanumérico mayúsculas',
+  })
   codigoSwiftAba: string; // Código SWIFT (BIC) o ABA del banco destino
 
   @IsOptional()
   @IsString()
-  @Matches(/^[A-Z0-9]{8,11}$/, { message: 'bancoIntermediarioSwift debe ser SWIFT 8-11' })
+  @Matches(/^[A-Z0-9]{8,11}$/, {
+    message: 'bancoIntermediarioSwift debe ser SWIFT 8-11',
+  })
   bancoIntermediarioSwift?: string; // Opcional: SWIFT del banco intermediario
 
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'monto debe ser numérico con máx 2 decimales' })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'monto debe ser numérico con máx 2 decimales' },
+  )
   @IsPositive({ message: 'monto debe ser positivo' })
   monto: number;
 
@@ -72,7 +79,9 @@ export class TransferenciaDetalleItemDto {
   codigoExoneracionIsd?: string; // Código exoneración ISD (si aplica)
 
   @IsOptional()
-  @IsEnum(['OUR', 'BEN', 'SHA'], { message: 'tipoComision debe ser OUR, BEN o SHA' })
+  @IsEnum(['OUR', 'BEN', 'SHA'], {
+    message: 'tipoComision debe ser OUR, BEN o SHA',
+  })
   tipoComision?: TipoComision;
 
   @IsOptional()

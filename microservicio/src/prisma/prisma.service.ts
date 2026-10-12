@@ -7,14 +7,17 @@ import { config } from 'dotenv';
 config();
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor() {
     // 1. Obtenemos la variable de entorno
     const connectionString = `${process.env.DATABASE_URL}`;
-    
+
     // 2. Creamos el Pool de conexiones usando 'pg'
     const pool = new Pool({ connectionString });
-    
+
     // 3. Inicializamos el adaptador
     const adapter = new PrismaPg(pool);
 

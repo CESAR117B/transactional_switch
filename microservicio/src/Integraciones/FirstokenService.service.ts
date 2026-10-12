@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { ConfigDbService } from '../config-db/config-db.service';
@@ -17,12 +21,15 @@ export class FirsTokenService {
     private readonly configDb: ConfigDbService, // Inyectamos la configuración
     private readonly prisma: PrismaService,
     private eventEmitter: EventEmitter2, // Inyectamos el EventEmitter para auditoría
-    private readonly universalCryptoService: UniversalCryptoService
+    private readonly universalCryptoService: UniversalCryptoService,
   ) {}
 
-// ... asegúrate de tener las demás importaciones necesarias
+  // ... asegúrate de tener las demás importaciones necesarias
 
-  async permanent_token_card(idApp: number, datosTarjeta: TokenizeCardDto): Promise<any> { 
+  async permanent_token_card(
+    idApp: number,
+    datosTarjeta: TokenizeCardDto,
+  ): Promise<any> {
     // 1. Obtenemos la configuración
     const config = await this.configDb.getFirstTokenConfig();
 
@@ -37,29 +44,31 @@ export class FirsTokenService {
       const response = await firstValueFrom(
         this.httpService.post(urlFinal, payloadLimpio, {
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          timeout: config.timeout 
-        })
-      );  
+          timeout: config.timeout,
+        }),
+      );
 
       // 3. Extraemos la data de la respuesta para mayor legibilidad
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
-      
+
       // 4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
       const appRecord = await this.prisma.app.findUnique({
         where: { id_app: idApp }, // Verifica si necesitas BigInt(idApp) dependiendo de tu esquema
-        select: { encryptionKey: true }
+        select: { encryptionKey: true },
       });
 
       if (!appRecord || !appRecord.encryptionKey) {
-        throw new InternalServerErrorException(`La app con ID ${idApp} no tiene una llave de encriptación configurada.`);
+        throw new InternalServerErrorException(
+          `La app con ID ${idApp} no tiene una llave de encriptación configurada.`,
+        );
       }
 
       const tokenEncriptado = this.universalCryptoService.encrypt(
-        cardDetails.token, 
-        appRecord.encryptionKey
+        cardDetails.token,
+        appRecord.encryptionKey,
       );
 
       // 5. Mapeamos exactamente la respuesta hacia tu modelo de Prisma
@@ -75,13 +84,15 @@ export class FirsTokenService {
           lastFour: cardDetails.last_four,
           status: 'ACTIVE', // Agregamos un campo para diferenciar temporal de permanente
           metadata: {
-            bin: cardDetails.bin // Guardamos el BIN en el JSON opcional por si acaso
+            bin: cardDetails.bin, // Guardamos el BIN en el JSON opcional por si acaso
           },
-          typeCard: 'PERMANENT' // Indicamos que es una tarjeta permanente
-        }
+          typeCard: 'PERMANENT', // Indicamos que es una tarjeta permanente
+        },
       });
 
-      this.logger.log(`✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`);
+      this.logger.log(
+        `✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`,
+      );
 
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
@@ -94,7 +105,7 @@ export class FirsTokenService {
         status: response.status,
       });
 
-      const datamap={
+      const datamap = {
         card_truncated: cardDetails.card_truncated,
         card_holder: responseData.card_holder,
         card_month: responseData.card_month,
@@ -102,15 +113,14 @@ export class FirsTokenService {
         brand: cardDetails.brand,
         last_four: cardDetails.last_four,
         token: tokenEncriptado, // Guardamos el token encriptado en el datamap para auditoría, pero el listener se encargará de no loguearlo
-        typeCard: 'PERMANENT'
-      }
+        typeCard: 'PERMANENT',
+      };
       // Devolvemos la respuesta original de FirsToken, pero le agregamos el ID de la BD
       // convertido a String para que no rompa el JSON en el Gateway
       return {
-        ... datamap
+        ...datamap,
       };
-      
-     } catch (error) {
+    } catch (error) {
       const mensajeError = error.response?.data || error.message;
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
@@ -122,16 +132,15 @@ export class FirsTokenService {
         status: error.response?.status || 500,
         errorMessage: mensajeError,
       });
-      
+
       this.logger.error('Fallo en FirsToken o Base de Datos:', mensajeError);
-      
+
       throw new RpcException({
         status: error.response?.status || 500,
-        message: mensajeError
+        message: mensajeError,
       });
     }
   }
-
 
   async temporal_token_card(idApp: number, datosTarjeta: any): Promise<any> {
     // 1. Obtenemos la configuración
@@ -147,49 +156,53 @@ export class FirsTokenService {
       const response = await firstValueFrom(
         this.httpService.post(urlFinal, payloadLimpio, {
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          timeout: config.timeout 
-        })
+          timeout: config.timeout,
+        }),
       );
-      
+
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
 
       //  4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
       const appRecord = await this.prisma.app.findUnique({
         where: { id_app: idApp }, // Verifica si necesitas BigInt(idApp) dependiendo de tu esquema
-        select: { encryptionKey: true }
+        select: { encryptionKey: true },
       });
 
       if (!appRecord || !appRecord.encryptionKey) {
-        throw new InternalServerErrorException(`La app con ID ${idApp} no tiene una llave de encriptación configurada.`);
+        throw new InternalServerErrorException(
+          `La app con ID ${idApp} no tiene una llave de encriptación configurada.`,
+        );
       }
 
       const tokenEncriptado = this.universalCryptoService.encrypt(
-        cardDetails.token, 
-        appRecord.encryptionKey
+        cardDetails.token,
+        appRecord.encryptionKey,
       );
 
       // 3. Mapeamos hacia Prisma
       const savedCard = await this.prisma.tokenizedCard.create({
         data: {
-          idApp: idApp, 
+          idApp: idApp,
           firstToken: tokenEncriptado, // En este caso será el UUID (ej. d54f0486-...)
           cardTruncated: cardDetails.card_truncated,
-          franchise: cardDetails.brand.toUpperCase(), 
+          franchise: cardDetails.brand.toUpperCase(),
           holderName: responseData.card_holder,
           expirationMonth: responseData.card_month,
           expirationYear: responseData.card_year,
           lastFour: cardDetails.last_four,
           typeCard: 'TEMPORAL', // Indicamos que es una tarjeta temporal
           metadata: {
-            bin: cardDetails.bin 
-          }
-        }
+            bin: cardDetails.bin,
+          },
+        },
       });
 
-      this.logger.log(`⏳ Tarjeta TEMPORAL guardada con ID: ${savedCard.idCard}`);
+      this.logger.log(
+        `⏳ Tarjeta TEMPORAL guardada con ID: ${savedCard.idCard}`,
+      );
 
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
@@ -202,7 +215,7 @@ export class FirsTokenService {
         status: response.status,
       });
 
-       const datamap={
+      const datamap = {
         card_truncated: cardDetails.card_truncated,
         card_holder: responseData.card_holder,
         card_month: responseData.card_month,
@@ -210,14 +223,13 @@ export class FirsTokenService {
         brand: cardDetails.brand,
         last_four: cardDetails.last_four,
         token: tokenEncriptado, // Guardamos el token encriptado en el datamap para auditoría, pero el listener se encargará de no loguearlo
-        typeCard: 'TEMPORAL'
-      }
+        typeCard: 'TEMPORAL',
+      };
 
       // 4. Devolvemos respuesta con el ID de BD casteado a string
       return {
-            ...datamap
+        ...datamap,
       };
-      
     } catch (error) {
       const mensajeError = error.response?.data || error.message;
 
@@ -229,15 +241,14 @@ export class FirsTokenService {
         requestPayload: datosTarjeta,
         responsePayload: error.response?.data || {},
         status: error.response?.status || 500,
-        errorMessage:mensajeError
+        errorMessage: mensajeError,
       });
       this.logger.error('Fallo en FirsToken (Temporal):', mensajeError);
 
       throw new RpcException({
         status: error.response?.status || 500,
-        message: mensajeError
+        message: mensajeError,
       });
     }
   }
-  
 }

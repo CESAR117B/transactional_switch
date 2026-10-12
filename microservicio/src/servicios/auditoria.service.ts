@@ -15,9 +15,15 @@ export class AuditoriaService {
   // cada vez que alguien emita el evento 'audit.record'
   @OnEvent('audit.record', { async: true }) // async: true es clave para no bloquear el hilo principal
   async handleAuditLogEvent(payload: TransactionLogEvent) {
-    console.log('🚨 ¡EL EVENTO SE DISPARÓ EN SEGUNDO PLANO!', payload.reference);
+    console.log(
+      '🚨 ¡EL EVENTO SE DISPARÓ EN SEGUNDO PLANO!',
+      payload.reference,
+    );
     const transactionReference = crypto.randomUUID();
-    const referenceHash = crypto.createHash('sha256').update(transactionReference, 'utf8').digest('hex');
+    const referenceHash = crypto
+      .createHash('sha256')
+      .update(transactionReference, 'utf8')
+      .digest('hex');
     try {
       // 1. Sanitizamos el request payload (quitar CVV, PAN completo, etc.)
       const sanitizedRequest = this.sanitizePayload(payload.requestPayload);
@@ -41,10 +47,15 @@ export class AuditoriaService {
         },
       });
 
-      this.logger.debug(`📝 Auditoría guardada en 2do plano [Ref: ${transactionReference}]`);
+      this.logger.debug(
+        `📝 Auditoría guardada en 2do plano [Ref: ${transactionReference}]`,
+      );
     } catch (error) {
       // Si la auditoría falla, NO rompe la transacción principal de la tarjeta
-      this.logger.error(`❌ Error guardando auditoría [Ref: ${transactionReference}]:`, error.message);
+      this.logger.error(
+        `❌ Error guardando auditoría [Ref: ${transactionReference}]:`,
+        error.message,
+      );
     }
   }
 
@@ -58,6 +69,4 @@ export class AuditoriaService {
     }
     return clean;
   }
-
-  
 }

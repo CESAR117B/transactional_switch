@@ -1,5 +1,11 @@
 // tokenize-card.dto.ts (Dentro del Microservicio)
-import { IsString, IsNotEmpty, Length, Matches, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  Length,
+  Matches,
+  IsBoolean,
+} from 'class-validator';
 
 export class TokenizeCardDto {
   @IsString()

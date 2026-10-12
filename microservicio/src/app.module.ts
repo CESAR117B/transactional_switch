@@ -10,11 +10,17 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EncriptionKeysModule } from './keys/encription.keys.module';
 import { IntegracionesModule } from './Integraciones/integraciones.module';
 
-
 @Module({
-  imports: [ EventEmitterModule.forRoot(),
-    PrismaModule, AuthModule, ServiciosModule, IntegracionesModule, ConfigDbModule, EncriptionKeysModule],
+  imports: [
+    EventEmitterModule.forRoot(),
+    PrismaModule,
+    AuthModule,
+    ServiciosModule,
+    IntegracionesModule,
+    ConfigDbModule,
+    EncriptionKeysModule,
+  ],
   controllers: [AppController],
-  providers: [AppService]
+  providers: [AppService],
 })
 export class AppModule {}

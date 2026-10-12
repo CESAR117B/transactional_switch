@@ -9,6 +9,9 @@ export class AuthController {
 
   @MessagePattern({ cmd: 'validar_app' })
   validarApp(@Payload() data: { identificador: string; key: string }) {
-    return this.authService.validarCredencialesApp(data.identificador, data.key);
+    return this.authService.validarCredencialesApp(
+      data.identificador,
+      data.key,
+    );
   }
 }
