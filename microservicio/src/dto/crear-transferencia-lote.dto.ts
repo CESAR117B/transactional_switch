@@ -3,8 +3,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
-  IsInt,
-  Min,
   IsPositive,
   IsEnum,
   IsArray,
@@ -21,10 +19,6 @@ export type TipoIdentificacion = 'C' | 'R' | 'P'; // C: Cédula, R: RUC, P: Pasa
 export type TipoCuentaBanco = 'CTE' | 'AHO'; // CTE: Corriente, AHO: Ahorros
 
 export class TransferenciaDetalleItemDto {
-  @IsInt({ message: 'secuencia debe ser entero' })
-  @Min(1, { message: 'secuencia debe ser >= 1' })
-  secuencia: number;
-
   @IsEnum(['C', 'R', 'P'], { message: 'tipoId debe ser C, R o P' })
   tipoId: TipoIdentificacion;
 
@@ -150,10 +144,10 @@ export class CrearTransferenciaLoteDto {
   @IsNotEmpty({ message: 'idServicio es requerido' })
   idServicio: string; // ID de servicio de exterior (confirmar con Produbanco)
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'referenciaLote es requerida' })
   @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
-  referenciaLote: string;
+  referenciaLote?: string; // Identificador del lote; si no se envía, el back lo genera (LT{yyyyMMddHHmmss}-{hex})
 
   @IsString()
   @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {

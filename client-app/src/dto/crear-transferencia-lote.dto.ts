@@ -4,8 +4,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
-  IsInt,
-  Min,
   IsPositive,
   IsEnum,
   IsArray,
@@ -22,16 +20,6 @@ export type TipoIdentificacion = 'C' | 'R' | 'P'; // C: Cédula, R: RUC, P: Pasa
 export type TipoCuentaBanco = 'CTE' | 'AHO'; // CTE: Corriente, AHO: Ahorros
 
 export class TransferenciaDetalleItemDto {
-  @ApiProperty({
-    description: 'Número secuencial de la transferencia dentro del lote',
-    example: 1,
-    type: Number,
-    minimum: 1,
-  })
-  @IsInt({ message: 'secuencia debe ser entero' })
-  @Min(1, { message: 'secuencia debe ser >= 1' })
-  secuencia: number;
-
   @ApiProperty({
     description: 'Tipo de identificación del beneficiario',
     example: 'C',
@@ -238,8 +226,12 @@ export class TransferenciaDetalleItemDto {
   tipoComision?: TipoComision;
 
   @ApiPropertyOptional({
-    description: 'Referencia o concepto libre de la transferencia',
-    example: 'REF-2026-001',
+    description:
+      'Número de factura o referencia del documento generado por el sistema ' +
+      'cliente que se conecta al microservicio; se envía a Produbanco en el ' +
+      'campo INV (F23, máx 26 chars sin espacios). Si no se envía, el back ' +
+      'usa la referenciaLote del lote',
+    example: 'FAC-00123',
     type: String,
     maxLength: 50,
   })
@@ -303,16 +295,18 @@ export class CrearTransferenciaLoteDto {
   @IsNotEmpty({ message: 'idServicio es requerido' })
   idServicio: string;
 
-  @ApiProperty({
-    description: 'Referencia o identificador único del lote de transferencias',
+  @ApiPropertyOptional({
+    description:
+      'Identificador único del lote; si no se envía, el back lo genera ' +
+      '(LT{yyyyMMddHHmmss}-{hex}) y lo devuelve en la respuesta',
     example: 'LOTE-TRANSF-2026-001',
     type: String,
     maxLength: 60,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'referenciaLote es requerida' })
   @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
-  referenciaLote: string;
+  referenciaLote?: string;
 
   @ApiProperty({
     description: 'Fecha de inicio del lote en formato DD/MM/YYYY',

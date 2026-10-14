@@ -3,8 +3,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
-  IsInt,
-  Min,
   IsPositive,
   IsEnum,
   IsArray,
@@ -22,10 +20,6 @@ export type FormaPago = 'CTA' | 'SPI' | 'CHQ' | 'EFE'; // CTA: Produbanco, SPI: 
 export type TipoCuenta = 'CTE' | 'AHO' | 'TAR'; // CTE: Corriente, AHO: Ahorros, TAR: Tarjeta
 
 export class PagoDetalleItemDto {
-  @IsInt({ message: 'secuencia debe ser entero' })
-  @Min(1, { message: 'secuencia debe ser >= 1' })
-  secuencia: number;
-
   @IsEnum(['C', 'R', 'P'], { message: 'tipoId debe ser C, R o P' })
   tipoId: TipoIdentificacion;
 
@@ -107,10 +101,10 @@ export class CrearPagoLoteDto {
   @IsNotEmpty({ message: 'idServicio es requerido' })
   idServicio: string; // ID de servicio asignado por Produbanco (ej: "75")
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'referenciaLote es requerida' })
   @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
-  referenciaLote: string;
+  referenciaLote?: string; // Identificador del lote; si no se envía, el back lo genera (LT{yyyyMMddHHmmss}-{hex})
 
   @IsString()
   @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {

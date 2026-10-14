@@ -4,8 +4,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
-  IsInt,
-  Min,
   IsPositive,
   IsEnum,
   IsArray,
@@ -23,17 +21,8 @@ export type TipoCuenta = 'CTE' | 'AHO' | 'TAR'; // CTE: Corriente, AHO: Ahorros,
 
 export class PagoDetalleItemDto {
   @ApiProperty({
-    description: 'Número secuencial del pago dentro del lote',
-    example: 1,
-    type: Number,
-    minimum: 1,
-  })
-  @IsInt({ message: 'secuencia debe ser entero' })
-  @Min(1, { message: 'secuencia debe ser >= 1' })
-  secuencia: number;
-
-  @ApiProperty({
-    description: 'Tipo de identificación del beneficiario: C=Cédula, R=RUC, P=Pasaporte',
+    description:
+      'Tipo de identificación del beneficiario: C=Cédula, R=RUC, P=Pasaporte',
     example: 'C',
     enum: ['C', 'R', 'P'],
   })
@@ -65,7 +54,8 @@ export class PagoDetalleItemDto {
   nombre: string;
 
   @ApiProperty({
-    description: 'Forma de pago: CTA=Cuenta Produbanco, SPI=Otro banco, CHQ=Cheque, EFE=Ventanilla',
+    description:
+      'Forma de pago: CTA=Cuenta Produbanco, SPI=Otro banco, CHQ=Cheque, EFE=Ventanilla',
     example: 'CTA',
     enum: ['CTA', 'SPI', 'CHQ', 'EFE'],
   })
@@ -75,16 +65,20 @@ export class PagoDetalleItemDto {
   formaPago: FormaPago;
 
   @ApiPropertyOptional({
-    description: 'Tipo de cuenta destino: CTE=Corriente, AHO=Ahorros, TAR=Tarjeta. Requerido para CTA y SPI',
+    description:
+      'Tipo de cuenta destino: CTE=Corriente, AHO=Ahorros, TAR=Tarjeta. Requerido para CTA y SPI',
     example: 'AHO',
     enum: ['CTE', 'AHO', 'TAR'],
   })
   @IsOptional()
-  @IsEnum(['CTE', 'AHO', 'TAR'], { message: 'tipoCuenta debe ser CTE, AHO o TAR' })
+  @IsEnum(['CTE', 'AHO', 'TAR'], {
+    message: 'tipoCuenta debe ser CTE, AHO o TAR',
+  })
   tipoCuenta?: TipoCuenta;
 
   @ApiPropertyOptional({
-    description: 'Número de cuenta bancaria destino del beneficiario. Requerido para CTA y SPI',
+    description:
+      'Número de cuenta bancaria destino del beneficiario. Requerido para CTA y SPI',
     example: '12345678901234',
     type: String,
     minLength: 5,
@@ -96,7 +90,8 @@ export class PagoDetalleItemDto {
   cuenta?: string;
 
   @ApiPropertyOptional({
-    description: 'Código de la institución financiera destino (ej: 0036 para Produbanco)',
+    description:
+      'Código de la institución financiera destino (ej: 0036 para Produbanco)',
     example: '0036',
     type: String,
     minLength: 2,
@@ -121,7 +116,10 @@ export class PagoDetalleItemDto {
   monto: number;
 
   @ApiProperty({
-    description: 'Número de factura, concepto o referencia del pago (Obligatorio)',
+    description:
+      'Número de factura generado por el sistema cliente que se conecta al ' +
+      'microservicio (obligatorio; se envía a Produbanco como F19 Referencia ' +
+      'del pago y se imprime en la notificación al beneficiario)',
     example: 'FAC-00123',
     type: String,
     maxLength: 200,
@@ -170,7 +168,10 @@ export class CrearPagoLoteDto {
   @IsEnum(['CTE', 'AHO'], { message: 'tipoCuentaEmpresa debe ser CTE o AHO' })
   tipoCuentaEmpresa?: TipoCuenta;
 
-  @ApiPropertyOptional({ description: 'Razón social empresa ordenante', example: 'Mi Empresa S.A.' })
+  @ApiPropertyOptional({
+    description: 'Razón social empresa ordenante',
+    example: 'Mi Empresa S.A.',
+  })
   @IsOptional()
   @IsString()
   empresa?: string;
@@ -180,7 +181,10 @@ export class CrearPagoLoteDto {
   @IsString()
   idEmpresa?: string;
 
-  @ApiPropertyOptional({ description: 'Código servicio Produbanco', example: 'PV' })
+  @ApiPropertyOptional({
+    description: 'Código servicio Produbanco',
+    example: 'PV',
+  })
   @IsOptional()
   @IsString()
   servicio?: string;
@@ -190,26 +194,34 @@ export class CrearPagoLoteDto {
   @IsString()
   idServicio?: string;
 
-  @ApiPropertyOptional({ description: 'Fecha inicio DD/MM/YYYY', example: '01/01/2026' })
+  @ApiPropertyOptional({
+    description: 'Fecha inicio DD/MM/YYYY',
+    example: '01/01/2026',
+  })
   @IsOptional()
   @IsString()
   fechaInicio?: string;
 
-  @ApiPropertyOptional({ description: 'Fecha vencimiento DD/MM/YYYY', example: '31/01/2026' })
+  @ApiPropertyOptional({
+    description: 'Fecha vencimiento DD/MM/YYYY',
+    example: '31/01/2026',
+  })
   @IsOptional()
   @IsString()
   fechaVencimiento?: string;
 
-  @ApiProperty({
-    description: 'Referencia o identificador único del lote de pagos',
+  @ApiPropertyOptional({
+    description:
+      'Identificador único del lote; si no se envía, el back lo genera ' +
+      '(LT{yyyyMMddHHmmss}-{hex}) y lo devuelve en la respuesta',
     example: 'LOTE-2026-001',
     type: String,
     maxLength: 60,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'referenciaLote es requerida' })
   @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
-  referenciaLote: string;
+  referenciaLote?: string;
 
   @ApiProperty({
     description: 'Listado de pagos individuales que componen el lote',
@@ -225,7 +237,8 @@ export class CrearPagoLoteDto {
 
 export class GenerarPagoPayloadDto {
   @ApiProperty({
-    description: 'Identificador numérico de la aplicación cliente que genera el lote',
+    description:
+      'Identificador numérico de la aplicación cliente que genera el lote',
     example: 123,
     type: Number,
   })

@@ -74,6 +74,7 @@ export class TramasProdubancoService {
    * Procesa y persiste un lote de pagos locales en Produbanco.
    */
   async generarPago(idApp: number, data: CrearPagoLoteDto) {
+    data.referenciaLote = this.normalizarReferenciaLote(data.referenciaLote);
     this.validarLotePago(data);
 
     // 1. Guardar en BD en estado PENDIENTE con sus detalles[cite: 4]
@@ -115,6 +116,7 @@ export class TramasProdubancoService {
    * Procesa y persiste un lote de transferencias internacionales (Transfer Full).
    */
   async generarTransferencia(idApp: number, data: CrearTransferenciaLoteDto) {
+    data.referenciaLote = this.normalizarReferenciaLote(data.referenciaLote);
     this.validarLoteTransferencia(data);
 
     // 1. Guardar en BD en estado PENDIENTE[cite: 4]
@@ -316,6 +318,22 @@ export class TramasProdubancoService {
     return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
   }
 
+  /** Si no viene referenciaLote, genera un identificador único del lote. */
+  private normalizarReferenciaLote(referenciaLote?: string): string {
+    const ref = (referenciaLote ?? '').trim();
+    return ref || this.generarReferenciaLote();
+  }
+
+  /** Formato: LT{yyyyMMddHHmmss}-{4 hex aleatorios} (único por referenceHash). */
+  private generarReferenciaLote(): string {
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:TZ.]/g, '')
+      .substring(0, 14);
+    const sufijo = crypto.randomBytes(2).toString('hex');
+    return `LT${timestamp}-${sufijo}`;
+  }
+
   /**
    * Crea el registro de Cabecera y Detalle para Pagos Locales[cite: 4].
    * Cifra en BD: cuentaEmpresa, identificacion, cuenta, reference (via referenceEncrypted + referenceHash unique). Client desencripta con encryptionKey.
@@ -326,10 +344,10 @@ export class TramasProdubancoService {
   ) {
     const secretKey = await this.getEncryptionKey(idApp);
     const referenceEncrypted = this.universalCryptoService.encrypt(
-      data.referenciaLote,
+      data.referenciaLote ?? '',
       secretKey,
     );
-    const referenceHash = this.sha256(data.referenciaLote);
+    const referenceHash = this.sha256(data.referenciaLote ?? '');
 
     // Payload cifrado: cuentaEmpresa + identificacion + cuenta dentro de detalles
     const payloadCifrado = {
@@ -375,25 +393,33 @@ export class TramasProdubancoService {
             status: EstadoTransaccion.PENDIENTE,
             errorMessage: null,
             detalles: {
-              create: data.detalles.map((item: PagoDetalleItemDto) => ({
-                secuencia: item.secuencia,
-                beneficiarioTipoId: item.tipoId,
-                beneficiarioIdentificacion: this.universalCryptoService.encrypt(
-                  item.identificacion,
-                  secretKey,
-                ),
-                beneficiarioNombre: item.nombre,
-                beneficiarioCuenta: item.cuenta
-                  ? this.universalCryptoService.encrypt(item.cuenta, secretKey)
-                  : null,
-                beneficiarioBancoCodigo:
-                  item.formaPago === 'CTA' ? '0036' : item.bancoCodigo || null,
-                monto: item.monto,
-                moneda: 'USD',
-                formaPago: item.formaPago,
-                referenciaDocumento: item.referencia || null,
-                estadoItem: 'PENDIENTE',
-              })),
+              create: data.detalles.map(
+                (item: PagoDetalleItemDto, indice: number) => ({
+                  secuencia: indice + 1,
+                  beneficiarioTipoId: item.tipoId,
+                  beneficiarioIdentificacion:
+                    this.universalCryptoService.encrypt(
+                      item.identificacion,
+                      secretKey,
+                    ),
+                  beneficiarioNombre: item.nombre,
+                  beneficiarioCuenta: item.cuenta
+                    ? this.universalCryptoService.encrypt(
+                        item.cuenta,
+                        secretKey,
+                      )
+                    : null,
+                  beneficiarioBancoCodigo:
+                    item.formaPago === 'CTA'
+                      ? '0036'
+                      : item.bancoCodigo || null,
+                  monto: item.monto,
+                  moneda: 'USD',
+                  formaPago: item.formaPago,
+                  referenciaDocumento: item.referencia || null,
+                  estadoItem: 'PENDIENTE',
+                }),
+              ),
             },
           },
         });
@@ -417,25 +443,27 @@ export class TramasProdubancoService {
         responsePayload: {},
         status: EstadoTransaccion.PENDIENTE,
         detalles: {
-          create: data.detalles.map((item: PagoDetalleItemDto) => ({
-            secuencia: item.secuencia,
-            beneficiarioTipoId: item.tipoId,
-            beneficiarioIdentificacion: this.universalCryptoService.encrypt(
-              item.identificacion,
-              secretKey,
-            ),
-            beneficiarioNombre: item.nombre,
-            beneficiarioCuenta: item.cuenta
-              ? this.universalCryptoService.encrypt(item.cuenta, secretKey)
-              : null,
-            beneficiarioBancoCodigo:
-              item.formaPago === 'CTA' ? '0036' : item.bancoCodigo || null,
-            monto: item.monto,
-            moneda: 'USD',
-            formaPago: item.formaPago,
-            referenciaDocumento: item.referencia || null,
-            estadoItem: 'PENDIENTE',
-          })),
+          create: data.detalles.map(
+            (item: PagoDetalleItemDto, indice: number) => ({
+              secuencia: indice + 1,
+              beneficiarioTipoId: item.tipoId,
+              beneficiarioIdentificacion: this.universalCryptoService.encrypt(
+                item.identificacion,
+                secretKey,
+              ),
+              beneficiarioNombre: item.nombre,
+              beneficiarioCuenta: item.cuenta
+                ? this.universalCryptoService.encrypt(item.cuenta, secretKey)
+                : null,
+              beneficiarioBancoCodigo:
+                item.formaPago === 'CTA' ? '0036' : item.bancoCodigo || null,
+              monto: item.monto,
+              moneda: 'USD',
+              formaPago: item.formaPago,
+              referenciaDocumento: item.referencia || null,
+              estadoItem: 'PENDIENTE',
+            }),
+          ),
         },
       },
     });
@@ -451,10 +479,10 @@ export class TramasProdubancoService {
   ) {
     const secretKey = await this.getEncryptionKey(idApp);
     const referenceEncrypted = this.universalCryptoService.encrypt(
-      data.referenciaLote,
+      data.referenciaLote ?? '',
       secretKey,
     );
-    const referenceHash = this.sha256(data.referenciaLote);
+    const referenceHash = this.sha256(data.referenciaLote ?? '');
 
     const payloadCifrado = {
       ...JSON.parse(JSON.stringify(data)),
@@ -498,8 +526,8 @@ export class TramasProdubancoService {
             errorMessage: null,
             detalles: {
               create: data.detalles.map(
-                (item: TransferenciaDetalleItemDto) => ({
-                  secuencia: item.secuencia,
+                (item: TransferenciaDetalleItemDto, indice: number) => ({
+                  secuencia: indice + 1,
                   beneficiarioTipoId: item.tipoId,
                   beneficiarioIdentificacion:
                     this.universalCryptoService.encrypt(
@@ -551,35 +579,37 @@ export class TramasProdubancoService {
         responsePayload: {},
         status: EstadoTransaccion.PENDIENTE,
         detalles: {
-          create: data.detalles.map((item: TransferenciaDetalleItemDto) => ({
-            secuencia: item.secuencia,
-            beneficiarioTipoId: item.tipoId,
-            beneficiarioIdentificacion: this.universalCryptoService.encrypt(
-              item.identificacion,
-              secretKey,
-            ),
-            beneficiarioNombre: item.beneficiarioNombre,
-            beneficiarioCuenta: this.universalCryptoService.encrypt(
-              item.beneficiarioCuenta,
-              secretKey,
-            ),
-            beneficiarioBancoCodigo: item.codigoSwiftAba
-              ? item.codigoSwiftAba.substring(0, 10)
-              : null,
-            monto: item.monto,
-            moneda: item.moneda || 'USD',
-            formaPago: 'SPI',
-            referenciaDocumento: item.referencia || null,
-            codigoSwiftAba: item.codigoSwiftAba
-              ? this.universalCryptoService.encrypt(
-                  item.codigoSwiftAba,
-                  secretKey,
-                )
-              : item.codigoSwiftAba,
-            conceptoInvisibles: item.conceptoInvisibles,
-            codigoExoneracionIsd: item.codigoExoneracionIsd || '0',
-            estadoItem: 'PENDIENTE',
-          })),
+          create: data.detalles.map(
+            (item: TransferenciaDetalleItemDto, indice: number) => ({
+              secuencia: indice + 1,
+              beneficiarioTipoId: item.tipoId,
+              beneficiarioIdentificacion: this.universalCryptoService.encrypt(
+                item.identificacion,
+                secretKey,
+              ),
+              beneficiarioNombre: item.beneficiarioNombre,
+              beneficiarioCuenta: this.universalCryptoService.encrypt(
+                item.beneficiarioCuenta,
+                secretKey,
+              ),
+              beneficiarioBancoCodigo: item.codigoSwiftAba
+                ? item.codigoSwiftAba.substring(0, 10)
+                : null,
+              monto: item.monto,
+              moneda: item.moneda || 'USD',
+              formaPago: 'SPI',
+              referenciaDocumento: item.referencia || null,
+              codigoSwiftAba: item.codigoSwiftAba
+                ? this.universalCryptoService.encrypt(
+                    item.codigoSwiftAba,
+                    secretKey,
+                  )
+                : item.codigoSwiftAba,
+              conceptoInvisibles: item.conceptoInvisibles,
+              codigoExoneracionIsd: item.codigoExoneracionIsd || '0',
+              estadoItem: 'PENDIENTE',
+            }),
+          ),
         },
       },
     });
@@ -945,78 +975,80 @@ export class TramasProdubancoService {
   private construirXmlPago(data: CrearPagoLoteDto): string {
     const cuentaEmpresa = data.cuentaEmpresa.padStart(11, '0');
 
-    const items = data.detalles.map((item: PagoDetalleItemDto) => {
-      const esTransferenciaBancaria =
-        item.formaPago === 'CTA' || item.formaPago === 'SPI';
-      const esVentanilla = item.formaPago === 'EFE';
+    const items = data.detalles.map(
+      (item: PagoDetalleItemDto, indice: number) => {
+        const esTransferenciaBancaria =
+          item.formaPago === 'CTA' || item.formaPago === 'SPI';
+        const esVentanilla = item.formaPago === 'EFE';
 
-      // 1) Código de orientación
-      const codigo = 'PA';
-      // 2) Cuenta de la empresa ordenante (11 dígitos, relleno con ceros)
-      const cuentaEmp = cuentaEmpresa;
-      // 3) Secuencial del pago
-      const secuencial = String(item.secuencia);
-      // 4) Comprobante de pago
-      const comprobante = item.comprobante || '';
-      // 5) Contrapartida: cuenta (CTA/SPI) o identificación (CHQ/EFE)
-      const contrapartida = esTransferenciaBancaria
-        ? item.cuenta || ''
-        : item.identificacion;
-      // 6) Moneda
-      const moneda = 'USD';
-      // 7) Valor: 11 enteros + 2 decimales = 13 dígitos sin punto decimal
-      const valor = String(Math.round(item.monto * 100)).padStart(13, '0');
-      // 8) Forma de pago
-      const formaPago = item.formaPago;
-      // 9) Código de institución financiera (4 dígitos)
-      const banco =
-        item.bancoCodigo || (item.formaPago === 'SPI' ? '0001' : '0036');
-      // 10) Tipo de cuenta (vacío para CHQ/EFE)
-      const tipoCuenta = esVentanilla ? '' : item.tipoCuenta || '';
-      // 11) Número de cuenta (vacío para CHQ/EFE)
-      const cuenta = esVentanilla ? '' : item.cuenta || '';
-      // 12) Tipo de identificación
-      const tipoId = item.tipoId;
-      // 13) Número de identificación
-      const identificacion = item.identificacion;
-      // 14) Nombre del beneficiario (máx 40)
-      const nombre = item.nombre.substring(0, 40).replace(/[\t\r\n]/g, ' ');
-      // 15-18) Dirección, ciudad, teléfono, localidad (opcionales: en blanco
-      // pero conservando el TABULADOR según el formato)
-      const direccion = '';
-      const ciudad = '';
-      const telefono = '';
-      const localidad = '';
-      // 19) Referencia (obligatoria, máx 200)
-      const referencia = item.referencia.substring(0, 200);
-      // 20) Referencia adicional con notificación: pipe + email
-      const refAdicional = item.email ? `|${item.email}` : '';
+        // 1) Código de orientación
+        const codigo = 'PA';
+        // 2) Cuenta de la empresa ordenante (11 dígitos, relleno con ceros)
+        const cuentaEmp = cuentaEmpresa;
+        // 3) Secuencial del pago (comienza en uno, por posición en el lote)
+        const secuencial = String(indice + 1);
+        // 4) Comprobante de pago
+        const comprobante = item.comprobante || '';
+        // 5) Contrapartida: cuenta (CTA/SPI) o identificación (CHQ/EFE)
+        const contrapartida = esTransferenciaBancaria
+          ? item.cuenta || ''
+          : item.identificacion;
+        // 6) Moneda
+        const moneda = 'USD';
+        // 7) Valor: 11 enteros + 2 decimales = 13 dígitos sin punto decimal
+        const valor = String(Math.round(item.monto * 100)).padStart(13, '0');
+        // 8) Forma de pago
+        const formaPago = item.formaPago;
+        // 9) Código de institución financiera (4 dígitos)
+        const banco =
+          item.bancoCodigo || (item.formaPago === 'SPI' ? '0001' : '0036');
+        // 10) Tipo de cuenta (vacío para CHQ/EFE)
+        const tipoCuenta = esVentanilla ? '' : item.tipoCuenta || '';
+        // 11) Número de cuenta (vacío para CHQ/EFE)
+        const cuenta = esVentanilla ? '' : item.cuenta || '';
+        // 12) Tipo de identificación
+        const tipoId = item.tipoId;
+        // 13) Número de identificación
+        const identificacion = item.identificacion;
+        // 14) Nombre del beneficiario (máx 40)
+        const nombre = item.nombre.substring(0, 40).replace(/[\t\r\n]/g, ' ');
+        // 15-18) Dirección, ciudad, teléfono, localidad (opcionales: en blanco
+        // pero conservando el TABULADOR según el formato)
+        const direccion = '';
+        const ciudad = '';
+        const telefono = '';
+        const localidad = '';
+        // 19) Referencia (obligatoria, máx 200)
+        const referencia = item.referencia.substring(0, 200);
+        // 20) Referencia adicional con notificación: pipe + email
+        const refAdicional = item.email ? `|${item.email}` : '';
 
-      return [
-        codigo,
-        cuentaEmp,
-        secuencial,
-        comprobante,
-        contrapartida,
-        moneda,
-        valor,
-        formaPago,
-        banco,
-        tipoCuenta,
-        cuenta,
-        tipoId,
-        identificacion,
-        nombre,
-        direccion,
-        ciudad,
-        telefono,
-        localidad,
-        referencia,
-        refAdicional,
-      ]
-        .map((campo) => this.escapeXml(campo))
-        .join('\t');
-    });
+        return [
+          codigo,
+          cuentaEmp,
+          secuencial,
+          comprobante,
+          contrapartida,
+          moneda,
+          valor,
+          formaPago,
+          banco,
+          tipoCuenta,
+          cuenta,
+          tipoId,
+          identificacion,
+          nombre,
+          direccion,
+          ciudad,
+          telefono,
+          localidad,
+          referencia,
+          refAdicional,
+        ]
+          .map((campo) => this.escapeXml(campo))
+          .join('\t');
+      },
+    );
 
     const itemsXml = items.map((linea) => `  <Item>${linea}</Item>`).join('\n');
 
@@ -1028,7 +1060,7 @@ export class TramasProdubancoService {
   <Id_Servicio>${this.escapeXml(data.idServicio)}</Id_Servicio>
   <TipoCuenta>${this.escapeXml(data.tipoCuentaEmpresa)}</TipoCuenta>
   <NumeroCuenta>${cuentaEmpresa}</NumeroCuenta>
-  <Referencia>${this.escapeXml(data.referenciaLote)}</Referencia>
+  <Referencia>${this.escapeXml(data.referenciaLote ?? '')}</Referencia>
   <FechaInicio>${data.fechaInicio}</FechaInicio>
   <FechaVencimiento>${data.fechaVencimiento}</FechaVencimiento>
   <Cabecera></Cabecera>
@@ -1040,56 +1072,59 @@ ${itemsXml}
   private construirXmlTransferencia(data: CrearTransferenciaLoteDto): string {
     const cuentaEmpresa = data.cuentaEmpresa.padStart(11, '0');
 
-    const items = data.detalles.map((item: TransferenciaDetalleItemDto) => {
-      // F20 RFB obligatorio: detalle!relación!gastos! (máx 43 chars, sin espacios)
-      const rfb = `PAGO!COMERCIAL!${item.tipoComision || 'BEN'}!`;
-      // F23 (INV) Facturas: referencia sin espacios, máx 26
-      const refFacturas = (item.referencia || '')
-        .replace(/\s+/g, '')
-        .substring(0, 26);
+    const items = data.detalles.map(
+      (item: TransferenciaDetalleItemDto, indice: number) => {
+        // F20 RFB obligatorio: detalle!relación!gastos! (máx 43 chars, sin espacios)
+        const rfb = `PAGO!COMERCIAL!${item.tipoComision || 'BEN'}!`;
+        // F23 (INV) Facturas: referencia sin espacios, máx 26; si no viene,
+        // usa la referenciaLote del lote (doc: campo opcional en exterior)
+        const refFacturas = (item.referencia || data.referenciaLote || '')
+          .replace(/\s+/g, '')
+          .substring(0, 26);
 
-      return [
-        'PA', // F1  Código de orientación
-        cuentaEmpresa, // F2  Cuenta empresa (11 dígitos)
-        String(item.secuencia), // F3  Secuencial
-        item.comprobante || '', // F4  Comprobante (opcional)
-        item.beneficiarioCuenta.substring(0, 34), // F5  Contrapartida (cuenta beneficiario)
-        item.moneda || 'USD', // F6  Moneda (default USD)
-        String(Math.round(item.monto * 100)).padStart(13, '0'), // F7  Valor 11+2 sin punto
-        'CTA', // F8  Forma de pago (formato exterior solo CTA)
-        item.codigoSwiftAba, // F9  SWIFT/ABA banco destino
-        item.tipoCuenta, // F10 Tipo de cuenta destino
-        item.beneficiarioCuenta.substring(0, 34), // F11 Número de cuenta beneficiario
-        item.tipoId, // F12 Tipo ID beneficiario
-        item.identificacion, // F13 Número ID beneficiario
-        item.beneficiarioNombre.substring(0, 70).replace(/[\t\r\n]/g, ' '), // F14 Nombre
-        '', // F15 Dirección (no ingresar)
-        '', // F16 Ciudad (no ingresar)
-        '', // F17 Teléfono (no ingresar)
-        '', // F18 Localidad (no ingresar)
-        '', // F19 Referencia (no ingresar)
-        rfb, // F20 RFB: PAGO!COMERCIAL!{OUR|BEN|SHA}!
-        '', // F21 (opcional)
-        '', // F22 (opcional)
-        refFacturas, // F23 (INV) Facturas / doc referencia
-        item.motivoTransferencia, // F24 Motivo SIB "codigo,exencion"
-        '', // F25 (opcional)
-        '', // F26 (opcional)
-        '', // F27 (opcional)
-        '', // F28 (opcional)
-        '', // F29 (opcional)
-        '', // F30 DAU/DAI (opcional)
-        '', // F31 Registro (opcional)
-        '', // F32 Fecha registro (opcional)
-        item.codigoExoneracionIsd || '', // F33 Nro. Formulario ISD (opcional)
-        (item.bancoIntermediarioSwift || '').substring(0, 11), // F34 Banco intermediario
-        '', // F35 Cta. banco intermediario (opcional)
-        '', // F36 Contrato reaseguro (opcional)
-        '', // F37 Código cotización (opcional)
-      ]
-        .map((campo) => this.escapeXml(campo))
-        .join('\t');
-    });
+        return [
+          'PA', // F1  Código de orientación
+          cuentaEmpresa, // F2  Cuenta empresa (11 dígitos)
+          String(indice + 1), // F3  Secuencial (comienza en uno)
+          item.comprobante || '', // F4  Comprobante (opcional)
+          item.beneficiarioCuenta.substring(0, 34), // F5  Contrapartida (cuenta beneficiario)
+          item.moneda || 'USD', // F6  Moneda (default USD)
+          String(Math.round(item.monto * 100)).padStart(13, '0'), // F7  Valor 11+2 sin punto
+          'CTA', // F8  Forma de pago (formato exterior solo CTA)
+          item.codigoSwiftAba, // F9  SWIFT/ABA banco destino
+          item.tipoCuenta, // F10 Tipo de cuenta destino
+          item.beneficiarioCuenta.substring(0, 34), // F11 Número de cuenta beneficiario
+          item.tipoId, // F12 Tipo ID beneficiario
+          item.identificacion, // F13 Número ID beneficiario
+          item.beneficiarioNombre.substring(0, 70).replace(/[\t\r\n]/g, ' '), // F14 Nombre
+          '', // F15 Dirección (no ingresar)
+          '', // F16 Ciudad (no ingresar)
+          '', // F17 Teléfono (no ingresar)
+          '', // F18 Localidad (no ingresar)
+          '', // F19 Referencia (no ingresar)
+          rfb, // F20 RFB: PAGO!COMERCIAL!{OUR|BEN|SHA}!
+          '', // F21 (opcional)
+          '', // F22 (opcional)
+          refFacturas, // F23 (INV) Facturas / doc referencia
+          item.motivoTransferencia, // F24 Motivo SIB "codigo,exencion"
+          '', // F25 (opcional)
+          '', // F26 (opcional)
+          '', // F27 (opcional)
+          '', // F28 (opcional)
+          '', // F29 (opcional)
+          '', // F30 DAU/DAI (opcional)
+          '', // F31 Registro (opcional)
+          '', // F32 Fecha registro (opcional)
+          item.codigoExoneracionIsd || '', // F33 Nro. Formulario ISD (opcional)
+          (item.bancoIntermediarioSwift || '').substring(0, 11), // F34 Banco intermediario
+          '', // F35 Cta. banco intermediario (opcional)
+          '', // F36 Contrato reaseguro (opcional)
+          '', // F37 Código cotización (opcional)
+        ]
+          .map((campo) => this.escapeXml(campo))
+          .join('\t');
+      },
+    );
 
     const itemsXml = items.map((linea) => `  <Item>${linea}</Item>`).join('\n');
 
@@ -1101,7 +1136,7 @@ ${itemsXml}
   <Id_Servicio>${this.escapeXml(data.idServicio)}</Id_Servicio>
   <TipoCuenta>${this.escapeXml(data.tipoCuentaEmpresa)}</TipoCuenta>
   <NumeroCuenta>${cuentaEmpresa}</NumeroCuenta>
-  <Referencia>${this.escapeXml(data.referenciaLote)}</Referencia>
+  <Referencia>${this.escapeXml(data.referenciaLote ?? '')}</Referencia>
   <FechaInicio>${data.fechaInicio}</FechaInicio>
   <FechaVencimiento>${data.fechaVencimiento}</FechaVencimiento>
   <Cabecera></Cabecera>
@@ -1127,12 +1162,12 @@ ${itemsXml}
         message: 'El lote de pagos debe incluir al menos un detalle.',
       });
     }
-    for (const item of data.detalles) {
+    for (const [indice, item] of data.detalles.entries()) {
       if (item.formaPago === 'CTA' || item.formaPago === 'SPI') {
         if (!item.cuenta || !item.tipoCuenta) {
           throw new RpcException({
             statusCode: 400,
-            message: `Detalle secuencia ${item.secuencia}: cuenta y tipoCuenta son requeridos para formaPago ${item.formaPago}.`,
+            message: `Detalle posición ${indice + 1}: cuenta y tipoCuenta son requeridos para formaPago ${item.formaPago}.`,
           });
         }
       }
