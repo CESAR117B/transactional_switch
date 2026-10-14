@@ -28,4 +28,14 @@ export class ListarTransaccionesQueryDto {
   @Type(() => Number)
   @IsIn([1, 2, 3])
   status?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Operación a filtrar (solo Produbanco). Por defecto el listado incluye ' +
+      'únicamente SPR_PRODUBANCO-PAGO y SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR',
+    enum: ['SPR_PRODUBANCO-PAGO', 'SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR'],
+  })
+  @IsOptional()
+  @IsIn(['SPR_PRODUBANCO-PAGO', 'SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR'])
+  operation?: string;
 }

@@ -58,6 +58,12 @@ export interface EstadoBanco {
 export class TramasProdubancoService {
   private readonly logger = new Logger(TramasProdubancoService.name);
 
+  /** Únicas operaciones de Produbanco: todo listado/consulta se limita a estas. */
+  private static readonly OPERACIONES_PRODUBANCO: string[] = [
+    'SPR_PRODUBANCO-PAGO',
+    'SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR',
+  ];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly soapProdubanco: ProdubancoSoapService,
@@ -158,20 +164,32 @@ export class TramasProdubancoService {
    */
   async consultarTransacciones(
     idApp: number,
-    params: { page?: number; pageSize?: number; status?: number },
+    params: {
+      page?: number;
+      pageSize?: number;
+      status?: number;
+      operation?: string;
+    },
   ) {
     const page = Math.max(1, Math.trunc(Number(params.page) || 1));
     const pageSize = Math.min(
       50,
       Math.max(1, Math.trunc(Number(params.pageSize) || 20)),
     );
-    const where: Prisma.TransaccionesServiciosWhereInput = { idApp };
+    const where: Prisma.TransaccionesServiciosWhereInput = {
+      idApp,
+      operation: { in: TramasProdubancoService.OPERACIONES_PRODUBANCO },
+    };
     if (
       params.status !== undefined &&
       params.status !== null &&
       [1, 2, 3].includes(Number(params.status))
     ) {
       where.status = Number(params.status);
+    }
+    const operation = this.operacionValida(params.operation);
+    if (operation) {
+      where.operation = operation;
     }
 
     const [total, items] = await Promise.all([
@@ -208,6 +226,8 @@ export class TramasProdubancoService {
     },
   ) {
     const secretKey = await this.getEncryptionKey(idApp);
+    // El filtro de operaciones (por defecto solo Produbanco) se aplica
+    // dentro de resolverTransaccion, a nivel de consulta.
     const tx = await this.resolverTransaccion(idApp, params);
 
     let banco: EstadoBanco = { consultado: false };
@@ -634,10 +654,23 @@ export class TramasProdubancoService {
   }
 
   /**
+   * Normaliza la operación a filtrar: válida (Produbanco) → el string tal
+   * cual; ausente, no string o valor de otro servicio → null.
+   */
+  private operacionValida(operation?: string): string | null {
+    if (typeof operation !== 'string') return null;
+    const op = operation.trim();
+    return TramasProdubancoService.OPERACIONES_PRODUBANCO.includes(op)
+      ? op
+      : null;
+  }
+
+  /**
    * Resuelve la transacción con un único campo `dato`: si es numérico se
    * intenta como idTransaccion y, si no existe, como referenciaLote (y
    * viceversa). Verifica que pertenezca a la app (404 en caso contrario,
-   * sin filtrar existencia entre apps).
+   * sin filtrar existencia entre apps). Solo permite operaciones de
+   * Produbanco (PAGO o TRANSFERENCIA_EXTERIOR): otras (ej. FIRSTOKEN) → 404.
    */
   private async resolverTransaccion(
     idApp: number,
@@ -658,18 +691,27 @@ export class TramasProdubancoService {
 
     const include = { detalles: { orderBy: { secuencia: 'asc' as const } } };
     const esNumerico = /^\d+$/.test(dato);
+    const filtroOperacion = {
+      in: TramasProdubancoService.OPERACIONES_PRODUBANCO,
+    };
 
     const buscarPorId = async () => {
       if (!esNumerico) return null;
-      return this.prisma.transaccionesServicios.findUnique({
-        where: { idTransaccion: BigInt(dato) },
+      return this.prisma.transaccionesServicios.findFirst({
+        where: {
+          idTransaccion: BigInt(dato),
+          operation: filtroOperacion,
+        },
         include,
       });
     };
     const buscarPorReferencia = async () => {
       const hash = this.sha256(dato);
-      return this.prisma.transaccionesServicios.findUnique({
-        where: { referenceHash: hash },
+      return this.prisma.transaccionesServicios.findFirst({
+        where: {
+          referenceHash: hash,
+          operation: filtroOperacion,
+        },
         include,
       });
     };

@@ -59,7 +59,9 @@ export class TramasProdubancoController {
   }
 
   @ApiOperation({
-    summary: 'Listar transacciones de la App (paginado, estado local)',
+    summary:
+      'Listar transacciones de Produbanco de la App (paginado, estado local); ' +
+      'excluye operaciones de otros servicios',
   })
   @Get('transacciones')
   async listarTransacciones(
@@ -77,8 +79,9 @@ export class TramasProdubancoController {
 
   @ApiOperation({
     summary:
-      'Estado de una transacción por un único campo (id o referenciaLote): ' +
-      'local + banco en vivo + actualización automática en BD',
+      'Estado de una transacción de Produbanco por un único campo (id o ' +
+      'referenciaLote): local + banco en vivo + actualización automática en ' +
+      'BD; operaciones de otros servicios → 404',
   })
   @Get('transacciones/estado/:dato')
   async estadoTransaccion(

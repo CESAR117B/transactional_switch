@@ -195,6 +195,7 @@ interface ConsultarTransaccionesCmd {
   page?: number;
   pageSize?: number;
   status?: number;
+  operation?: string;
 }
 
 interface ConsultarEstadoCmd {
