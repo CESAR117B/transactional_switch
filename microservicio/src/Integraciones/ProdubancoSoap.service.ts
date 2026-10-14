@@ -336,4 +336,317 @@ export class ProdubancoSoapService {
     this.clientPromise = null;
     this.cachedWsdlUrl = null;
   }
+
+  // ==========================================
+  // CONSULTA DE ESTADO (Manual 2.2.1 / 2.3.1)
+  // ==========================================
+
+  /** Extrae message/code de un error desconocido sin usar `any`. */
+  private infoErrorSoap(error: unknown): { message: string; code: string } {
+    const e = error as { message?: unknown; code?: unknown } | undefined;
+    return {
+      message:
+        typeof e?.message === 'string' ? e.message : 'Error desconocido SOAP',
+      code: typeof e?.code === 'string' ? e.code : '',
+    };
+  }
+
+  /** Invoca un método SOAP de consulta y centraliza la clasificación de errores
+   * (red/VPN, WSDL en HTML, RpcException de parseo) con mensajes parametrizados.
+   */
+  private async lanzarErrorSoap(
+    metodo: string,
+    error: unknown,
+  ): Promise<never> {
+    if (error instanceof RpcException) {
+      throw error;
+    }
+    this.clearClientCache();
+    const info = this.infoErrorSoap(error);
+    const rawMessage = info.message;
+    const code = info.code;
+    const { esErrorRed, ipInterna } = this.analizarErrorTransporte(
+      rawMessage,
+      code,
+    );
+    const isWsdlHtml = /Root element of WSDL was <html>/i.test(rawMessage);
+    if (isWsdlHtml) {
+      const wsdlHint = (
+        await this.configDb
+          .getProdubancoConfig()
+          .catch(() => ({ wsdl_url: 'desconocida' }))
+      )?.wsdl_url;
+      throw new RpcException({
+        statusCode: 502,
+        message: `Fallo al ejecutar ${metodo} en Produbanco: la URL del WSDL devolvió HTML en lugar de WSDL (${wsdlHint}). Verifique que PRODUBANCO_WSDL_URL incluya el sufijo "?wsdl".`,
+        error: 'Bad Gateway',
+      });
+    }
+    if (esErrorRed && ipInterna) {
+      throw new RpcException({
+        statusCode: 502,
+        message: `Fallo al ejecutar ${metodo} en Produbanco: timeout/conexión rechazada hacia la IP interna declarada en el WSDL (${ipInterna}:80). El endpoint se fuerza al dominio público (webcore.produbanco.ec); si el error persiste, requiere VPN/IP whitelisted de Produbanco.`,
+        error: 'Bad Gateway',
+      });
+    }
+    throw new RpcException({
+      statusCode: esErrorRed ? 502 : 500,
+      message: `Fallo al ejecutar ${metodo} en Produbanco: ${rawMessage}${esErrorRed ? ' (error de red/VPN hacia webcore.produbanco.ec - requiere IP whitelisted de Produbanco)' : ''}`,
+      error: esErrorRed ? 'Bad Gateway' : 'Internal Server Error',
+    });
+  }
+
+  /**
+   * Interpreta la respuesta de ConsultaOrdenes/ConsultaMovimientos (Manual §2.2.1/§2.3.1):
+   * - "9999|<mensaje>"  -> error interno del método (502)
+   * - XML <Resultado>    -> parametrización incorrecta (502)
+   * - JSON con CodRetorno 0005 -> sin datos (NO es error: { sinDatos: true })
+   * - JSON con CodRetorno 0001 -> registros parseados
+   */
+  private parsearResultadoConsulta(
+    metodo: string,
+    raw: string,
+    claveRegistros: string,
+  ): ResultadoConsulta {
+    const texto = (raw ?? '').trim();
+    if (!texto) {
+      throw new RpcException({
+        statusCode: 502,
+        message: `${metodo} devolvió una respuesta vacía desde Produbanco.`,
+        error: 'Bad Gateway',
+      });
+    }
+    const rechazo = texto.match(/^(\d{4})\|([\s\S]*)$/);
+    if (rechazo) {
+      throw new RpcException({
+        statusCode: 502,
+        message: `Produbanco rechazó ${metodo} [${rechazo[1]}]: ${rechazo[2].trim()}`,
+        error: 'Bad Gateway',
+      });
+    }
+    if (texto.startsWith('<')) {
+      const estado =
+        texto.match(/<Estado>([^<]*)<\/Estado>/)?.[1]?.trim() ?? 'ERROR';
+      const mensaje =
+        texto
+          .match(/<MensajeRespuesta>([^<]*)<\/MensajeRespuesta>/)?.[1]
+          ?.trim() ?? texto.substring(0, 160);
+      throw new RpcException({
+        statusCode: 502,
+        message: `${metodo}: ${estado} - ${mensaje}`,
+        error: 'Bad Gateway',
+      });
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(texto);
+    } catch {
+      throw new RpcException({
+        statusCode: 502,
+        message: `Respuesta inesperada de ${metodo} (no es JSON): ${texto.substring(0, 120)}`,
+        error: 'Bad Gateway',
+      });
+    }
+    const data = (parsed ?? {}) as Record<string, unknown>;
+    const trx = Array.isArray(data['TRX'])
+      ? (data['TRX'] as Array<Record<string, unknown>>)
+      : [];
+    const codigos = trx.map((t) => {
+      const c = t['CodRetorno'];
+      return typeof c === 'string' || typeof c === 'number' ? String(c) : '';
+    });
+    if (codigos.includes('0005')) {
+      return { sinDatos: true, registros: [] };
+    }
+    if (codigos.length > 0 && !codigos.includes('0001')) {
+      const msj = trx
+        .map((t) => {
+          const m = t['MsjRetorno'];
+          return typeof m === 'string' ? m : '';
+        })
+        .filter(Boolean)
+        .join(' | ');
+      throw new RpcException({
+        statusCode: 502,
+        message: `${metodo} falló [${codigos.join(',')}]: ${msj || 'sin detalle'}`,
+        error: 'Bad Gateway',
+      });
+    }
+    const registros = Array.isArray(data[claveRegistros])
+      ? (data[claveRegistros] as unknown[])
+      : [];
+    return { sinDatos: registros.length === 0, registros };
+  }
+
+  /** Fecha actual en formato ddMMyyyy (aceptado por ambos métodos de consulta). */
+  private fechaActualDdMmYyyy(): string {
+    const d = new Date();
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}${mm}${d.getFullYear()}`;
+  }
+
+  /**
+   * Consulta el estado de las órdenes (sobres) por Envio_Id (idBuzon)[cite: 2.2.1].
+   * Devuelve los registros de Consulta_Sobres_VIEW (Id_Sobre, Estado_Sobre, etc.).
+   */
+  async consultaOrdenes(
+    params: ConsultaOrdenesParams,
+  ): Promise<ResultadoConsulta> {
+    try {
+      const config = await this.configDb.getProdubancoConfig();
+      const client = await this.getClient();
+      const payload = {
+        strIdEmpresa: params.strIdEmpresa,
+        strIdServicio: params.strIdServicio,
+        estadoSobre: params.estadoSobre ?? 'TODAS',
+        ordenamiento: params.ordenamiento ?? 'Fecha_Creacion_Date',
+        fechaDesde: params.fechaDesde || '01012020',
+        fechaHasta: params.fechaHasta || this.fechaActualDdMmYyyy(),
+        idSobre: params.idSobre ?? '0',
+        ip: params.ip || config.ip,
+        user: params.user || config.usuario,
+        referencia: params.referencia ?? '!',
+        tipoConsulta: params.tipoConsulta ?? 'CashNR',
+        idBuzon: params.idBuzon ?? '0',
+        ultimoNumTransaccion: params.ultimoNumTransaccion ?? '0',
+        numeroRegistro: params.numeroRegistro ?? '0',
+      };
+      this.logger.debug(
+        `Invocando ConsultaOrdenes idBuzon=${payload.idBuzon} empresa=${payload.strIdEmpresa} servicio=${payload.strIdServicio}`,
+      );
+      const raw = await this.invocarConsultaSoap(
+        client,
+        'ConsultaOrdenesAsync',
+        payload,
+        'ConsultaOrdenesResult',
+      );
+      return this.parsearResultadoConsulta(
+        'ConsultaOrdenes',
+        raw,
+        'Consulta_Sobres_VIEW',
+      );
+    } catch (error: unknown) {
+      return this.lanzarErrorSoap('ConsultaOrdenes', error);
+    }
+  }
+
+  /**
+   * Consulta los movimientos (estado por ítem) de un sobre (Id_Sobre de
+   * ConsultaOrdenes)[cite: 2.3.1]. Devuelve Movimientos_Out.
+   */
+  async consultaMovimientos(
+    params: ConsultaMovimientosParams,
+  ): Promise<ResultadoConsulta> {
+    try {
+      const config = await this.configDb.getProdubancoConfig();
+      const client = await this.getClient();
+      const payload = {
+        strIdEmpresa: params.strIdEmpresa,
+        strIdServicio: params.strIdServicio,
+        strFechaDesde: params.strFechaDesde || '01012020',
+        strFechaHasta: params.strFechaHasta || this.fechaActualDdMmYyyy(),
+        estado: params.estado ?? 'TODOS',
+        totales: params.totales ?? 'NO',
+        IdSobre: params.IdSobre ?? '0',
+        formaPago: params.formaPago ?? 'TODAS',
+        tipoBusqueda: params.tipoBusqueda ?? 'FPM',
+        estadoSobre: params.estadoSobre ?? 'TODAS',
+        banco: params.banco ?? 'AMBOS',
+        NumeroRegistro: params.NumeroRegistro ?? 100,
+        strUsuario: params.strUsuario || config.usuario,
+        strComputador: params.strComputador || config.ip,
+        ultimo_NumTransaccion: params.ultimo_NumTransaccion ?? 0,
+        ordenadoPor: params.ordenadoPor ?? 'FechaProcesoDate',
+      };
+      this.logger.debug(
+        `Invocando ConsultaMovimientos IdSobre=${payload.IdSobre} empresa=${payload.strIdEmpresa} servicio=${payload.strIdServicio}`,
+      );
+      const raw = await this.invocarConsultaSoap(
+        client,
+        'ConsultaMovimientosAsync',
+        payload,
+        'ConsultaMovimientosResult',
+      );
+      return this.parsearResultadoConsulta(
+        'ConsultaMovimientos',
+        raw,
+        'Movimientos_Out',
+      );
+    } catch (error: unknown) {
+      return this.lanzarErrorSoap('ConsultaMovimientos', error);
+    }
+  }
+
+  /**
+   * Invoca un método `*Async` del cliente SOAP por nombre, con tipado fuerte
+   * (el WSDL de Produbanco no declara estos métodos en los tipos de `soap`).
+   */
+  private async invocarConsultaSoap(
+    client: soap.Client,
+    metodo: string,
+    args: Record<string, unknown>,
+    claveResultado: string,
+  ): Promise<string> {
+    const registro = client as unknown as Record<string, unknown>;
+    const fn = registro[metodo] as
+      | ((
+          a: Record<string, unknown>,
+        ) => Promise<Array<Record<string, unknown>>>)
+      | undefined;
+    if (typeof fn !== 'function') {
+      throw new RpcException({
+        statusCode: 500,
+        message: `Método SOAP ${metodo} no disponible en el WSDL cargado.`,
+        error: 'Internal Server Error',
+      });
+    }
+    const respuesta = (await fn.call(client, args)) as Array<
+      Record<string, unknown>
+    >;
+    const result = respuesta?.[0];
+    const valor = result?.[claveResultado];
+    return typeof valor === 'string' ? valor : '';
+  }
+}
+
+export interface ConsultaOrdenesParams {
+  strIdEmpresa: string;
+  strIdServicio: string;
+  estadoSobre?: string;
+  ordenamiento?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
+  idSobre?: string;
+  ip?: string;
+  user?: string;
+  referencia?: string;
+  tipoConsulta?: string;
+  idBuzon?: string;
+  ultimoNumTransaccion?: string;
+  numeroRegistro?: string;
+}
+
+export interface ConsultaMovimientosParams {
+  strIdEmpresa: string;
+  strIdServicio: string;
+  strFechaDesde?: string;
+  strFechaHasta?: string;
+  estado?: string;
+  totales?: string;
+  IdSobre?: string;
+  formaPago?: string;
+  tipoBusqueda?: string;
+  estadoSobre?: string;
+  banco?: string;
+  NumeroRegistro?: number;
+  strUsuario?: string;
+  strComputador?: string;
+  ultimo_NumTransaccion?: number;
+  ordenadoPor?: string;
+}
+
+export interface ResultadoConsulta {
+  sinDatos: boolean;
+  registros: unknown[];
 }

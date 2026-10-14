@@ -101,4 +101,106 @@ export class TramasProdubancoController {
   ) {
     return this.generarTransferencia(payload);
   }
+
+  @MessagePattern({ cmd: 'consultar_transacciones' })
+  async consultarTransacciones(@Payload() payload: ConsultarTransaccionesCmd) {
+    const { idApp } = payload ?? {};
+    if (idApp === undefined || idApp === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idApp es requerido',
+      });
+    }
+    this.logger.log(
+      `consultarTransacciones idApp=${idApp} page=${payload?.page ?? 1}`,
+    );
+    try {
+      return await this.tramasProdubancoService.consultarTransacciones(
+        idApp,
+        payload,
+      );
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const e = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        error?: string;
+        stack?: string;
+      };
+      const status = e?.status ?? e?.statusCode ?? 500;
+      const message = e?.message ?? 'Error interno en consultarTransacciones';
+      this.logger.error(
+        `Error consultarTransacciones idApp=${idApp}: ${message}`,
+        e?.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: e?.error,
+      });
+    }
+  }
+
+  @MessagePattern({ cmd: 'consultar_estado_transaccion' })
+  async consultarEstadoTransaccion(@Payload() payload: ConsultarEstadoCmd) {
+    const { idApp, idTransaccion, referenciaLote, detalleMovimientos } =
+      payload ?? {};
+    if (idApp === undefined || idApp === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idApp es requerido',
+      });
+    }
+    if (!idTransaccion && !referenciaLote) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'Se requiere idTransaccion o referenciaLote.',
+      });
+    }
+    this.logger.log(
+      `consultarEstadoTransaccion idApp=${idApp} id=${idTransaccion ?? '-'} ref=${referenciaLote ?? '-'}`,
+    );
+    try {
+      return await this.tramasProdubancoService.consultarEstadoTransaccion(
+        idApp,
+        { idTransaccion, referenciaLote, detalleMovimientos },
+      );
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const e = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        error?: string;
+        stack?: string;
+      };
+      const status = e?.status ?? e?.statusCode ?? 500;
+      const message =
+        e?.message ?? 'Error interno en consultarEstadoTransaccion';
+      this.logger.error(
+        `Error consultarEstadoTransaccion idApp=${idApp} ref=${referenciaLote ?? '-'}: ${message}`,
+        e?.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: e?.error,
+      });
+    }
+  }
+}
+
+interface ConsultarTransaccionesCmd {
+  idApp?: number;
+  page?: number;
+  pageSize?: number;
+  status?: number;
+}
+
+interface ConsultarEstadoCmd {
+  idApp?: number;
+  idTransaccion?: string | number;
+  referenciaLote?: string;
+  detalleMovimientos?: boolean;
 }

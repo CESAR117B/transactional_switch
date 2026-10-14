@@ -11,6 +11,7 @@ import {
   TransferenciaDetalleItemDto,
 } from '../dto/crear-transferencia-lote.dto';
 import { UniversalCryptoService } from './universal-crypto.service';
+import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 
 // Estados transaccionales internos
@@ -18,6 +19,39 @@ export enum EstadoTransaccion {
   PENDIENTE = 1,
   PROCESADO_BANCO = 2,
   ERROR = 3,
+}
+
+type TxConDetalles = Prisma.TransaccionesServiciosGetPayload<{
+  include: { detalles: true };
+}>;
+
+type TxListado = Prisma.TransaccionesServiciosGetPayload<{
+  include: { detalles: { select: { monto: true } } };
+}>;
+
+/** Registro de Consulta_Sobres_VIEW (Manual §2.2.1). */
+interface SobreBanco {
+  Id_Sobre?: number | string;
+  Estado_Sobre?: string;
+  Referencia?: string;
+  Numero_Items?: number | string;
+  Valor_Sobre?: number | string;
+}
+
+/** Registro de Movimientos_Out (Manual §2.3.1). */
+interface MovimientoBanco {
+  Estado_Proceso?: string;
+  Mensaje?: string;
+}
+
+/** Bloque de estado bancario incluido en la respuesta de consulta. */
+export interface EstadoBanco {
+  consultado: boolean;
+  sinDatos?: boolean;
+  motivo?: string;
+  error?: string;
+  orden?: SobreBanco | null;
+  movimientos?: MovimientoBanco[];
 }
 
 @Injectable()
@@ -112,6 +146,127 @@ export class TramasProdubancoService {
       );
       throw error;
     }
+  }
+
+  // ==========================================
+  // CONSULTA DE ESTADO PARA APPS REGISTRADAS
+  // ==========================================
+
+  /**
+   * Lista las transacciones de una app (paginado), con estado local y totales.
+   * La referencia se desencripta con la llave de la app antes de responder.
+   */
+  async consultarTransacciones(
+    idApp: number,
+    params: { page?: number; pageSize?: number; status?: number },
+  ) {
+    const page = Math.max(1, Math.trunc(Number(params.page) || 1));
+    const pageSize = Math.min(
+      50,
+      Math.max(1, Math.trunc(Number(params.pageSize) || 20)),
+    );
+    const where: Prisma.TransaccionesServiciosWhereInput = { idApp };
+    if (
+      params.status !== undefined &&
+      params.status !== null &&
+      [1, 2, 3].includes(Number(params.status))
+    ) {
+      where.status = Number(params.status);
+    }
+
+    const [total, items] = await Promise.all([
+      this.prisma.transaccionesServicios.count({ where }),
+      this.prisma.transaccionesServicios.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { detalles: { select: { monto: true } } },
+      }),
+    ]);
+
+    const secretKey = await this.getEncryptionKey(idApp);
+    return {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      items: items.map((tx) => this.formatearListado(tx, secretKey)),
+    };
+  }
+
+  /**
+   * Detalle de estado de una transacción: estado local (BD) + consulta en vivo
+   * a Produbanco (ConsultaOrdenes por Envio_Id y, opcionalmente,
+   * ConsultaMovimientos por Id_Sobre), sincronizando la BD con la respuesta.
+   * Un fallo del banco NO rompe la respuesta: se reporta en `banco.error`.
+   */
+  async consultarEstadoTransaccion(
+    idApp: number,
+    params: {
+      idTransaccion?: string | number;
+      referenciaLote?: string;
+      detalleMovimientos?: boolean;
+    },
+  ) {
+    const secretKey = await this.getEncryptionKey(idApp);
+    const tx = await this.resolverTransaccion(idApp, params);
+
+    let banco: EstadoBanco = { consultado: false };
+    const response = this.comoObjeto(tx.responsePayload);
+    const envioId =
+      typeof response['envioId'] === 'string' ? response['envioId'] : null;
+
+    if (!envioId) {
+      banco.motivo =
+        'La transacción aún no tiene Envio_Id de Produbanco; se reporta solo el estado local.';
+    } else {
+      const req = this.comoObjeto(tx.requestPayload);
+      const idEmpresa = this.aTexto(req['idEmpresa']);
+      const idServicio = this.aTexto(req['idServicio']);
+      if (!idEmpresa || !idServicio) {
+        banco.motivo =
+          'requestPayload sin idEmpresa/idServicio (lote antiguo); se reporta solo el estado local.';
+      } else {
+        try {
+          const orden = await this.soapProdubanco.consultaOrdenes({
+            strIdEmpresa: idEmpresa,
+            strIdServicio: idServicio,
+            idBuzon: String(envioId),
+          });
+          const sobre = orden.sinDatos
+            ? null
+            : ((orden.registros[0] as SobreBanco | undefined) ?? null);
+          let movimientos: MovimientoBanco[] = [];
+          if (sobre?.Id_Sobre && params.detalleMovimientos !== false) {
+            const mov = await this.soapProdubanco.consultaMovimientos({
+              strIdEmpresa: idEmpresa,
+              strIdServicio: idServicio,
+              IdSobre: String(sobre.Id_Sobre),
+            });
+            movimientos = mov.registros as MovimientoBanco[];
+          }
+          await this.sincronizarEstadoBanco(tx, sobre, movimientos);
+          banco = {
+            consultado: true,
+            sinDatos: orden.sinDatos,
+            orden: sobre,
+            movimientos,
+          };
+        } catch (error: unknown) {
+          const info = this.infoError(error);
+          banco = {
+            consultado: false,
+            error: info.message,
+          };
+          this.logger.warn(
+            `Consulta de estado en banco falló idTransaccion=${tx.idTransaccion}: ${info.message}`,
+          );
+        }
+      }
+    }
+
+    return { ...this.formatearDetalleTransaccion(tx, secretKey), banco };
   }
 
   // ==========================================
@@ -448,6 +603,284 @@ export class TramasProdubancoService {
         },
       },
     });
+  }
+
+  // ==========================================
+  // HELPERS DE CONSULTA DE ESTADO
+  // ==========================================
+
+  /** Normaliza un Json de Prisma a objeto accesible sin `any`. */
+  private comoObjeto(json: unknown): Record<string, unknown> {
+    if (json && typeof json === 'object' && !Array.isArray(json)) {
+      return json as Record<string, unknown>;
+    }
+    return {};
+  }
+
+  /** Extrae el message de un error desconocido sin usar `any`. */
+  private infoError(error: unknown): { message: string } {
+    const e = error as { message?: unknown } | undefined;
+    return {
+      message:
+        typeof e?.message === 'string'
+          ? e.message
+          : 'Error consultando Produbanco',
+    };
+  }
+
+  /** Convierte string|number desconocido a string ('' si no aplica). */
+  private aTexto(valor: unknown): string {
+    if (typeof valor === 'string') return valor;
+    if (typeof valor === 'number') return String(valor);
+    return '';
+  }
+
+  /**
+   * Resuelve la transacción por idTransaccion o referenciaLote (referenceHash)
+   * y verifica que pertenezca a la app (404 en caso contrario, sin filtrar
+   * existencia entre apps).
+   */
+  private async resolverTransaccion(
+    idApp: number,
+    params: {
+      idTransaccion?: string | number;
+      referenciaLote?: string;
+    },
+  ): Promise<TxConDetalles> {
+    let tx: TxConDetalles | null;
+
+    if (
+      params.idTransaccion !== undefined &&
+      params.idTransaccion !== null &&
+      String(params.idTransaccion) !== ''
+    ) {
+      const idStr = String(params.idTransaccion);
+      if (!/^\d+$/.test(idStr)) {
+        throw new RpcException({
+          statusCode: 400,
+          message: 'idTransaccion debe ser un número entero.',
+        });
+      }
+      tx = await this.prisma.transaccionesServicios.findUnique({
+        where: { idTransaccion: BigInt(idStr) },
+        include: { detalles: { orderBy: { secuencia: 'asc' as const } } },
+      });
+    } else if (params.referenciaLote) {
+      const hash = this.sha256(String(params.referenciaLote));
+      tx = await this.prisma.transaccionesServicios.findUnique({
+        where: { referenceHash: hash },
+        include: { detalles: { orderBy: { secuencia: 'asc' as const } } },
+      });
+    } else {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'Se requiere idTransaccion o referenciaLote.',
+      });
+    }
+
+    if (!tx || tx.idApp !== idApp) {
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Transacción no encontrada.',
+      });
+    }
+    return tx;
+  }
+
+  private textoEstado(status: EstadoTransaccion): string {
+    switch (status) {
+      case EstadoTransaccion.PENDIENTE:
+        return 'PENDIENTE';
+      case EstadoTransaccion.PROCESADO_BANCO:
+        return 'PROCESADO_BANCO';
+      case EstadoTransaccion.ERROR:
+        return 'ERROR';
+      default:
+        return 'DESCONOCIDO';
+    }
+  }
+
+  /** Desencripta con la llave de la app; devuelve null si no es descifrable. */
+  private desencriptarSeguro(
+    valor: string | null | undefined,
+    secretKey: string,
+  ): string | null {
+    if (!valor) return null;
+    try {
+      return this.universalCryptoService.decrypt(valor, secretKey);
+    } catch {
+      return null;
+    }
+  }
+
+  private formatearListado(tx: TxListado, secretKey: string) {
+    const response = this.comoObjeto(tx.responsePayload);
+    const envioId =
+      typeof response['envioId'] === 'string' ? response['envioId'] : null;
+    return {
+      idTransaccion: tx.idTransaccion.toString(),
+      referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
+      operacion: tx.operation,
+      status: tx.status,
+      statusTexto: this.textoEstado(tx.status),
+      envioId,
+      errorMessage: tx.errorMessage,
+      fechaCreacion: tx.createdAt,
+      registros: tx.detalles.length,
+      montoTotal: tx.detalles.reduce((acc, d) => acc + Number(d.monto), 0),
+    };
+  }
+
+  private formatearDetalleTransaccion(tx: TxConDetalles, secretKey: string) {
+    const response = this.comoObjeto(tx.responsePayload);
+    const envioId =
+      typeof response['envioId'] === 'string' ? response['envioId'] : null;
+    return {
+      idTransaccion: tx.idTransaccion.toString(),
+      referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
+      operacion: tx.operation,
+      status: tx.status,
+      statusTexto: this.textoEstado(tx.status),
+      envioId,
+      errorMessage: tx.errorMessage,
+      fechaCreacion: tx.createdAt,
+      totales: {
+        registros: tx.detalles.length,
+        montoTotal: tx.detalles.reduce((acc, d) => acc + Number(d.monto), 0),
+      },
+      detalles: tx.detalles.map((d) => ({
+        secuencia: d.secuencia,
+        tipoId: d.beneficiarioTipoId,
+        identificacion: this.desencriptarSeguro(
+          d.beneficiarioIdentificacion,
+          secretKey,
+        ),
+        nombre: d.beneficiarioNombre,
+        cuenta: this.desencriptarSeguro(d.beneficiarioCuenta, secretKey),
+        bancoCodigo: d.beneficiarioBancoCodigo,
+        formaPago: d.formaPago,
+        monto: Number(d.monto),
+        moneda: d.moneda,
+        referenciaDocumento: d.referenciaDocumento,
+        estadoItem: d.estadoItem,
+        codigoRespuesta: d.codigoRespuesta,
+        mensajeBanco: d.mensajeRespuesta,
+      })),
+    };
+  }
+
+  /**
+   * Sincroniza la BD local con la respuesta de Produbanco:
+   * - Sobre REVOCADO -> status=ERROR; sobre encontrado -> status=PROCESADO_BANCO.
+   * - responsePayload guarda estadoBanco/idSobre/fecha de consulta.
+   * - Detalles solo si movimientos.length === detalles.length (match posicional
+   *   por secuencia): mensaje/catalogo verbatim + estadoItem mapeado.
+   */
+  private async sincronizarEstadoBanco(
+    tx: TxConDetalles,
+    sobre: SobreBanco | null,
+    movimientos: MovimientoBanco[],
+  ): Promise<void> {
+    if (!sobre) return;
+
+    const estadoSobre = String(sobre.Estado_Sobre ?? '')
+      .trim()
+      .toUpperCase();
+    const revocado = estadoSobre.includes('REVOCADO');
+    const previo = this.comoObjeto(tx.responsePayload);
+    const prevStr = (k: string): string | null => {
+      const v = previo[k];
+      return typeof v === 'string' ? v : null;
+    };
+    const prevNum = (k: string): number | null => {
+      const v = previo[k];
+      return typeof v === 'number' ? v : null;
+    };
+
+    const idSobre =
+      sobre.Id_Sobre !== undefined && sobre.Id_Sobre !== null
+        ? String(sobre.Id_Sobre)
+        : prevStr('idSobre');
+    const numeroItems =
+      typeof sobre.Numero_Items === 'number'
+        ? sobre.Numero_Items
+        : prevNum('numeroItems');
+    const valorSobre =
+      sobre.Valor_Sobre !== undefined && sobre.Valor_Sobre !== null
+        ? String(sobre.Valor_Sobre)
+        : prevStr('valorSobre');
+    const mensajeRevocado = revocado
+      ? `Produbanco revocó la orden (Estado_Sobre=REVOCADO, Ref=${String(sobre.Referencia ?? 'N/A')})`
+      : null;
+
+    const responsePayload = {
+      envioId: prevStr('envioId'),
+      mensaje: prevStr('mensaje'),
+      error: mensajeRevocado,
+      estadoBanco: estadoSobre || prevStr('estadoBanco'),
+      idSobre,
+      numeroItems,
+      valorSobre,
+      fechaConsultaBanco: new Date().toISOString(),
+    };
+
+    tx.status = revocado
+      ? EstadoTransaccion.ERROR
+      : EstadoTransaccion.PROCESADO_BANCO;
+    tx.errorMessage = mensajeRevocado;
+    tx.responsePayload = responsePayload;
+
+    await this.prisma.transaccionesServicios.update({
+      where: { idTransaccion: tx.idTransaccion },
+      data: {
+        status: tx.status,
+        errorMessage: tx.errorMessage,
+        responsePayload,
+      },
+    });
+
+    if (movimientos.length === 0 || movimientos.length !== tx.detalles.length) {
+      return;
+    }
+
+    await Promise.all(
+      tx.detalles.map(async (detalle, idx) => {
+        const mov = movimientos[idx];
+        const estadoProceso = String(mov?.Estado_Proceso ?? '')
+          .trim()
+          .toUpperCase();
+        const mensaje = String(mov?.Mensaje ?? '').trim();
+        if (!estadoProceso && !mensaje) return;
+
+        let estadoItem = detalle.estadoItem;
+        if (estadoProceso === 'PROCESADO') {
+          estadoItem = 'PROCESADO';
+        } else if (/REVOC|ERROR/.test(estadoProceso)) {
+          estadoItem = 'ERROR';
+        } else if (estadoProceso === 'PENDIENTE') {
+          estadoItem = 'PENDIENTE';
+        }
+        const codigoRespuesta = estadoProceso
+          ? estadoProceso.substring(0, 20)
+          : detalle.codigoRespuesta;
+        const mensajeRespuesta = mensaje || detalle.mensajeRespuesta;
+
+        if (
+          estadoItem === detalle.estadoItem &&
+          codigoRespuesta === detalle.codigoRespuesta &&
+          mensajeRespuesta === detalle.mensajeRespuesta
+        ) {
+          return;
+        }
+        detalle.estadoItem = estadoItem;
+        detalle.codigoRespuesta = codigoRespuesta;
+        detalle.mensajeRespuesta = mensajeRespuesta;
+        await this.prisma.transaccionesBancariasDetalle.update({
+          where: { id_detalle: detalle.id_detalle },
+          data: { estadoItem, codigoRespuesta, mensajeRespuesta },
+        });
+      }),
+    );
   }
 
   // ==========================================
