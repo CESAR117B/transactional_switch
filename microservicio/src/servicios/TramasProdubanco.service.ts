@@ -204,9 +204,7 @@ export class TramasProdubancoService {
   async consultarEstadoTransaccion(
     idApp: number,
     params: {
-      idTransaccion?: string | number;
-      referenciaLote?: string;
-      detalleMovimientos?: boolean;
+      dato?: string | number;
     },
   ) {
     const secretKey = await this.getEncryptionKey(idApp);
@@ -238,7 +236,7 @@ export class TramasProdubancoService {
             ? null
             : ((orden.registros[0] as SobreBanco | undefined) ?? null);
           let movimientos: MovimientoBanco[] = [];
-          if (sobre?.Id_Sobre && params.detalleMovimientos !== false) {
+          if (sobre?.Id_Sobre) {
             const mov = await this.soapProdubanco.consultaMovimientos({
               strIdEmpresa: idEmpresa,
               strIdServicio: idServicio,
@@ -636,46 +634,52 @@ export class TramasProdubancoService {
   }
 
   /**
-   * Resuelve la transacción por idTransaccion o referenciaLote (referenceHash)
-   * y verifica que pertenezca a la app (404 en caso contrario, sin filtrar
-   * existencia entre apps).
+   * Resuelve la transacción con un único campo `dato`: si es numérico se
+   * intenta como idTransaccion y, si no existe, como referenciaLote (y
+   * viceversa). Verifica que pertenezca a la app (404 en caso contrario,
+   * sin filtrar existencia entre apps).
    */
   private async resolverTransaccion(
     idApp: number,
     params: {
-      idTransaccion?: string | number;
-      referenciaLote?: string;
+      dato?: string | number;
     },
   ): Promise<TxConDetalles> {
-    let tx: TxConDetalles | null;
-
-    if (
-      params.idTransaccion !== undefined &&
-      params.idTransaccion !== null &&
-      String(params.idTransaccion) !== ''
-    ) {
-      const idStr = String(params.idTransaccion);
-      if (!/^\d+$/.test(idStr)) {
-        throw new RpcException({
-          statusCode: 400,
-          message: 'idTransaccion debe ser un número entero.',
-        });
-      }
-      tx = await this.prisma.transaccionesServicios.findUnique({
-        where: { idTransaccion: BigInt(idStr) },
-        include: { detalles: { orderBy: { secuencia: 'asc' as const } } },
-      });
-    } else if (params.referenciaLote) {
-      const hash = this.sha256(String(params.referenciaLote));
-      tx = await this.prisma.transaccionesServicios.findUnique({
-        where: { referenceHash: hash },
-        include: { detalles: { orderBy: { secuencia: 'asc' as const } } },
-      });
-    } else {
+    const dato =
+      params.dato !== undefined && params.dato !== null
+        ? String(params.dato).trim()
+        : '';
+    if (!dato) {
       throw new RpcException({
         statusCode: 400,
-        message: 'Se requiere idTransaccion o referenciaLote.',
+        message: 'Se requiere el campo dato (idTransaccion o referenciaLote).',
       });
+    }
+
+    const include = { detalles: { orderBy: { secuencia: 'asc' as const } } };
+    const esNumerico = /^\d+$/.test(dato);
+
+    const buscarPorId = async () => {
+      if (!esNumerico) return null;
+      return this.prisma.transaccionesServicios.findUnique({
+        where: { idTransaccion: BigInt(dato) },
+        include,
+      });
+    };
+    const buscarPorReferencia = async () => {
+      const hash = this.sha256(dato);
+      return this.prisma.transaccionesServicios.findUnique({
+        where: { referenceHash: hash },
+        include,
+      });
+    };
+
+    let tx: TxConDetalles | null;
+    if (esNumerico) {
+      tx = await buscarPorId();
+      if (!tx) tx = await buscarPorReferencia();
+    } else {
+      tx = await buscarPorReferencia();
     }
 
     if (!tx || tx.idApp !== idApp) {

@@ -144,27 +144,26 @@ export class TramasProdubancoController {
 
   @MessagePattern({ cmd: 'consultar_estado_transaccion' })
   async consultarEstadoTransaccion(@Payload() payload: ConsultarEstadoCmd) {
-    const { idApp, idTransaccion, referenciaLote, detalleMovimientos } =
-      payload ?? {};
+    const { idApp, dato } = payload ?? {};
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
         statusCode: 400,
         message: 'idApp es requerido',
       });
     }
-    if (!idTransaccion && !referenciaLote) {
+    if (dato === undefined || dato === null || String(dato).trim() === '') {
       throw new RpcException({
         statusCode: 400,
-        message: 'Se requiere idTransaccion o referenciaLote.',
+        message: 'Se requiere el campo dato (idTransaccion o referenciaLote).',
       });
     }
     this.logger.log(
-      `consultarEstadoTransaccion idApp=${idApp} id=${idTransaccion ?? '-'} ref=${referenciaLote ?? '-'}`,
+      `consultarEstadoTransaccion idApp=${idApp} dato=${String(dato)}`,
     );
     try {
       return await this.tramasProdubancoService.consultarEstadoTransaccion(
         idApp,
-        { idTransaccion, referenciaLote, detalleMovimientos },
+        { dato },
       );
     } catch (error: unknown) {
       if (error instanceof RpcException) throw error;
@@ -179,7 +178,7 @@ export class TramasProdubancoController {
       const message =
         e?.message ?? 'Error interno en consultarEstadoTransaccion';
       this.logger.error(
-        `Error consultarEstadoTransaccion idApp=${idApp} ref=${referenciaLote ?? '-'}: ${message}`,
+        `Error consultarEstadoTransaccion idApp=${idApp} dato=${String(dato)}: ${message}`,
         e?.stack,
       );
       throw new RpcException({
@@ -200,7 +199,5 @@ interface ConsultarTransaccionesCmd {
 
 interface ConsultarEstadoCmd {
   idApp?: number;
-  idTransaccion?: string | number;
-  referenciaLote?: string;
-  detalleMovimientos?: boolean;
+  dato?: string | number;
 }

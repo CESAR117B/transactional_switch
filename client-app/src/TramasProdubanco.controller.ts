@@ -77,13 +77,13 @@ export class TramasProdubancoController {
 
   @ApiOperation({
     summary:
-      'Estado de una transacción por referenciaLote (local + banco en vivo)',
+      'Estado de una transacción por un único campo (id o referenciaLote): ' +
+      'local + banco en vivo + actualización automática en BD',
   })
-  @Get('transacciones/por-referencia/:referenciaLote')
-  async estadoPorReferencia(
+  @Get('transacciones/estado/:dato')
+  async estadoTransaccion(
     @Req() req: ReqConAppAuth,
-    @Param('referenciaLote') referenciaLote: string,
-    @Query('movimientos') movimientos?: string,
+    @Param('dato') dato: string,
   ) {
     const idApp = req.appAuth?.id_app;
     if (!idApp) {
@@ -91,37 +91,12 @@ export class TramasProdubancoController {
         'No se pudo identificar la App desde el token',
       );
     }
-    if (!referenciaLote) {
-      throw new BadRequestException('referenciaLote es requerida');
-    }
-    return this.appService.consultarEstadoTransaccion(idApp, {
-      referenciaLote,
-      detalleMovimientos: movimientos !== '0' && movimientos !== 'false',
-    });
-  }
-
-  @ApiOperation({
-    summary: 'Estado de una transacción por id (local + banco en vivo)',
-  })
-  @Get('transacciones/:id')
-  async estadoPorId(
-    @Req() req: ReqConAppAuth,
-    @Param('id') id: string,
-    @Query('movimientos') movimientos?: string,
-  ) {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
+    if (!dato || !dato.trim()) {
       throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
+        'dato es requerido (idTransaccion o referenciaLote)',
       );
     }
-    if (!/^\d+$/.test(id)) {
-      throw new BadRequestException('idTransaccion debe ser un número entero');
-    }
-    return this.appService.consultarEstadoTransaccion(idApp, {
-      idTransaccion: id,
-      detalleMovimientos: movimientos !== '0' && movimientos !== 'false',
-    });
+    return this.appService.consultarEstadoTransaccion(idApp, dato.trim());
   }
 }
 

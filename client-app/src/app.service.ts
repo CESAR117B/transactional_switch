@@ -75,13 +75,9 @@ export class AppService {
 
   async consultarEstadoTransaccion(
     idApp: number,
-    params: {
-      idTransaccion?: string;
-      referenciaLote?: string;
-      detalleMovimientos?: boolean;
-    },
+    dato: string,
   ): Promise<unknown> {
-    const payload = { idApp: Number(idApp), ...params };
+    const payload = { idApp: Number(idApp), dato };
     return firstValueFrom(
       this.mathClient.send<unknown>(
         { cmd: 'consultar_estado_transaccion' },
