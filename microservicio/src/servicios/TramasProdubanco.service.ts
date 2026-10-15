@@ -48,6 +48,9 @@ interface MovimientoBanco {
 export interface EstadoBanco {
   consultado: boolean;
   sinDatos?: boolean;
+  /** Cómo se buscó la orden: por Envio_Id o, si el Envio_Id no sirve
+   * (p. ej. 0), por la Referencia registrada en la carga (Manual §2.2.1). */
+  consultaPor?: 'envioId' | 'referencia';
   /** CodRetorno del SOAP (ej. 0005 = sin datos). */
   codigo?: string | null;
   /** MsjRetorno verbatim del banco. */
@@ -78,7 +81,7 @@ export class TramasProdubancoService {
    * Procesa y persiste un lote de pagos locales en Produbanco.
    */
   async generarPago(idApp: number, data: CrearPagoLoteDto) {
-    data.referenciaLote = this.normalizarReferenciaLote(data.referenciaLote);
+    data.referenciaLote = await this.generarReferenciaLote(idApp);
     this.validarLotePago(data);
 
     // 1. Guardar en BD en estado PENDIENTE con sus detalles[cite: 4]
@@ -89,7 +92,7 @@ export class TramasProdubancoService {
       const xmlPlano = this.construirXmlPago(data);
       const tramaEncriptada =
         await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
-      const { envioId, estado } =
+      const { envioId, estado, respuesta } =
         await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
 
       // 3. Actualizar BD con el Envio_Id y respuesta exitosa del banco[cite: 4]
@@ -97,6 +100,7 @@ export class TramasProdubancoService {
         transaccion.idTransaccion,
         envioId,
         estado,
+        respuesta,
       );
 
       return {
@@ -107,11 +111,13 @@ export class TramasProdubancoService {
         totalRegistros: data.detalles.length,
         montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 4. Registrar fallo en BD en caso de error en la red o servidor bancario[cite: 4]
+      const info = this.infoErrorConBanco(error);
       await this.actualizarTransaccionErrorBD(
         transaccion.idTransaccion,
-        error.message,
+        info.message,
+        info.respuestaBanco,
       );
       throw error;
     }
@@ -121,7 +127,7 @@ export class TramasProdubancoService {
    * Procesa y persiste un lote de transferencias internacionales (Transfer Full).
    */
   async generarTransferencia(idApp: number, data: CrearTransferenciaLoteDto) {
-    data.referenciaLote = this.normalizarReferenciaLote(data.referenciaLote);
+    data.referenciaLote = await this.generarReferenciaLote(idApp);
     this.validarLoteTransferencia(data);
 
     // 1. Guardar en BD en estado PENDIENTE[cite: 4]
@@ -135,7 +141,7 @@ export class TramasProdubancoService {
       const xmlPlano = this.construirXmlTransferencia(data);
       const tramaEncriptada =
         await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
-      const { envioId, estado } =
+      const { envioId, estado, respuesta } =
         await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
 
       // 3. Actualizar BD con confirmación del banco[cite: 4]
@@ -143,6 +149,7 @@ export class TramasProdubancoService {
         transaccion.idTransaccion,
         envioId,
         estado,
+        respuesta,
       );
 
       return {
@@ -153,10 +160,12 @@ export class TramasProdubancoService {
         totalRegistros: data.detalles.length,
         montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const info = this.infoErrorConBanco(error);
       await this.actualizarTransaccionErrorBD(
         transaccion.idTransaccion,
-        error.message,
+        info.message,
+        info.respuestaBanco,
       );
       throw error;
     }
@@ -227,7 +236,10 @@ export class TramasProdubancoService {
    * Detalle de estado de una transacción: estado local (BD) + consulta en vivo
    * a Produbanco (ConsultaOrdenes por Envio_Id y, opcionalmente,
    * ConsultaMovimientos por Id_Sobre), sincronizando la BD con la respuesta.
-   * Un fallo del banco NO rompe la respuesta: se reporta en `banco.error`.
+   * Si el Envio_Id no sirve (vacío/"0"/no numérico, p. ej. cuando la carga
+   * responde Envio_Id=0) se consulta por la Referencia del lote (§2.2.1);
+   * `banco.consultaPor` indica el modo usado. Un fallo del banco NO rompe la
+   * respuesta: se reporta en `banco.error`.
    */
   async consultarEstadoTransaccion(
     idApp: number,
@@ -244,55 +256,64 @@ export class TramasProdubancoService {
     const response = this.comoObjeto(tx.responsePayload);
     const envioId =
       typeof response['envioId'] === 'string' ? response['envioId'] : null;
+    // Envio_Id usable como idBuzon: numérico y distinto de "0". Produbanco
+    // puede responder Envio_Id=0 en la carga (caso no documentado); en ese
+    // caso la consulta se hace por Referencia registrada en la carga.
+    const envioIdUtil =
+      envioId && /^\d+$/.test(envioId) && envioId !== '0' ? envioId : null;
+    const referenciaLote = this.desencriptarSeguro(tx.reference, secretKey);
+    const req = this.comoObjeto(tx.requestPayload);
+    const idEmpresa = this.aTexto(req['idEmpresa']);
+    const idServicio = this.aTexto(req['idServicio']);
 
-    if (!envioId) {
+    if (!idEmpresa || !idServicio) {
       banco.motivo =
-        'La transacción aún no tiene Envio_Id de Produbanco; se reporta solo el estado local.';
+        'requestPayload sin idEmpresa/idServicio (lote antiguo); se reporta solo el estado local.';
     } else {
-      const req = this.comoObjeto(tx.requestPayload);
-      const idEmpresa = this.aTexto(req['idEmpresa']);
-      const idServicio = this.aTexto(req['idServicio']);
-      if (!idEmpresa || !idServicio) {
-        banco.motivo =
-          'requestPayload sin idEmpresa/idServicio (lote antiguo); se reporta solo el estado local.';
-      } else {
-        try {
-          const orden = await this.soapProdubanco.consultaOrdenes({
+      const consultaPor: NonNullable<EstadoBanco['consultaPor']> = envioIdUtil
+        ? 'envioId'
+        : 'referencia';
+      try {
+        const orden = await this.soapProdubanco.consultaOrdenes({
+          strIdEmpresa: idEmpresa,
+          strIdServicio: idServicio,
+          idBuzon: envioIdUtil ?? '0',
+          // Sin Envio_Id válido se filtra por la Referencia del lote
+          // (nuestra referenciaLote) para poder hallar la orden §2.2.1.
+          ...(envioIdUtil ? {} : { referencia: referenciaLote ?? undefined }),
+        });
+        const sobre = orden.sinDatos
+          ? null
+          : ((orden.registros[0] as SobreBanco | undefined) ?? null);
+        let movimientos: MovimientoBanco[] = [];
+        if (sobre?.Id_Sobre) {
+          const mov = await this.soapProdubanco.consultaMovimientos({
             strIdEmpresa: idEmpresa,
             strIdServicio: idServicio,
-            idBuzon: String(envioId),
+            IdSobre: String(sobre.Id_Sobre),
           });
-          const sobre = orden.sinDatos
-            ? null
-            : ((orden.registros[0] as SobreBanco | undefined) ?? null);
-          let movimientos: MovimientoBanco[] = [];
-          if (sobre?.Id_Sobre) {
-            const mov = await this.soapProdubanco.consultaMovimientos({
-              strIdEmpresa: idEmpresa,
-              strIdServicio: idServicio,
-              IdSobre: String(sobre.Id_Sobre),
-            });
-            movimientos = mov.registros as MovimientoBanco[];
-          }
-          await this.sincronizarEstadoBanco(tx, sobre, movimientos, orden);
-          banco = {
-            consultado: true,
-            sinDatos: orden.sinDatos,
-            codigo: orden.codigo ?? null,
-            mensaje: orden.mensaje ?? null,
-            orden: sobre,
-            movimientos,
-          };
-        } catch (error: unknown) {
-          const info = this.infoError(error);
-          banco = {
-            consultado: false,
-            error: info.message,
-          };
-          this.logger.warn(
-            `Consulta de estado en banco falló idTransaccion=${tx.idTransaccion}: ${info.message}`,
-          );
+          movimientos = mov.registros as MovimientoBanco[];
         }
+        await this.sincronizarEstadoBanco(tx, sobre, movimientos, orden);
+        banco = {
+          consultado: true,
+          sinDatos: orden.sinDatos,
+          codigo: orden.codigo ?? null,
+          mensaje: orden.mensaje ?? null,
+          consultaPor,
+          orden: sobre,
+          movimientos,
+        };
+      } catch (error: unknown) {
+        const info = this.infoError(error);
+        banco = {
+          consultado: false,
+          error: info.message,
+          consultaPor,
+        };
+        this.logger.warn(
+          `Consulta de estado en banco falló idTransaccion=${tx.idTransaccion}: ${info.message}`,
+        );
       }
     }
 
@@ -328,20 +349,52 @@ export class TramasProdubancoService {
     return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
   }
 
-  /** Si no viene referenciaLote, genera un identificador único del lote. */
-  private normalizarReferenciaLote(referenciaLote?: string): string {
-    const ref = (referenciaLote ?? '').trim();
-    return ref || this.generarReferenciaLote();
+  /** Normaliza info_app.nombre a código [A-Z0-9] (máx 15); vacío -> null. */
+  private normalizarNombreApp(nombre?: string | null): string | null {
+    if (!nombre) return null;
+    const limpio = nombre
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .substring(0, 15);
+    return limpio || null;
   }
 
-  /** Formato: LT{yyyyMMddHHmmss}-{4 hex aleatorios} (único por referenceHash). */
-  private generarReferenciaLote(): string {
+  /**
+   * Referencia del lote generada por el back (los DTO ya no la reciben):
+   * NOMBREAPP-{secuencia}-{yyyyMMddHHmmss}-{4 hex}
+   * - nombre = info_app.nombre (fallback APP{idApp})
+   * - secuencia = COUNT(transacciones de la app) + 1, 5 dígitos
+   * - timestamp + 4 hex garantizan unicidad (referenceHash es UNIQUE)
+   */
+  private async generarReferenciaLote(idApp: number): Promise<string> {
+    const info = await this.prisma.info_app.findUnique({
+      where: { id_app: idApp },
+      select: { nombre: true },
+    });
+    const nombre = this.normalizarNombreApp(info?.nombre) ?? `APP${idApp}`;
+    const total = await this.prisma.transaccionesServicios.count({
+      where: { idApp },
+    });
+    const secuencia = String(total + 1).padStart(5, '0');
     const timestamp = new Date()
       .toISOString()
       .replace(/[-:TZ.]/g, '')
       .substring(0, 14);
     const sufijo = crypto.randomBytes(2).toString('hex');
-    return `LT${timestamp}-${sufijo}`;
+    return `${nombre}-${secuencia}-${timestamp}-${sufijo}`;
+  }
+
+  /** sha256 del contenido del lote SIN referenciaLote — llave de idempotencia
+   * (la referencia ya no la envía el cliente, así que el dedup va por datos). */
+  private hashContenidoLote(
+    data: CrearPagoLoteDto | CrearTransferenciaLoteDto,
+  ): string {
+    const contenido = JSON.stringify(data, (key: string, value: unknown) =>
+      key === 'referenciaLote' ? undefined : value,
+    );
+    return this.sha256(contenido);
   }
 
   /**
@@ -358,6 +411,7 @@ export class TramasProdubancoService {
       secretKey,
     );
     const referenceHash = this.sha256(data.referenciaLote ?? '');
+    const requestHash = this.hashContenidoLote(data);
 
     // Payload cifrado: cuentaEmpresa + identificacion + cuenta dentro de detalles
     const payloadCifrado = {
@@ -379,15 +433,16 @@ export class TramasProdubancoService {
       })),
     };
 
-    // Opción A - Idempotencia: si referenceHash ya existe, permite reintento solo si estado=ERROR
-    const existing = await this.prisma.transaccionesServicios.findUnique({
-      where: { referenceHash },
+    // Idempotencia: la referencia la genera el back, así que el dedup va por
+    // el hash del CONTENIDO del lote (requestHash) de esta misma app.
+    const existing = await this.prisma.transaccionesServicios.findFirst({
+      where: { idApp, requestHash },
       select: { idTransaccion: true, status: true, idApp: true },
     });
     if (existing) {
       if (existing.status === EstadoTransaccion.ERROR) {
         this.logger.warn(
-          `Reintentando lote con referencia duplicada ${data.referenciaLote} (hash=${referenceHash}) idTransaccion=${existing.idTransaccion} status=ERROR -> reciclando`,
+          `Reintentando lote con contenido duplicado ${data.referenciaLote} (requestHash=${requestHash}) idTransaccion=${existing.idTransaccion} status=ERROR -> reciclando`,
         );
         // Borra detalles previos y recrea con payload actualizado, resetea a PENDIENTE
         await this.prisma.transaccionesBancariasDetalle.deleteMany({
@@ -398,6 +453,7 @@ export class TramasProdubancoService {
           data: {
             idApp,
             reference: referenceEncrypted,
+            referenceHash,
             requestPayload: payloadCifrado,
             responsePayload: {},
             status: EstadoTransaccion.PENDIENTE,
@@ -437,7 +493,7 @@ export class TramasProdubancoService {
       // PENDIENTE o PROCESADO_BANCO -> conflicto, cliente debe usar nueva referenciaLote
       throw new RpcException({
         statusCode: 409,
-        message: `Lote con referencia ${data.referenciaLote} ya existe (estado=${existing.status === EstadoTransaccion.PENDIENTE ? 'PENDIENTE' : existing.status === EstadoTransaccion.PROCESADO_BANCO ? 'PROCESADO_BANCO' : existing.status}). Use una referenciaLote nueva.`,
+        message: `Lote con contenido idéntico ya existe (referencia=${data.referenciaLote}, estado=${existing.status === EstadoTransaccion.PENDIENTE ? 'PENDIENTE' : existing.status === EstadoTransaccion.PROCESADO_BANCO ? 'PROCESADO_BANCO' : existing.status}).`,
         error: 'Conflict',
       });
     }
@@ -449,6 +505,7 @@ export class TramasProdubancoService {
         operation: 'SPR_PRODUBANCO-PAGO',
         reference: referenceEncrypted,
         referenceHash,
+        requestHash,
         requestPayload: payloadCifrado,
         responsePayload: {},
         status: EstadoTransaccion.PENDIENTE,
@@ -493,6 +550,7 @@ export class TramasProdubancoService {
       secretKey,
     );
     const referenceHash = this.sha256(data.referenciaLote ?? '');
+    const requestHash = this.hashContenidoLote(data);
 
     const payloadCifrado = {
       ...JSON.parse(JSON.stringify(data)),
@@ -513,14 +571,16 @@ export class TramasProdubancoService {
       })),
     };
 
-    const existing = await this.prisma.transaccionesServicios.findUnique({
-      where: { referenceHash },
+    // Idempotencia: la referencia la genera el back, así que el dedup va por
+    // el hash del CONTENIDO del lote (requestHash) de esta misma app.
+    const existing = await this.prisma.transaccionesServicios.findFirst({
+      where: { idApp, requestHash },
       select: { idTransaccion: true, status: true },
     });
     if (existing) {
       if (existing.status === EstadoTransaccion.ERROR) {
         this.logger.warn(
-          `Reintentando transferencia con referencia duplicada ${data.referenciaLote} (hash=${referenceHash}) idTransaccion=${existing.idTransaccion} status=ERROR -> reciclando`,
+          `Reintentando transferencia con contenido duplicado ${data.referenciaLote} (requestHash=${requestHash}) idTransaccion=${existing.idTransaccion} status=ERROR -> reciclando`,
         );
         await this.prisma.transaccionesBancariasDetalle.deleteMany({
           where: { idTransaccion: existing.idTransaccion },
@@ -530,6 +590,7 @@ export class TramasProdubancoService {
           data: {
             idApp,
             reference: referenceEncrypted,
+            referenceHash,
             requestPayload: payloadCifrado,
             responsePayload: {},
             status: EstadoTransaccion.PENDIENTE,
@@ -573,7 +634,7 @@ export class TramasProdubancoService {
       }
       throw new RpcException({
         statusCode: 409,
-        message: `Transferencia con referencia ${data.referenciaLote} ya existe (estado=${existing.status === EstadoTransaccion.PENDIENTE ? 'PENDIENTE' : existing.status === EstadoTransaccion.PROCESADO_BANCO ? 'PROCESADO_BANCO' : existing.status}). Use nueva referenciaLote.`,
+        message: `Transferencia con contenido idéntico ya existe (referencia=${data.referenciaLote}, estado=${existing.status === EstadoTransaccion.PENDIENTE ? 'PENDIENTE' : existing.status === EstadoTransaccion.PROCESADO_BANCO ? 'PROCESADO_BANCO' : existing.status}).`,
         error: 'Conflict',
       });
     }
@@ -585,6 +646,7 @@ export class TramasProdubancoService {
         operation: 'SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR',
         reference: referenceEncrypted,
         referenceHash,
+        requestHash,
         requestPayload: payloadCifrado,
         responsePayload: {},
         status: EstadoTransaccion.PENDIENTE,
@@ -627,12 +689,14 @@ export class TramasProdubancoService {
 
   /**
    * Actualiza la transacción a éxito cuando Produbanco retorna el Envio_Id[cite: 4].
-   * `estadoServicio` guarda el <Estado> verbatim de la respuesta (VALIDADO).
+   * `estadoServicio` guarda el <Estado> verbatim de la respuesta (VALIDADO) y
+   * `cargaRespuestaBanco` conserva el XML crudo (diagnóstico, máx 4000 chars).
    */
   private async actualizarTransaccionExitoBD(
     idTransaccion: bigint,
     envioId: string,
     estado: string,
+    respuesta: string,
   ) {
     return this.prisma.transaccionesServicios.update({
       where: { idTransaccion },
@@ -642,17 +706,21 @@ export class TramasProdubancoService {
         responsePayload: {
           envioId,
           mensaje: 'Carga aceptada correctamente por Produbanco',
+          cargaRespuestaBanco: respuesta.substring(0, 4000),
         },
       },
     });
   }
 
   /**
-   * Marca la transacción con estado de error en caso de fallo en la red/SOAP[cite: 4].
+   * Marca la transacción con estado de error en caso de fallo de red/SOAP o
+   * rechazo del banco (p. ej. "Trama inválida")[cite: 4]. `respuestaBanco`
+   * conserva la respuesta cruda del SOAP para diagnóstico.
    */
   private async actualizarTransaccionErrorBD(
     idTransaccion: bigint,
     mensajeError: string,
+    respuestaBanco?: string | null,
   ) {
     return this.prisma.transaccionesServicios.update({
       where: { idTransaccion },
@@ -661,6 +729,9 @@ export class TramasProdubancoService {
         errorMessage: mensajeError,
         responsePayload: {
           error: mensajeError,
+          ...(respuestaBanco
+            ? { cargaRespuestaBanco: respuestaBanco.substring(0, 4000) }
+            : {}),
         },
       },
     });
@@ -686,6 +757,23 @@ export class TramasProdubancoService {
         typeof e?.message === 'string'
           ? e.message
           : 'Error consultando Produbanco',
+    };
+  }
+
+  /**
+   * Extrae message y la respuesta cruda adjunta (`respuestaBanco`, si el
+   * servicio SOAP la adjuntó al rechazar la carga) sin usar `any`.
+   */
+  private infoErrorConBanco(error: unknown): {
+    message: string;
+    respuestaBanco: string | null;
+  } {
+    const e = error as
+      { message?: unknown; respuestaBanco?: unknown } | undefined;
+    return {
+      message: typeof e?.message === 'string' ? e.message : 'Error desconocido',
+      respuestaBanco:
+        typeof e?.respuestaBanco === 'string' ? e.respuestaBanco : null,
     };
   }
 
@@ -866,6 +954,12 @@ export class TramasProdubancoService {
       statusServicio: this.textoEstado(tx.status),
       estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
       ...this.camposBancoResponse(response),
+      // XML crudo de CargaDirectaXml (diagnóstico, ej. Envio_Id=0 no
+      // documentado); solo en el detalle, no en el listado.
+      cargaRespuestaBanco:
+        typeof response['cargaRespuestaBanco'] === 'string'
+          ? response['cargaRespuestaBanco']
+          : null,
       envioId,
       errorMessage: tx.errorMessage,
       fechaCreacion: tx.createdAt,
@@ -902,7 +996,8 @@ export class TramasProdubancoService {
    * - Con sobre: `estadoServicio` = Estado_Sobre verbatim (vacío -> conserva
    *   previo); status interno solo como resumen: REVOCADO->ERROR,
    *   APROBADO/PROCESADO->PROCESADO_BANCO, ACTIVO conserva el actual.
-   * - responsePayload guarda estadoBanco/codigoBanco/mensajeBanco/idSobre/fecha.
+   * - responsePayload guarda estadoBanco/codigoBanco/mensajeBanco/idSobre/fecha
+   *   y preserva cargaRespuestaBanco (XML crudo de la carga).
    * - Detalles por posición hasta min(movimientos, detalles): estadoItem =
    *   Estado_Proceso verbatim (Manual §2.3.1) + catálogo/mensaje tal cual.
    */
@@ -931,6 +1026,7 @@ export class TramasProdubancoService {
       const responsePayload = {
         envioId: prevStr('envioId'),
         mensaje: prevStr('mensaje'),
+        cargaRespuestaBanco: prevStr('cargaRespuestaBanco'),
         error: prevStr('error'),
         estadoBanco: prevStr('estadoBanco'),
         codigoBanco,
@@ -975,6 +1071,7 @@ export class TramasProdubancoService {
     const responsePayload = {
       envioId: prevStr('envioId'),
       mensaje: prevStr('mensaje'),
+      cargaRespuestaBanco: prevStr('cargaRespuestaBanco'),
       error: mensajeRevocado,
       estadoBanco: estadoSobre || prevStr('estadoBanco'),
       codigoBanco,
@@ -1146,8 +1243,10 @@ export class TramasProdubancoService {
 
     const itemsXml = items.map((linea) => `  <Item>${linea}</Item>`).join('\n');
 
-    return `<?xml version="1.0" encoding="utf-8"?>
-<Envelope>
+    // SIN la declaración <?xml?>: Produbanco responde "Trama inválida" con
+    // ella (probado con scripts/diagnosticar-trama.ts; el manual §2.2.1
+    // tampoco la incluye en el trama dentro del CDATA).
+    return `<Envelope>
   <Empresa>${this.escapeXml(data.empresa)}</Empresa>
   <Id_Empresa>${this.escapeXml(data.idEmpresa)}</Id_Empresa>
   <Servicio>${this.escapeXml(data.servicio)}</Servicio>
@@ -1222,8 +1321,9 @@ ${itemsXml}
 
     const itemsXml = items.map((linea) => `  <Item>${linea}</Item>`).join('\n');
 
-    return `<?xml version="1.0" encoding="utf-8"?>
-<Envelope>
+    // SIN la declaración <?xml?>: causa "Trama inválida" en Produbanco
+    // (ver scripts/diagnosticar-trama.ts y comentario en construirXmlPago).
+    return `<Envelope>
   <Empresa>${this.escapeXml(data.empresa)}</Empresa>
   <Id_Empresa>${this.escapeXml(data.idEmpresa)}</Id_Empresa>
   <Servicio>${this.escapeXml(data.servicio)}</Servicio>
@@ -1265,6 +1365,18 @@ ${itemsXml}
           });
         }
       }
+      // El banco rechaza el ítem si los dígitos no coinciden con el tipo
+      // (Formato PAGOS_FULL F12-F13). Error real: "NUMERO
+      // IDENTIFICACION(R) INVALIDO" al enviar una cédula bajo tipo R.
+      const digitos = (item.identificacion ?? '').trim().length;
+      const digitosEsperados =
+        item.tipoId === 'C' ? 10 : item.tipoId === 'R' ? 13 : undefined;
+      if (digitosEsperados !== undefined && digitos !== digitosEsperados) {
+        throw new RpcException({
+          statusCode: 400,
+          message: `Detalle posición ${indice + 1}: tipoId "${item.tipoId}" requiere exactamente ${digitosEsperados} dígitos de identificación (enviados: ${digitos}). C=cédula (10), R=RUC (13), P=pasaporte (5 a 13).`,
+        });
+      }
     }
   }
 
@@ -1284,6 +1396,21 @@ ${itemsXml}
         statusCode: 400,
         message: 'El lote de transferencias debe incluir al menos un detalle.',
       });
+    }
+    for (const [indice, item] of data.detalles.entries()) {
+      // El banco rechaza el ítem si los dígitos no coinciden con el tipo
+      // (Formato TRANSFER_FULL F12-F13: C=cédula 10, R=RUC 13, P=pasaporte
+      // hasta 13) — mismo criterio que validarLotePago y error real
+      // "NUMERO IDENTIFICACION(R) INVALIDO" probado en pagos.
+      const digitos = (item.identificacion ?? '').trim().length;
+      const digitosEsperados =
+        item.tipoId === 'C' ? 10 : item.tipoId === 'R' ? 13 : undefined;
+      if (digitosEsperados !== undefined && digitos !== digitosEsperados) {
+        throw new RpcException({
+          statusCode: 400,
+          message: `Detalle posición ${indice + 1}: tipoId "${item.tipoId}" requiere exactamente ${digitosEsperados} dígitos de identificación (enviados: ${digitos}). C=cédula (10), R=RUC (13), P=pasaporte (5 a 13).`,
+        });
+      }
     }
   }
 }

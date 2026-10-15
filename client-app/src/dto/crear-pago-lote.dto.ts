@@ -210,19 +210,6 @@ export class CrearPagoLoteDto {
   @IsString()
   fechaVencimiento?: string;
 
-  @ApiPropertyOptional({
-    description:
-      'Identificador único del lote; si no se envía, el back lo genera ' +
-      '(LT{yyyyMMddHHmmss}-{hex}) y lo devuelve en la respuesta',
-    example: 'LOTE-2026-001',
-    type: String,
-    maxLength: 60,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
-  referenciaLote?: string;
-
   @ApiProperty({
     description: 'Listado de pagos individuales que componen el lote',
     type: () => PagoDetalleItemDto,

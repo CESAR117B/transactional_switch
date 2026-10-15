@@ -226,12 +226,18 @@ export class ProdubancoSoapService {
 
   /**
    * Envía el sobre encriptado a Produbanco para procesar la orden masiva.
-   * Devuelve el Envio_Id junto con el <Estado> (VALIDADO/...) y
-   * <MensajeRespuesta> de la cabecera de la respuesta[cite: 4].
+   * Devuelve el Envio_Id junto con el <Estado> y <MensajeRespuesta> de la
+   * cabecera, más la respuesta cruda para diagnóstico[cite: 4].
+   * Lanza error si el banco no acepta la carga (Estado ≠ VALIDADO o
+   * Envio_Id=0, p. ej. "Trama inválida"), adjuntando la respuesta cruda
+   * en `respuestaBanco` para que el caller la persista.
    */
-  async cargarDirectaXml(
-    tramaEncriptada: string,
-  ): Promise<{ envioId: string; estado: string; mensaje: string | null }> {
+  async cargarDirectaXml(tramaEncriptada: string): Promise<{
+    envioId: string;
+    estado: string;
+    mensaje: string | null;
+    respuesta: string;
+  }> {
     try {
       const config = await this.configDb.getProdubancoConfig(); // Se agregan las credenciales de config
       const client = await this.getClient();
@@ -277,26 +283,33 @@ export class ProdubancoSoapService {
         .match(/<MensajeRespuesta>([^<]*)<\/MensajeRespuesta>/)?.[1]
         ?.trim();
 
-      if (estado === 'INVALIDO') {
-        // Ítems rechazados por datos incorrectos: NO es un envío procesado
-        const detalles = [
-          ...respuesta.matchAll(/<Resultado>([^<]*)<\/Resultado>/g),
-        ]
-          .map((m) => m[1].trim())
-          .filter((d) => d && d !== 'ENVIO OK');
-        throw new Error(
-          `Produbanco rechazó la orden (Envio_Id=${envioId ?? 'N/A'}, Estado=INVALIDO): ${mensaje || 'favor revise el archivo de su orden'}` +
+      // La orden sólo fue registrada si el banco responde VALIDADO con un
+      // Envio_Id real (distinto de "0"). INVALIDO (ítems rechazados, p. ej.
+      // "NUMERO IDENTIFICACION(R) INVALIDO") y ERROR (p. ej. "Trama inválida"
+      // por incluir la declaración <?xml?>) NO son éxitos: se lanza con el
+      // mensaje verbatim y la respuesta cruda adjunta para persistirla en BD.
+      const envioIdValido = !!envioId && envioId !== '0';
+      if (estado !== 'VALIDADO' || !envioIdValido) {
+        const detalles =
+          estado === 'INVALIDO'
+            ? [...respuesta.matchAll(/<Resultado>([^<]*)<\/Resultado>/g)]
+                .map((m) => m[1].trim())
+                .filter((d) => d && d !== 'ENVIO OK')
+            : [];
+        const rechazo = new Error(
+          `Produbanco no registró la carga [estado=${estado || 'desconocido'}, Envio_Id=${envioId ?? 'N/A'}]: ${mensaje || 'sin mensaje del banco'}` +
             (detalles.length ? ` | Detalle: ${detalles.join(' ; ')}` : ''),
         );
+        Object.assign(rechazo, { respuestaBanco: respuesta });
+        throw rechazo;
       }
 
-      if (!envioId) {
-        throw new Error(
-          `Respuesta de CargaDirectaXml sin Envio_Id (estado=${estado || 'desconocido'}): ${respuesta.substring(0, 120)}`,
-        );
-      }
-
-      return { envioId, estado: estado ?? '', mensaje: mensaje ?? null };
+      return {
+        envioId,
+        estado: estado ?? '',
+        mensaje: mensaje ?? null,
+        respuesta,
+      };
     } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.clearClientCache();
@@ -326,11 +339,19 @@ export class ProdubancoSoapService {
           error: 'Bad Gateway',
         });
       }
-      throw new RpcException({
+      const respuestaBanco = (error as { respuestaBanco?: string })
+        ?.respuestaBanco;
+      const rpc = new RpcException({
         statusCode: esErrorRed ? 502 : 500,
         message: `Fallo al ejecutar CargaDirectaXml en Produbanco: ${rawMessage}${esErrorRed ? ' (error de red/VPN hacia webcore.produbanco.ec - requiere IP whitelisted de Produbanco)' : ''}`,
         error: esErrorRed ? 'Bad Gateway' : 'Internal Server Error',
       });
+      // Conserva la respuesta cruda del banco (si el rechazo la adjuntó) para
+      // que el caller la persista en responsePayload (diagnóstico).
+      if (respuestaBanco) {
+        Object.assign(rpc, { respuestaBanco });
+      }
+      throw rpc;
     }
   }
 

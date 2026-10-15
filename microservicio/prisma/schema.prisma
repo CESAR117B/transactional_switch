@@ -192,6 +192,7 @@ model TransaccionesServicios {
   operation     String  @db.VarChar(50)
   reference     String  @db.Text // Cifrado con UniversalCryptoService (iv:authTag:cipher)
   referenceHash String? @unique @map("reference_hash") @db.VarChar(64) // sha256(referenciaLote) para unicidad/busqueda deterministica - nullable para migracion, luego NOT NULL tras backfill
+  requestHash   String? @map("request_hash") @db.VarChar(64) // sha256 del contenido del lote SIN referenciaLote — llave de idempotencia
 
   // Datos
   requestPayload  Json @map("request_payload")
@@ -208,6 +209,7 @@ model TransaccionesServicios {
 
   @@index([servicio, entidadId])
   @@index([referenceHash])
+  @@index([idApp, requestHash])
   @@map("transacciones_servicios")
 }
 

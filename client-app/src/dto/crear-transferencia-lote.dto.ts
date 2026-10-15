@@ -230,7 +230,7 @@ export class TransferenciaDetalleItemDto {
       'Número de factura o referencia del documento generado por el sistema ' +
       'cliente que se conecta al microservicio; se envía a Produbanco en el ' +
       'campo INV (F23, máx 26 chars sin espacios). Si no se envía, el back ' +
-      'usa la referenciaLote del lote',
+      'usa la referenciaLote generada por el back',
     example: 'FAC-00123',
     type: String,
     maxLength: 50,
@@ -294,19 +294,6 @@ export class CrearTransferenciaLoteDto {
   @IsString()
   @IsNotEmpty({ message: 'idServicio es requerido' })
   idServicio: string;
-
-  @ApiPropertyOptional({
-    description:
-      'Identificador único del lote; si no se envía, el back lo genera ' +
-      '(LT{yyyyMMddHHmmss}-{hex}) y lo devuelve en la respuesta',
-    example: 'LOTE-TRANSF-2026-001',
-    type: String,
-    maxLength: 60,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
-  referenciaLote?: string;
 
   @ApiProperty({
     description: 'Fecha de inicio del lote en formato DD/MM/YYYY',

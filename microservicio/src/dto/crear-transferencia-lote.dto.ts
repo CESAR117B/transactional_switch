@@ -144,10 +144,9 @@ export class CrearTransferenciaLoteDto {
   @IsNotEmpty({ message: 'idServicio es requerido' })
   idServicio: string; // ID de servicio de exterior (confirmar con Produbanco)
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(60, { message: 'referenciaLote máx 60 caracteres' })
-  referenciaLote?: string; // Identificador del lote; si no se envía, el back lo genera (LT{yyyyMMddHHmmss}-{hex})
+  // Interno: lo genera el back (NOMBREAPP-{secuencia}-{timestamp}-{hex});
+  // no se envía en el request (ValidationPipe whitelist la trunca).
+  referenciaLote?: string;
 
   @IsString()
   @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
