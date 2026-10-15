@@ -78,7 +78,7 @@ minimumReleaseAgeExclude:
   - '@nestjs/jwt@12.0.2 || 12.0.3'
   - prettier@3.9.7 || 3.9.8 || 3.9.9
   - '@nestjs/swagger@12.0.2'
-  - ts-jest@29.4.13 || 29.4.14
+  - ts-jest@29.4.13 || 29.4.14 || 29.4.15
   - '@angular-devkit/core@22.2.0'
   - '@angular-devkit/schematics-cli@22.2.0'
   - '@angular-devkit/schematics@22.2.0'

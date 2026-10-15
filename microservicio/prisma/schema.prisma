@@ -198,8 +198,9 @@ model TransaccionesServicios {
   responsePayload Json @map("response_payload")
 
   // Estado
-  status       Int
-  errorMessage String? @map("error_message") @db.Text // Detalles del error en caso de fallo
+  status          Int
+  estadoServicio  String? @map("estado_servicio") @db.VarChar(30) // Estado verbatim de Produbanco: VALIDADO (CargaDirectaXml) o Estado_Sobre (ConsultaOrdenes: APROBADO/PROCESADO/ACTIVO/REVOCADO)
+  errorMessage    String? @map("error_message") @db.Text // Detalles del error en caso de fallo
 
   createdAt DateTime                        @default(now()) @map("created_at")
   app       app?                            @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
@@ -234,7 +235,7 @@ model TransaccionesBancariasDetalle {
   codigoExoneracionIsd String? @map("codigo_exoneracion_isd") @db.VarChar(10)
 
   // Conciliación Transaccional Individual
-  estadoItem       String  @default("PENDIENTE") @map("estado_item") @db.VarChar(20) // PENDIENTE, PROCESADO, ERROR
+  estadoItem       String  @default("PENDIENTE") @map("estado_item") @db.VarChar(20) // Estado_Proceso verbatim de Produbanco (Manual §2.3.1): PENDIENTE, PROCESO OK, ENTREGADO OK, IMPRESO OK, PROCESADAS ERROR, REVOCADO, REVERSO OK, PROCESADO
   codigoRespuesta  String? @map("codigo_respuesta") @db.VarChar(20)
   mensajeRespuesta String? @map("mensaje_respuesta") @db.Text
 

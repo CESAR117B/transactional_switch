@@ -26,7 +26,7 @@ type TxConDetalles = Prisma.TransaccionesServiciosGetPayload<{
 }>;
 
 type TxListado = Prisma.TransaccionesServiciosGetPayload<{
-  include: { detalles: { select: { monto: true } } };
+  include: { detalles: { select: { monto: true; estadoItem: true } } };
 }>;
 
 /** Registro de Consulta_Sobres_VIEW (Manual §2.2.1). */
@@ -85,13 +85,14 @@ export class TramasProdubancoService {
       const xmlPlano = this.construirXmlPago(data);
       const tramaEncriptada =
         await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
-      const envioId =
+      const { envioId, estado } =
         await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
 
       // 3. Actualizar BD con el Envio_Id y respuesta exitosa del banco[cite: 4]
       await this.actualizarTransaccionExitoBD(
         transaccion.idTransaccion,
         envioId,
+        estado,
       );
 
       return {
@@ -130,13 +131,14 @@ export class TramasProdubancoService {
       const xmlPlano = this.construirXmlTransferencia(data);
       const tramaEncriptada =
         await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
-      const envioId =
+      const { envioId, estado } =
         await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
 
       // 3. Actualizar BD con confirmación del banco[cite: 4]
       await this.actualizarTransaccionExitoBD(
         transaccion.idTransaccion,
         envioId,
+        estado,
       );
 
       return {
@@ -201,7 +203,9 @@ export class TramasProdubancoService {
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { detalles: { select: { monto: true } } },
+        include: {
+          detalles: { select: { monto: true, estadoItem: true } },
+        },
       }),
     ]);
 
@@ -617,15 +621,18 @@ export class TramasProdubancoService {
 
   /**
    * Actualiza la transacción a éxito cuando Produbanco retorna el Envio_Id[cite: 4].
+   * `estadoServicio` guarda el <Estado> verbatim de la respuesta (VALIDADO).
    */
   private async actualizarTransaccionExitoBD(
     idTransaccion: bigint,
     envioId: string,
+    estado: string,
   ) {
     return this.prisma.transaccionesServicios.update({
       where: { idTransaccion },
       data: {
         status: EstadoTransaccion.PROCESADO_BANCO,
+        estadoServicio: estado || null,
         responsePayload: {
           envioId,
           mensaje: 'Carga aceptada correctamente por Produbanco',
@@ -789,21 +796,42 @@ export class TramasProdubancoService {
     }
   }
 
+  /** Estado verbatim de Produbanco; si la columna es null (lotes antiguos)
+   * cae a responsePayload.estadoBanco persistido en la consulta previa. */
+  private estadoServicioOFallback(
+    tx: { estadoServicio: string | null },
+    response: Record<string, unknown>,
+  ): string | null {
+    if (tx.estadoServicio) return tx.estadoServicio;
+    return typeof response['estadoBanco'] === 'string'
+      ? response['estadoBanco']
+      : null;
+  }
+
   private formatearListado(tx: TxListado, secretKey: string) {
     const response = this.comoObjeto(tx.responsePayload);
     const envioId =
       typeof response['envioId'] === 'string' ? response['envioId'] : null;
+    // Conteo de estados de detalle verbatim de Produbanco (estado_item)
+    const estadosDetalle: Record<string, number> = {};
+    for (const d of tx.detalles) {
+      estadosDetalle[d.estadoItem] = (estadosDetalle[d.estadoItem] ?? 0) + 1;
+    }
     return {
       idTransaccion: tx.idTransaccion.toString(),
       referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
       operacion: tx.operation,
       status: tx.status,
       statusTexto: this.textoEstado(tx.status),
+      // Fallback a responsePayload.estadoBanco para lotes antiguos
+      // creados antes de existir la columna estado_servicio.
+      estadoServicio: this.estadoServicioOFallback(tx, response),
       envioId,
       errorMessage: tx.errorMessage,
       fechaCreacion: tx.createdAt,
       registros: tx.detalles.length,
       montoTotal: tx.detalles.reduce((acc, d) => acc + Number(d.monto), 0),
+      estadosDetalle,
     };
   }
 
@@ -817,6 +845,7 @@ export class TramasProdubancoService {
       operacion: tx.operation,
       status: tx.status,
       statusTexto: this.textoEstado(tx.status),
+      estadoServicio: this.estadoServicioOFallback(tx, response),
       envioId,
       errorMessage: tx.errorMessage,
       fechaCreacion: tx.createdAt,
@@ -847,10 +876,12 @@ export class TramasProdubancoService {
 
   /**
    * Sincroniza la BD local con la respuesta de Produbanco:
-   * - Sobre REVOCADO -> status=ERROR; sobre encontrado -> status=PROCESADO_BANCO.
+   * - Columna `estadoServicio` = Estado_Sobre verbatim (vacío -> conserva previo).
+   * - status interno solo como resumen: REVOCADO->ERROR, APROBADO/PROCESADO->
+   *   PROCESADO_BANCO, ACTIVO conserva el actual (pendiente hasta aprobación).
    * - responsePayload guarda estadoBanco/idSobre/fecha de consulta.
-   * - Detalles solo si movimientos.length === detalles.length (match posicional
-   *   por secuencia): mensaje/catalogo verbatim + estadoItem mapeado.
+   * - Detalles por posición hasta min(movimientos, detalles): estadoItem =
+   *   Estado_Proceso verbatim (Manual §2.3.1) + catalogo/mensaje tal cual.
    */
   private async sincronizarEstadoBanco(
     tx: TxConDetalles,
@@ -863,6 +894,8 @@ export class TramasProdubancoService {
       .trim()
       .toUpperCase();
     const revocado = estadoSobre.includes('REVOCADO');
+    const aprobadoONo =
+      estadoSobre === 'APROBADO' || estadoSobre === 'PROCESADO';
     const previo = this.comoObjeto(tx.responsePayload);
     const prevStr = (k: string): string | null => {
       const v = previo[k];
@@ -900,27 +933,39 @@ export class TramasProdubancoService {
       fechaConsultaBanco: new Date().toISOString(),
     };
 
-    tx.status = revocado
-      ? EstadoTransaccion.ERROR
-      : EstadoTransaccion.PROCESADO_BANCO;
+    // Estado verbatim de Produbanco en la cabecera (vacío -> conserva previo)
+    const estadoServicio = estadoSobre || tx.estadoServicio || null;
+
+    // Resumen interno: la fuente verbatim vive en `estadoServicio`.
+    // REVOCADO -> ERROR; APROBADO/PROCESADO -> PROCESADO_BANCO; ACTIVO u
+    // otro valor conserva el actual (permanece PENDIENTE hasta aprobación).
+    if (revocado) {
+      tx.status = EstadoTransaccion.ERROR;
+    } else if (aprobadoONo) {
+      tx.status = EstadoTransaccion.PROCESADO_BANCO;
+    }
     tx.errorMessage = mensajeRevocado;
     tx.responsePayload = responsePayload;
+    tx.estadoServicio = estadoServicio;
 
     await this.prisma.transaccionesServicios.update({
       where: { idTransaccion: tx.idTransaccion },
       data: {
         status: tx.status,
+        estadoServicio,
         errorMessage: tx.errorMessage,
         responsePayload,
       },
     });
 
-    if (movimientos.length === 0 || movimientos.length !== tx.detalles.length) {
+    // Sincroniza por posición hasta donde alcance la respuesta del banco
+    const sincronizables = Math.min(movimientos.length, tx.detalles.length);
+    if (sincronizables === 0) {
       return;
     }
 
     await Promise.all(
-      tx.detalles.map(async (detalle, idx) => {
+      tx.detalles.slice(0, sincronizables).map(async (detalle, idx) => {
         const mov = movimientos[idx];
         const estadoProceso = String(mov?.Estado_Proceso ?? '')
           .trim()
@@ -928,14 +973,11 @@ export class TramasProdubancoService {
         const mensaje = String(mov?.Mensaje ?? '').trim();
         if (!estadoProceso && !mensaje) return;
 
-        let estadoItem = detalle.estadoItem;
-        if (estadoProceso === 'PROCESADO') {
-          estadoItem = 'PROCESADO';
-        } else if (/REVOC|ERROR/.test(estadoProceso)) {
-          estadoItem = 'ERROR';
-        } else if (estadoProceso === 'PENDIENTE') {
-          estadoItem = 'PENDIENTE';
-        }
+        // Estado_Proceso verbatim de Produbanco (Manual §2.3.1);
+        // si viene vacío conserva el estado previo del detalle.
+        const estadoItem = estadoProceso
+          ? estadoProceso.substring(0, 20)
+          : detalle.estadoItem;
         const codigoRespuesta = estadoProceso
           ? estadoProceso.substring(0, 20)
           : detalle.codigoRespuesta;

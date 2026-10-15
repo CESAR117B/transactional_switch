@@ -226,8 +226,12 @@ export class ProdubancoSoapService {
 
   /**
    * Envía el sobre encriptado a Produbanco para procesar la orden masiva.
+   * Devuelve el Envio_Id junto con el <Estado> (VALIDADO/...) y
+   * <MensajeRespuesta> de la cabecera de la respuesta[cite: 4].
    */
-  async cargarDirectaXml(tramaEncriptada: string): Promise<string> {
+  async cargarDirectaXml(
+    tramaEncriptada: string,
+  ): Promise<{ envioId: string; estado: string; mensaje: string | null }> {
     try {
       const config = await this.configDb.getProdubancoConfig(); // Se agregan las credenciales de config
       const client = await this.getClient();
@@ -292,7 +296,7 @@ export class ProdubancoSoapService {
         );
       }
 
-      return envioId;
+      return { envioId, estado: estado ?? '', mensaje: mensaje ?? null };
     } catch (error: any) {
       if (error instanceof RpcException) throw error;
       this.clearClientCache();
