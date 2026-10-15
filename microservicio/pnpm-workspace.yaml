@@ -12,15 +12,15 @@ minimumReleaseAgeExclude:
   - '@nestjs/microservices@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1 || 12.1.2 || 12.1.3'
   - '@nestjs/platform-express@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1 || 12.1.2 || 12.1.3'
   - '@nestjs/testing@11.2.1 || 11.2.3 || 12.0.2 || 12.0.4 || 12.1.0 || 12.1.1 || 12.1.2 || 12.1.3'
-  - '@prisma/adapter-pg@7.10.0'
-  - '@prisma/client-runtime-utils@7.10.0'
-  - '@prisma/client@7.10.0'
-  - '@prisma/config@7.10.0'
-  - '@prisma/debug@7.10.0'
-  - '@prisma/driver-adapter-utils@7.10.0'
-  - '@prisma/engines@7.10.0'
-  - '@prisma/fetch-engine@7.10.0'
-  - '@prisma/get-platform@7.10.0'
+  - '@prisma/adapter-pg@7.10.0 || 7.10.1'
+  - '@prisma/client-runtime-utils@7.10.0 || 7.10.1'
+  - '@prisma/client@7.10.0 || 7.10.1'
+  - '@prisma/config@7.10.0 || 7.10.1'
+  - '@prisma/debug@7.10.0 || 7.10.1'
+  - '@prisma/driver-adapter-utils@7.10.0 || 7.10.1'
+  - '@prisma/engines@7.10.0 || 7.10.1'
+  - '@prisma/fetch-engine@7.10.0 || 7.10.1'
+  - '@prisma/get-platform@7.10.0 || 7.10.1'
   - '@types/node@26.3.0 || 26.4.0 || 26.5.0 || 26.5.1 || 26.6.1 || 26.6.4'
   - '@typescript-eslint/eslint-plugin@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
   - '@typescript-eslint/parser@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
@@ -33,7 +33,7 @@ minimumReleaseAgeExclude:
   - '@typescript-eslint/utils@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
   - '@typescript-eslint/visitor-keys@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
   - eslint@10.9.1 || 10.10.0
-  - prisma@7.10.0
+  - prisma@7.10.0 || 7.10.1
   - typescript-eslint@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2
   - '@jest/console@30.5.0 || 30.5.2'
   - '@jest/core@30.5.0 || 30.5.2'
