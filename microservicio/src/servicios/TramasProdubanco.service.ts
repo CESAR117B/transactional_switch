@@ -48,6 +48,10 @@ interface MovimientoBanco {
 export interface EstadoBanco {
   consultado: boolean;
   sinDatos?: boolean;
+  /** CodRetorno del SOAP (ej. 0005 = sin datos). */
+  codigo?: string | null;
+  /** MsjRetorno verbatim del banco. */
+  mensaje?: string | null;
   motivo?: string;
   error?: string;
   orden?: SobreBanco | null;
@@ -270,10 +274,12 @@ export class TramasProdubancoService {
             });
             movimientos = mov.registros as MovimientoBanco[];
           }
-          await this.sincronizarEstadoBanco(tx, sobre, movimientos);
+          await this.sincronizarEstadoBanco(tx, sobre, movimientos, orden);
           banco = {
             consultado: true,
             sinDatos: orden.sinDatos,
+            codigo: orden.codigo ?? null,
+            mensaje: orden.mensaje ?? null,
             orden: sobre,
             movimientos,
           };
@@ -798,7 +804,7 @@ export class TramasProdubancoService {
 
   /** Estado verbatim de Produbanco; si la columna es null (lotes antiguos)
    * cae a responsePayload.estadoBanco persistido en la consulta previa. */
-  private estadoServicioOFallback(
+  private estadoTransaccionOFallback(
     tx: { estadoServicio: string | null },
     response: Record<string, unknown>,
   ): string | null {
@@ -806,6 +812,18 @@ export class TramasProdubancoService {
     return typeof response['estadoBanco'] === 'string'
       ? response['estadoBanco']
       : null;
+  }
+
+  /** Extrae del responsePayload lo que respondió el SOAP en la última
+   * consulta: código (0005 sin datos), mensaje y fecha de consulta. */
+  private camposBancoResponse(response: Record<string, unknown>) {
+    const texto = (k: string): string | null =>
+      typeof response[k] === 'string' ? response[k] : null;
+    return {
+      codigoBanco: texto('codigoBanco'),
+      mensajeBanco: texto('mensajeBanco'),
+      fechaConsultaBanco: texto('fechaConsultaBanco'),
+    };
   }
 
   private formatearListado(tx: TxListado, secretKey: string) {
@@ -822,10 +840,11 @@ export class TramasProdubancoService {
       referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
       operacion: tx.operation,
       status: tx.status,
-      statusTexto: this.textoEstado(tx.status),
+      statusServicio: this.textoEstado(tx.status),
       // Fallback a responsePayload.estadoBanco para lotes antiguos
       // creados antes de existir la columna estado_servicio.
-      estadoServicio: this.estadoServicioOFallback(tx, response),
+      estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
+      ...this.camposBancoResponse(response),
       envioId,
       errorMessage: tx.errorMessage,
       fechaCreacion: tx.createdAt,
@@ -844,8 +863,9 @@ export class TramasProdubancoService {
       referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
       operacion: tx.operation,
       status: tx.status,
-      statusTexto: this.textoEstado(tx.status),
-      estadoServicio: this.estadoServicioOFallback(tx, response),
+      statusServicio: this.textoEstado(tx.status),
+      estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
+      ...this.camposBancoResponse(response),
       envioId,
       errorMessage: tx.errorMessage,
       fechaCreacion: tx.createdAt,
@@ -876,26 +896,22 @@ export class TramasProdubancoService {
 
   /**
    * Sincroniza la BD local con la respuesta de Produbanco:
-   * - Columna `estadoServicio` = Estado_Sobre verbatim (vacío -> conserva previo).
-   * - status interno solo como resumen: REVOCADO->ERROR, APROBADO/PROCESADO->
-   *   PROCESADO_BANCO, ACTIVO conserva el actual (pendiente hasta aprobación).
-   * - responsePayload guarda estadoBanco/idSobre/fecha de consulta.
+   * - Sin sobre (p. ej. CodRetorno 0005 = sin datos): se persiste igual lo
+   *   que manda el SOAP (estadoServicio = código, codigoBanco/mensajeBanco)
+   *   para saber qué está pasando; NO toca status ni errorMessage.
+   * - Con sobre: `estadoServicio` = Estado_Sobre verbatim (vacío -> conserva
+   *   previo); status interno solo como resumen: REVOCADO->ERROR,
+   *   APROBADO/PROCESADO->PROCESADO_BANCO, ACTIVO conserva el actual.
+   * - responsePayload guarda estadoBanco/codigoBanco/mensajeBanco/idSobre/fecha.
    * - Detalles por posición hasta min(movimientos, detalles): estadoItem =
-   *   Estado_Proceso verbatim (Manual §2.3.1) + catalogo/mensaje tal cual.
+   *   Estado_Proceso verbatim (Manual §2.3.1) + catálogo/mensaje tal cual.
    */
   private async sincronizarEstadoBanco(
     tx: TxConDetalles,
     sobre: SobreBanco | null,
     movimientos: MovimientoBanco[],
+    consulta: { sinDatos: boolean; codigo?: string; mensaje?: string },
   ): Promise<void> {
-    if (!sobre) return;
-
-    const estadoSobre = String(sobre.Estado_Sobre ?? '')
-      .trim()
-      .toUpperCase();
-    const revocado = estadoSobre.includes('REVOCADO');
-    const aprobadoONo =
-      estadoSobre === 'APROBADO' || estadoSobre === 'PROCESADO';
     const previo = this.comoObjeto(tx.responsePayload);
     const prevStr = (k: string): string | null => {
       const v = previo[k];
@@ -905,6 +921,40 @@ export class TramasProdubancoService {
       const v = previo[k];
       return typeof v === 'number' ? v : null;
     };
+    const codigoBanco = consulta.codigo?.trim() || null;
+    const mensajeBanco = consulta.mensaje?.trim() || null;
+
+    if (!sobre) {
+      // Sin sobre: se conserva y muestra lo que mandó Produbanco
+      // (CodRetorno/MsjRetorno, p. ej. 0005 = sin datos, no es error).
+      const estadoServicio = codigoBanco ?? tx.estadoServicio ?? null;
+      const responsePayload = {
+        envioId: prevStr('envioId'),
+        mensaje: prevStr('mensaje'),
+        error: prevStr('error'),
+        estadoBanco: prevStr('estadoBanco'),
+        codigoBanco,
+        mensajeBanco,
+        idSobre: prevStr('idSobre'),
+        numeroItems: prevNum('numeroItems'),
+        valorSobre: prevStr('valorSobre'),
+        fechaConsultaBanco: new Date().toISOString(),
+      };
+      tx.estadoServicio = estadoServicio;
+      tx.responsePayload = responsePayload;
+      await this.prisma.transaccionesServicios.update({
+        where: { idTransaccion: tx.idTransaccion },
+        data: { estadoServicio, responsePayload },
+      });
+      return;
+    }
+
+    const estadoSobre = String(sobre.Estado_Sobre ?? '')
+      .trim()
+      .toUpperCase();
+    const revocado = estadoSobre.includes('REVOCADO');
+    const aprobadoONo =
+      estadoSobre === 'APROBADO' || estadoSobre === 'PROCESADO';
 
     const idSobre =
       sobre.Id_Sobre !== undefined && sobre.Id_Sobre !== null
@@ -927,6 +977,8 @@ export class TramasProdubancoService {
       mensaje: prevStr('mensaje'),
       error: mensajeRevocado,
       estadoBanco: estadoSobre || prevStr('estadoBanco'),
+      codigoBanco,
+      mensajeBanco,
       idSobre,
       numeroItems,
       valorSobre,

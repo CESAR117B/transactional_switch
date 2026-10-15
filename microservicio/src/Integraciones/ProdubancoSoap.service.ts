@@ -460,7 +460,21 @@ export class ProdubancoSoapService {
       return typeof c === 'string' || typeof c === 'number' ? String(c) : '';
     });
     if (codigos.includes('0005')) {
-      return { sinDatos: true, registros: [] };
+      // Sin datos: NO es error — se conserva el código/mensaje del SOAP
+      // para poder persistirlo y mostrarlo en los endpoints de estado.
+      const msj = trx
+        .map((t) => {
+          const m = t['MsjRetorno'];
+          return typeof m === 'string' ? m : '';
+        })
+        .filter(Boolean)
+        .join(' | ');
+      return {
+        sinDatos: true,
+        registros: [],
+        codigo: '0005',
+        mensaje: msj || undefined,
+      };
     }
     if (codigos.length > 0 && !codigos.includes('0001')) {
       const msj = trx
@@ -653,4 +667,8 @@ export interface ConsultaMovimientosParams {
 export interface ResultadoConsulta {
   sinDatos: boolean;
   registros: unknown[];
+  /** CodRetorno del SOAP cuando responde sin datos (ej. 0005). */
+  codigo?: string;
+  /** MsjRetorno acompañante del código (verbatim del banco). */
+  mensaje?: string;
 }
