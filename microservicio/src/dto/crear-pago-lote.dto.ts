@@ -78,9 +78,17 @@ export class PagoDetalleItemDto {
 }
 
 export class CrearPagoLoteDto {
-  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa,
-  // idEmpresa, servicio, idServicio) ya NO se envía: la inyecta el back
-  // desde atributos_integraciones (getProdubancoConfig).
+  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa e
+  // idEmpresa) ya NO se envía: la inyecta el back desde
+  // atributos_integraciones (getProdubancoConfig).
+
+  @IsString()
+  @IsNotEmpty({ message: 'servicio es requerido' })
+  servicio: string; // Varía por operación (ej: "PV" pago interbancario)
+
+  @IsString()
+  @IsNotEmpty({ message: 'idServicio es requerido' })
+  idServicio: string; // ID de servicio asignado por Produbanco (ej: "75")
 
   // Interno: lo genera el back (NOMBREAPP-{secuencia}-{timestamp}-{hex});
   // no se envía en el request (ValidationPipe whitelist la trunca).

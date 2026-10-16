@@ -242,9 +242,29 @@ export class TransferenciaDetalleItemDto {
 }
 
 export class CrearTransferenciaLoteDto {
-  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa,
-  // idEmpresa, servicio, idServicio) ya NO se envía desde el cliente:
-  // la inyecta el microservicio desde su config (atributos_integraciones).
+  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa e
+  // idEmpresa) ya NO se envía desde el cliente: la inyecta el microservicio
+  // desde su config (atributos_integraciones). servicio/idServicio sí se
+  // envían porque varían entre pago interbancario y pago al exterior.
+
+  @ApiProperty({
+    description:
+      'Código de servicio Produbanco; varía por operación (ej: servicio de exterior)',
+    example: 'PE',
+    type: String,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'servicio es requerido' })
+  servicio: string;
+
+  @ApiProperty({
+    description: 'ID de servicio asignado por Produbanco para el exterior',
+    example: '80',
+    type: String,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'idServicio es requerido' })
+  idServicio: string;
 
   @ApiProperty({
     description: 'Fecha de inicio del lote en formato DD/MM/YYYY',

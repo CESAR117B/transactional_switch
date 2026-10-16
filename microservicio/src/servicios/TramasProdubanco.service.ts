@@ -36,24 +36,21 @@ type TxListado = Prisma.TransaccionesServiciosGetPayload<{
 }>;
 
 /** DTO de pago + parametrización bancaria inyectada desde config BD
- * (atributos_integraciones); el cliente ya no envía estos campos. */
+ * (atributos_integraciones): cuenta, tipo, empresa e idEmpresa. El cliente
+ * sólo envía servicio/idServicio (varían pago interbancario vs exterior). */
 type DatosPago = CrearPagoLoteDto & {
   cuentaEmpresa: string;
   tipoCuentaEmpresa: TipoCuenta;
   empresa: string;
   idEmpresa: string;
-  servicio: string;
-  idServicio: string;
 };
 
-/** DTO de transferencia + parametrización bancaria inyectada desde config BD. */
+/** Ídem DatosPago para transferencias; servicio/idServicio vienen del DTO. */
 type DatosTransferencia = CrearTransferenciaLoteDto & {
   cuentaEmpresa: string;
   tipoCuentaEmpresa: TipoCuentaBanco;
   empresa: string;
   idEmpresa: string;
-  servicio: string;
-  idServicio: string;
 };
 
 /** Registro de Consulta_Sobres_VIEW (Manual §2.2.1). */
@@ -305,8 +302,9 @@ export class TramasProdubancoService {
       envioId && /^\d+$/.test(envioId) && envioId !== '0' ? envioId : null;
     const referenciaLote = this.desencriptarSeguro(tx.reference, secretKey);
     const req = this.comoObjeto(tx.requestPayload);
-    // Lotes viejos guardan los ids en requestPayload; los nuevos ya no los
-    // traen en el DTO, así que vienen de config (atributos_integraciones).
+    // idServicio lo envía el cliente en el DTO e idEmpresa se inyecta desde
+    // config: ambos quedan en requestPayload. El fallback a config cubre
+    // lotes que no los guarden.
     let idEmpresa = this.aTexto(req['idEmpresa']);
     let idServicio = this.aTexto(req['idServicio']);
     if (!idEmpresa || !idServicio) {
@@ -455,10 +453,11 @@ export class TramasProdubancoService {
   }
 
   /**
-   * Inyecta la parametrización bancaria (cuenta, empresa, ids de servicio)
+   * Inyecta la parametrización bancaria (cuenta, tipo, empresa e idEmpresa)
    * desde config BD (atributos_integraciones) sobre el DTO del cliente.
-   * Estos valores quedan en requestPayload para auditoría y para que
-   * consultarEstadoTransaccion funcione con lotes viejos y nuevos.
+   * servicio/idServicio NO se inyectan: varían por operación y los envía
+   * el cliente. Estos valores quedan en requestPayload para auditoría y
+   * para que consultarEstadoTransaccion funcione con lotes viejos y nuevos.
    */
   private parametrizarPago(
     data: CrearPagoLoteDto,
@@ -470,8 +469,6 @@ export class TramasProdubancoService {
       tipoCuentaEmpresa: cfg.tipocuenta as TipoCuenta,
       empresa: cfg.empresa,
       idEmpresa: cfg.idempresa,
-      servicio: cfg.servicio,
-      idServicio: cfg.idservicio,
     };
   }
 
@@ -486,8 +483,6 @@ export class TramasProdubancoService {
       tipoCuentaEmpresa: cfg.tipocuenta as TipoCuentaBanco,
       empresa: cfg.empresa,
       idEmpresa: cfg.idempresa,
-      servicio: cfg.servicio,
-      idServicio: cfg.idservicio,
     };
   }
 

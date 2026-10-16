@@ -121,9 +121,17 @@ export class TransferenciaDetalleItemDto {
 }
 
 export class CrearTransferenciaLoteDto {
-  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa,
-  // idEmpresa, servicio, idServicio) ya NO se envía: la inyecta el back
-  // desde atributos_integraciones (getProdubancoConfig).
+  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa e
+  // idEmpresa) ya NO se envía: la inyecta el back desde
+  // atributos_integraciones (getProdubancoConfig).
+
+  @IsString()
+  @IsNotEmpty({ message: 'servicio es requerido' })
+  servicio: string; // Varía por operación (ej: servicio de exterior)
+
+  @IsString()
+  @IsNotEmpty({ message: 'idServicio es requerido' })
+  idServicio: string; // ID de servicio de exterior asignado por Produbanco
 
   // Interno: lo genera el back (NOMBREAPP-{secuencia}-{timestamp}-{hex});
   // no se envía en el request (ValidationPipe whitelist la trunca).

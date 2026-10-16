@@ -150,9 +150,29 @@ export class PagoDetalleItemDto {
 }
 
 export class CrearPagoLoteDto {
-  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa,
-  // idEmpresa, servicio, idServicio) ya NO se envía desde el cliente:
-  // la inyecta el microservicio desde su config (atributos_integraciones).
+  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa e
+  // idEmpresa) ya NO se envía desde el cliente: la inyecta el microservicio
+  // desde su config (atributos_integraciones). servicio/idServicio sí se
+  // envían porque varían entre pago interbancario y pago al exterior.
+
+  @ApiProperty({
+    description:
+      'Código de servicio Produbanco; varía por operación (ej: PV para pago interbancario)',
+    example: 'PV',
+    type: String,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'servicio es requerido' })
+  servicio: string;
+
+  @ApiProperty({
+    description: 'ID de servicio asignado por Produbanco (ej: 75 para PV)',
+    example: '75',
+    type: String,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'idServicio es requerido' })
+  idServicio: string;
 
   @ApiPropertyOptional({
     description: 'Fecha inicio DD/MM/YYYY',
