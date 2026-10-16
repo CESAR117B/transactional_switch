@@ -7,28 +7,25 @@ import {
   Post,
   Query,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ApiKeyGuard } from './api-key.guard';
 import { RequireService } from './require-service.decorator';
 import { AppService } from './app.service';
-import {
-  CrearPagoLoteDto,
-  GenerarPagoPayloadDto,
-} from './dto/crear-pago-lote.dto';
+import { CrearPagoLoteDto } from './dto/crear-pago-lote.dto';
 import { CrearTransferenciaLoteDto } from './dto/crear-transferencia-lote.dto';
 import { ListarTransaccionesQueryDto } from './dto/listar-transacciones-query.dto';
 
 @ApiTags('Servicios')
 @ApiBearerAuth()
-@UseGuards(ApiKeyGuard)
 @RequireService('SPR_PRODUBANCO')
 @Controller('tramas-produbanco')
 export class TramasProdubancoController {
   constructor(private readonly appService: AppService) {}
 
-  @ApiOperation({ summary: 'Generar lote de pagos Produbanco (trama directa para bancos nacionales)' })
+  @ApiOperation({
+    summary:
+      'Generar lote de pagos Produbanco (trama directa para bancos nacionales)',
+  })
   @Post('transferencia-nacional')
   async generarPago(@Req() req: any, @Body() dto: CrearPagoLoteDto) {
     const idApp = req.appAuth?.id_app;

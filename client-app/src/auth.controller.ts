@@ -1,45 +1,78 @@
-import { Body, Controller, Inject, Post, UnauthorizedException } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
-import { ClientProxy } from "@nestjs/microservices";
-import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
-import { firstValueFrom } from "rxjs";
-import { LoginDto } from "./dto/auth.dto";
+import {
+  Body,
+  Controller,
+  Inject,
+  Logger,
+  Post,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { Throttle } from '@nestjs/throttler';
+import { ClientProxy } from '@nestjs/microservices';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { firstValueFrom } from 'rxjs';
+import { LoginDto } from './dto/auth.dto';
+import { Public } from './public.decorator';
 
 @ApiTags('App')
+@Public() // Único endpoint sin JWT (el guard global lo respeta)
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly jwtService: JwtService,
     @Inject('MATH_SERVICE') private readonly mathClient: ClientProxy,
   ) {}
 
   @Post('login')
-  @ApiOperation({ 
-    summary: 'Iniciar sesión de la aplicación', 
-    description: 'Valida las credenciales maestras de la app y retorna un token JWT válido por 1 hora.' 
+  // Fuerza bruta: máximo 5 intentos/minuto por IP
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Iniciar sesión de la aplicación',
+    description:
+      'Valida las credenciales maestras de la app y retorna un token JWT válido por 1 hora.',
   })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas.' })
+  @ApiResponse({ status: 429, description: 'Demasiados intentos de login.' })
   async login(@Body() credentials: LoginDto) {
-    // 1. Validamos las credenciales enviando el mensaje al microservicio (como hacías en el Guard)
-    const appInfo = await firstValueFrom(
-      this.mathClient.send({ cmd: 'validar_app' }, { identificador: credentials.app_id, key: credentials.app_key })
-    );
+    try {
+      // 1. Validamos las credenciales contra el microservicio
+      const appInfo = await firstValueFrom(
+        this.mathClient.send(
+          { cmd: 'validar_app' },
+          { identificador: credentials.app_id, key: credentials.app_key },
+        ),
+      );
 
-    if (!appInfo) {
+      if (!appInfo) {
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
+
+      // 2. Firma con el secret y expiración de JwtModule (única fuente)
+      const payload = {
+        id_app: appInfo.id_app,
+        sub: appInfo.identificador,
+        servicios: appInfo.servicios,
+        permisos: appInfo.permisos,
+      };
+      const access_token = this.jwtService.sign(payload);
+
+      this.logger.log(`Login OK: ${appInfo.identificador}`);
+      return {
+        access_token,
+        expires_in: 3600,
+      };
+    } catch (error: unknown) {
+      // Un solo mensaje al cliente (sin revelar si el app_id existe o no);
+      // el detalle se guarda en el log del servidor.
+      this.logger.warn(
+        `Login fallido: ${credentials.app_id} — ${
+          error instanceof Error ? error.message : JSON.stringify(error)
+        }`,
+      );
+      if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Credenciales inválidas');
     }
-
-    // 2. Si es válida, firmamos un token que expire en 1 hora
-    const payload = { 
-      id_app: appInfo.id_app,
-      sub: appInfo.identificador, 
-      servicios: appInfo.servicios, 
-      permisos: appInfo.permisos 
-    };
-
-    return {
-      access_token: this.jwtService.sign(payload, { secret: process.env.JWT_SECRET, expiresIn: '1h' }),
-      expires_in: 3600
-    };
   }
 }

@@ -7,7 +7,9 @@ export class ApplicationService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * OPCIÓN 1: Agrega o actualiza la llave de encriptación de UNA app específica
+   * OPCIÓN 1: Genera la llave de encriptación de UNA app específica.
+   * IDEMPOTENTE: sólo genera si la app NO tiene llave; nunca sobrescribe
+   * (rotarla rompería el descifrado de todos los registros ya cifrados).
    * @param idApp ID de la aplicación que ya está registrada
    */
   async addEncryptionKeyToApp(idApp: number) {
@@ -20,6 +22,15 @@ export class ApplicationService {
       throw new NotFoundException(
         `La aplicación con ID ${idApp} no existe en la base de datos.`,
       );
+    }
+
+    // 1.1. Ya tiene llave → NO se regenera (y no se expone la existente).
+    if (app.encryptionKey) {
+      return {
+        idApp: idApp.toString(),
+        message:
+          'La app ya tiene llave de encriptación; no se regenera (la rotación invalidaría los datos cifrados existentes).',
+      };
     }
 
     // 2. Generamos una nueva llave aleatoria y segura de 32 caracteres (16 bytes en hex = 32 chars)
@@ -48,8 +59,6 @@ export class ApplicationService {
   async migrateAllExistingApps() {
     // 1. Buscamos todas las aplicaciones registradas
     const allApps = await this.prisma.app.findMany();
-
-    const resumenMigracion = [];
 
     // 2. Recorremos cada app y le inyectamos una llave única
     for (const app of allApps) {
