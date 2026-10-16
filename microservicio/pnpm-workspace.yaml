@@ -32,7 +32,7 @@ minimumReleaseAgeExclude:
   - '@typescript-eslint/typescript-estree@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
   - '@typescript-eslint/utils@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
   - '@typescript-eslint/visitor-keys@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - eslint@10.9.1 || 10.10.0
+  - eslint@10.9.1 || 10.10.0 || 10.13.0
   - prisma@7.10.0 || 7.10.1
   - typescript-eslint@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2
   - '@jest/console@30.5.0 || 30.5.2'
