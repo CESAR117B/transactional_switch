@@ -302,19 +302,18 @@ export class TramasProdubancoService {
       envioId && /^\d+$/.test(envioId) && envioId !== '0' ? envioId : null;
     const referenciaLote = this.desencriptarSeguro(tx.reference, secretKey);
     const req = this.comoObjeto(tx.requestPayload);
-    // idServicio lo envía el cliente en el DTO e idEmpresa se inyecta desde
-    // config: ambos quedan en requestPayload. El fallback a config cubre
-    // lotes que no los guarden.
+    // idServicio SÓLO viene en el request (varía por operación); idEmpresa
+    // se inyecta desde config al crear el lote y queda en requestPayload
+    // (fallback a config por si algún lote no lo guardó).
+    const idServicio = this.aTexto(req['idServicio']);
     let idEmpresa = this.aTexto(req['idEmpresa']);
-    let idServicio = this.aTexto(req['idServicio']);
-    if (!idEmpresa || !idServicio) {
+    if (!idEmpresa) {
       try {
         const cfg = await this.configDb.getProdubancoConfig();
-        idEmpresa = idEmpresa || cfg.idempresa;
-        idServicio = idServicio || cfg.idservicio;
+        idEmpresa = cfg.idempresa;
       } catch (error: unknown) {
         this.logger.warn(
-          `Sin idEmpresa/idServicio en requestPayload ni en config: ${
+          `Sin idEmpresa en requestPayload ni en config: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
@@ -323,7 +322,7 @@ export class TramasProdubancoService {
 
     if (!idEmpresa || !idServicio) {
       banco.motivo =
-        'requestPayload sin idEmpresa/idServicio y config incompleta; se reporta solo el estado local.';
+        'requestPayload sin idEmpresa/idServicio; se reporta solo el estado local.';
     } else {
       const consultaPor: NonNullable<EstadoBanco['consultaPor']> = envioIdUtil
         ? 'envioId'

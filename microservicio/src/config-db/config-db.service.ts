@@ -24,8 +24,6 @@ export interface ProdubancoConfig {
   password: string;
   ip: string;
   idempresa: string;
-  servicio: string;
-  idservicio: string;
   tipocuenta: string;
   numerocuenta: string;
 }
@@ -203,31 +201,31 @@ export class ConfigDbService {
         case 'PRODUBANCO_IDEMPRESA':
           config.idempresa = valor;
           break;
-        case 'PRODUBANCO_SERVICIO':
-          config.servicio = valor;
-          break;
-        case 'PRODUBANCO_IDSERVICIO':
-          config.idservicio = valor;
-          break;
         case 'PRODUBANCO_TIPO_CUENTA':
           config.tipocuenta = valor;
           break;
         case 'PRODUBANCO_NUMERO_CUENTA':
-           config.numerocuenta = valor;
+          config.numerocuenta = valor;
           break;
       }
     });
 
     // Validación de campos obligatorios (igual que getFirstTokenConfig)
-    if (!config.wsdl_url || !config.empresa || !config.usuario || !config.ip || !config.idempresa || !config.servicio || !config.idservicio || !config.tipocuenta || !config.numerocuenta) {
+    if (
+      !config.wsdl_url ||
+      !config.empresa ||
+      !config.usuario ||
+      !config.ip ||
+      !config.idempresa ||
+      !config.tipocuenta ||
+      !config.numerocuenta
+    ) {
       const faltantes: string[] = [];
       if (!config.wsdl_url) faltantes.push('PRODUBANCO_WSDL_URL');
       if (!config.empresa) faltantes.push('PRODUBANCO_EMPRESA');
       if (!config.usuario) faltantes.push('PRODUBANCO_USUARIO');
       if (!config.ip) faltantes.push('PRODUBANCO_IP');
       if (!config.idempresa) faltantes.push('PRODUBANCO_IDEMPRESA');
-      if (!config.servicio) faltantes.push('PRODUBANCO_SERVICIO');
-      if (!config.idservicio) faltantes.push('PRODUBANCO_IDSERVICIO');
       if (!config.tipocuenta) faltantes.push('PRODUBANCO_TIPO_CUENTA');
       if (!config.numerocuenta) faltantes.push('PRODUBANCO_NUMERO_CUENTA');
       throw new RpcException({
