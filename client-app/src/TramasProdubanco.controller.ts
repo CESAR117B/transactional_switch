@@ -28,8 +28,8 @@ import { ListarTransaccionesQueryDto } from './dto/listar-transacciones-query.dt
 export class TramasProdubancoController {
   constructor(private readonly appService: AppService) {}
 
-  @ApiOperation({ summary: 'Generar lote de pagos Produbanco (trama directa)' })
-  @Post('pago')
+  @ApiOperation({ summary: 'Generar lote de pagos Produbanco (trama directa para bancos nacionales)' })
+  @Post('transferencia-nacional')
   async generarPago(@Req() req: any, @Body() dto: CrearPagoLoteDto) {
     const idApp = req.appAuth?.id_app;
     if (!idApp) {
@@ -42,9 +42,9 @@ export class TramasProdubancoController {
 
   @ApiOperation({
     summary:
-      'Generar lote de transferencias al exterior Produbanco (Transfer Full)',
+      'Generar lote de transferencias Produbanco (Aplica para bancos internacionales)',
   })
-  @Post('transferencia')
+  @Post('transferencia-internacional')
   async generarTransferencia(
     @Req() req: any,
     @Body() dto: CrearTransferenciaLoteDto,
