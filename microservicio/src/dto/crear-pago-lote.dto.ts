@@ -78,28 +78,9 @@ export class PagoDetalleItemDto {
 }
 
 export class CrearPagoLoteDto {
-  @IsString()
-  @IsNotEmpty({ message: 'cuentaEmpresa es requerida' })
-  cuentaEmpresa: string;
-
-  @IsEnum(['CTE', 'AHO'], { message: 'tipoCuentaEmpresa debe ser CTE o AHO' })
-  tipoCuentaEmpresa: TipoCuenta;
-
-  @IsString()
-  @IsNotEmpty({ message: 'empresa es requerida' })
-  empresa: string; // Razón social de la empresa ordenante
-
-  @IsString()
-  @IsNotEmpty({ message: 'idEmpresa es requerida' })
-  idEmpresa: string; // ID asignado por Produbanco (ej: "343")
-
-  @IsString()
-  @IsNotEmpty({ message: 'servicio es requerido' })
-  servicio: string; // Código de servicio (ej: "PV")
-
-  @IsString()
-  @IsNotEmpty({ message: 'idServicio es requerido' })
-  idServicio: string; // ID de servicio asignado por Produbanco (ej: "75")
+  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa,
+  // idEmpresa, servicio, idServicio) ya NO se envía: la inyecta el back
+  // desde atributos_integraciones (getProdubancoConfig).
 
   // Interno: lo genera el back (NOMBREAPP-{secuencia}-{timestamp}-{hex});
   // no se envía en el request (ValidationPipe whitelist la trunca).

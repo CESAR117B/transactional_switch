@@ -242,58 +242,9 @@ export class TransferenciaDetalleItemDto {
 }
 
 export class CrearTransferenciaLoteDto {
-  @ApiProperty({
-    description: 'Número de cuenta origen de la empresa ordenante',
-    example: '1234567890',
-    type: String,
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'cuentaEmpresa es requerida' })
-  cuentaEmpresa: string;
-
-  @ApiProperty({
-    description: 'Tipo de cuenta de la empresa ordenante',
-    example: 'CTE',
-    enum: ['CTE', 'AHO'],
-  })
-  @IsEnum(['CTE', 'AHO'], { message: 'tipoCuentaEmpresa debe ser CTE o AHO' })
-  tipoCuentaEmpresa: TipoCuentaBanco;
-
-  @ApiProperty({
-    description: 'Razón social de la empresa ordenante',
-    example: 'MI EMPRESA S.A.',
-    type: String,
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'empresa es requerida' })
-  empresa: string;
-
-  @ApiProperty({
-    description: 'ID de la empresa asignado por Produbanco',
-    example: '24672',
-    type: String,
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'idEmpresa es requerida' })
-  idEmpresa: string;
-
-  @ApiProperty({
-    description: 'Código del servicio de exterior (confirmar con Produbanco)',
-    example: 'PE',
-    type: String,
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'servicio es requerido' })
-  servicio: string;
-
-  @ApiProperty({
-    description: 'ID del servicio de exterior asignado por Produbanco',
-    example: '80',
-    type: String,
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'idServicio es requerido' })
-  idServicio: string;
+  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa,
+  // idEmpresa, servicio, idServicio) ya NO se envía desde el cliente:
+  // la inyecta el microservicio desde su config (atributos_integraciones).
 
   @ApiProperty({
     description: 'Fecha de inicio del lote en formato DD/MM/YYYY',

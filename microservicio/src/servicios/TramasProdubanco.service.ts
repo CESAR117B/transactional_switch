@@ -5,12 +5,18 @@ import { ProdubancoSoapService } from '../Integraciones/ProdubancoSoap.service';
 import {
   CrearPagoLoteDto,
   PagoDetalleItemDto,
+  TipoCuenta,
 } from '../dto/crear-pago-lote.dto';
 import {
   CrearTransferenciaLoteDto,
   TransferenciaDetalleItemDto,
+  TipoCuentaBanco,
 } from '../dto/crear-transferencia-lote.dto';
 import { UniversalCryptoService } from './universal-crypto.service';
+import {
+  ConfigDbService,
+  ProdubancoConfig,
+} from '../config-db/config-db.service';
 import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -28,6 +34,27 @@ type TxConDetalles = Prisma.TransaccionesServiciosGetPayload<{
 type TxListado = Prisma.TransaccionesServiciosGetPayload<{
   include: { detalles: { select: { monto: true; estadoItem: true } } };
 }>;
+
+/** DTO de pago + parametrización bancaria inyectada desde config BD
+ * (atributos_integraciones); el cliente ya no envía estos campos. */
+type DatosPago = CrearPagoLoteDto & {
+  cuentaEmpresa: string;
+  tipoCuentaEmpresa: TipoCuenta;
+  empresa: string;
+  idEmpresa: string;
+  servicio: string;
+  idServicio: string;
+};
+
+/** DTO de transferencia + parametrización bancaria inyectada desde config BD. */
+type DatosTransferencia = CrearTransferenciaLoteDto & {
+  cuentaEmpresa: string;
+  tipoCuentaEmpresa: TipoCuentaBanco;
+  empresa: string;
+  idEmpresa: string;
+  servicio: string;
+  idServicio: string;
+};
 
 /** Registro de Consulta_Sobres_VIEW (Manual §2.2.1). */
 interface SobreBanco {
@@ -75,21 +102,31 @@ export class TramasProdubancoService {
     private readonly prisma: PrismaService,
     private readonly soapProdubanco: ProdubancoSoapService,
     private readonly universalCryptoService: UniversalCryptoService,
+    private readonly configDb: ConfigDbService,
   ) {}
 
   /**
    * Procesa y persiste un lote de pagos locales en Produbanco.
    */
   async generarPago(idApp: number, data: CrearPagoLoteDto) {
-    data.referenciaLote = await this.generarReferenciaLote(idApp);
-    this.validarLotePago(data);
+    // Dedup por contenido del cliente (ANTES de inyectar la parametrización
+    // de config: el hash refleja sólo lo que envía la app).
+    const requestHash = this.hashContenidoLote(data);
+    const config = await this.configDb.getProdubancoConfig();
+    const datos = this.parametrizarPago(data, config);
+    datos.referenciaLote = await this.generarReferenciaLote(idApp);
+    this.validarLotePago(datos);
 
     // 1. Guardar en BD en estado PENDIENTE con sus detalles[cite: 4]
-    const transaccion = await this.guardarTransaccionPagoBD(idApp, data);
+    const transaccion = await this.guardarTransaccionPagoBD(
+      idApp,
+      datos,
+      requestHash,
+    );
 
     try {
       // 2. Generar XML y consumir WebService Produbanco
-      const xmlPlano = this.construirXmlPago(data);
+      const xmlPlano = this.construirXmlPago(datos);
       const tramaEncriptada =
         await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
       const { envioId, estado, respuesta } =
@@ -106,7 +143,7 @@ export class TramasProdubancoService {
       return {
         exito: true,
         idTransaccion: transaccion.idTransaccion.toString(),
-        referenciaLote: data.referenciaLote,
+        referenciaLote: datos.referenciaLote,
         envioId,
         totalRegistros: data.detalles.length,
         montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
@@ -127,18 +164,23 @@ export class TramasProdubancoService {
    * Procesa y persiste un lote de transferencias internacionales (Transfer Full).
    */
   async generarTransferencia(idApp: number, data: CrearTransferenciaLoteDto) {
-    data.referenciaLote = await this.generarReferenciaLote(idApp);
-    this.validarLoteTransferencia(data);
+    // Dedup por contenido del cliente (ANTES de inyectar la parametrización).
+    const requestHash = this.hashContenidoLote(data);
+    const config = await this.configDb.getProdubancoConfig();
+    const datos = this.parametrizarTransferencia(data, config);
+    datos.referenciaLote = await this.generarReferenciaLote(idApp);
+    this.validarLoteTransferencia(datos);
 
     // 1. Guardar en BD en estado PENDIENTE[cite: 4]
     const transaccion = await this.guardarTransaccionTransferenciaBD(
       idApp,
-      data,
+      datos,
+      requestHash,
     );
 
     try {
       // 2. Generar XML con campos de exterior y consumir WebService
-      const xmlPlano = this.construirXmlTransferencia(data);
+      const xmlPlano = this.construirXmlTransferencia(datos);
       const tramaEncriptada =
         await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
       const { envioId, estado, respuesta } =
@@ -155,7 +197,7 @@ export class TramasProdubancoService {
       return {
         exito: true,
         idTransaccion: transaccion.idTransaccion.toString(),
-        referenciaLote: data.referenciaLote,
+        referenciaLote: datos.referenciaLote,
         envioId,
         totalRegistros: data.detalles.length,
         montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
@@ -263,12 +305,27 @@ export class TramasProdubancoService {
       envioId && /^\d+$/.test(envioId) && envioId !== '0' ? envioId : null;
     const referenciaLote = this.desencriptarSeguro(tx.reference, secretKey);
     const req = this.comoObjeto(tx.requestPayload);
-    const idEmpresa = this.aTexto(req['idEmpresa']);
-    const idServicio = this.aTexto(req['idServicio']);
+    // Lotes viejos guardan los ids en requestPayload; los nuevos ya no los
+    // traen en el DTO, así que vienen de config (atributos_integraciones).
+    let idEmpresa = this.aTexto(req['idEmpresa']);
+    let idServicio = this.aTexto(req['idServicio']);
+    if (!idEmpresa || !idServicio) {
+      try {
+        const cfg = await this.configDb.getProdubancoConfig();
+        idEmpresa = idEmpresa || cfg.idempresa;
+        idServicio = idServicio || cfg.idservicio;
+      } catch (error: unknown) {
+        this.logger.warn(
+          `Sin idEmpresa/idServicio en requestPayload ni en config: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
 
     if (!idEmpresa || !idServicio) {
       banco.motivo =
-        'requestPayload sin idEmpresa/idServicio (lote antiguo); se reporta solo el estado local.';
+        'requestPayload sin idEmpresa/idServicio y config incompleta; se reporta solo el estado local.';
     } else {
       const consultaPor: NonNullable<EstadoBanco['consultaPor']> = envioIdUtil
         ? 'envioId'
@@ -398,12 +455,50 @@ export class TramasProdubancoService {
   }
 
   /**
+   * Inyecta la parametrización bancaria (cuenta, empresa, ids de servicio)
+   * desde config BD (atributos_integraciones) sobre el DTO del cliente.
+   * Estos valores quedan en requestPayload para auditoría y para que
+   * consultarEstadoTransaccion funcione con lotes viejos y nuevos.
+   */
+  private parametrizarPago(
+    data: CrearPagoLoteDto,
+    cfg: ProdubancoConfig,
+  ): DatosPago {
+    return {
+      ...data,
+      cuentaEmpresa: cfg.numerocuenta,
+      tipoCuentaEmpresa: cfg.tipocuenta as TipoCuenta,
+      empresa: cfg.empresa,
+      idEmpresa: cfg.idempresa,
+      servicio: cfg.servicio,
+      idServicio: cfg.idservicio,
+    };
+  }
+
+  /** Ídem parametrizarPago para transferencias al exterior. */
+  private parametrizarTransferencia(
+    data: CrearTransferenciaLoteDto,
+    cfg: ProdubancoConfig,
+  ): DatosTransferencia {
+    return {
+      ...data,
+      cuentaEmpresa: cfg.numerocuenta,
+      tipoCuentaEmpresa: cfg.tipocuenta as TipoCuentaBanco,
+      empresa: cfg.empresa,
+      idEmpresa: cfg.idempresa,
+      servicio: cfg.servicio,
+      idServicio: cfg.idservicio,
+    };
+  }
+
+  /**
    * Crea el registro de Cabecera y Detalle para Pagos Locales[cite: 4].
    * Cifra en BD: cuentaEmpresa, identificacion, cuenta, reference (via referenceEncrypted + referenceHash unique). Client desencripta con encryptionKey.
    */
   private async guardarTransaccionPagoBD(
     idApp: number,
-    data: CrearPagoLoteDto,
+    data: DatosPago,
+    requestHash: string,
   ) {
     const secretKey = await this.getEncryptionKey(idApp);
     const referenceEncrypted = this.universalCryptoService.encrypt(
@@ -411,7 +506,6 @@ export class TramasProdubancoService {
       secretKey,
     );
     const referenceHash = this.sha256(data.referenciaLote ?? '');
-    const requestHash = this.hashContenidoLote(data);
 
     // Payload cifrado: cuentaEmpresa + identificacion + cuenta dentro de detalles
     const payloadCifrado = {
@@ -542,7 +636,8 @@ export class TramasProdubancoService {
    */
   private async guardarTransaccionTransferenciaBD(
     idApp: number,
-    data: CrearTransferenciaLoteDto,
+    data: DatosTransferencia,
+    requestHash: string,
   ) {
     const secretKey = await this.getEncryptionKey(idApp);
     const referenceEncrypted = this.universalCryptoService.encrypt(
@@ -550,7 +645,6 @@ export class TramasProdubancoService {
       secretKey,
     );
     const referenceHash = this.sha256(data.referenciaLote ?? '');
-    const requestHash = this.hashContenidoLote(data);
 
     const payloadCifrado = {
       ...JSON.parse(JSON.stringify(data)),
@@ -1163,7 +1257,7 @@ export class TramasProdubancoService {
       .replace(/'/g, '&apos;');
   }
 
-  private construirXmlPago(data: CrearPagoLoteDto): string {
+  private construirXmlPago(data: DatosPago): string {
     const cuentaEmpresa = data.cuentaEmpresa.padStart(11, '0');
 
     const items = data.detalles.map(
@@ -1262,7 +1356,7 @@ ${itemsXml}
 </Envelope>`;
   }
 
-  private construirXmlTransferencia(data: CrearTransferenciaLoteDto): string {
+  private construirXmlTransferencia(data: DatosTransferencia): string {
     const cuentaEmpresa = data.cuentaEmpresa.padStart(11, '0');
 
     const items = data.detalles.map(
@@ -1339,7 +1433,7 @@ ${itemsXml}
 </Envelope>`;
   }
 
-  private validarLotePago(data: CrearPagoLoteDto): void {
+  private validarLotePago(data: DatosPago): void {
     if (!data.cuentaEmpresa || !data.referenciaLote) {
       throw new RpcException({
         statusCode: 400,
@@ -1380,7 +1474,7 @@ ${itemsXml}
     }
   }
 
-  private validarLoteTransferencia(data: CrearTransferenciaLoteDto): void {
+  private validarLoteTransferencia(data: DatosTransferencia): void {
     if (!data.cuentaEmpresa || !data.referenciaLote) {
       throw new RpcException({
         statusCode: 400,

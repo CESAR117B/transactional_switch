@@ -150,49 +150,9 @@ export class PagoDetalleItemDto {
 }
 
 export class CrearPagoLoteDto {
-  @ApiProperty({
-    description: 'Número de cuenta origen de la empresa ordenante',
-    example: '12040640308',
-    type: String,
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'cuentaEmpresa es requerida' })
-  cuentaEmpresa: string;
-
-  @ApiPropertyOptional({
-    description: 'Tipo de cuenta empresa: CTE=Corriente, AHO=Ahorros',
-    example: 'AHO',
-    enum: ['CTE', 'AHO'],
-  })
-  @IsOptional()
-  @IsEnum(['CTE', 'AHO'], { message: 'tipoCuentaEmpresa debe ser CTE o AHO' })
-  tipoCuentaEmpresa?: TipoCuenta;
-
-  @ApiPropertyOptional({
-    description: 'Razón social empresa ordenante',
-    example: 'Mi Empresa S.A.',
-  })
-  @IsOptional()
-  @IsString()
-  empresa?: string;
-
-  @ApiPropertyOptional({ description: 'ID empresa Produbanco', example: '343' })
-  @IsOptional()
-  @IsString()
-  idEmpresa?: string;
-
-  @ApiPropertyOptional({
-    description: 'Código servicio Produbanco',
-    example: 'PV',
-  })
-  @IsOptional()
-  @IsString()
-  servicio?: string;
-
-  @ApiPropertyOptional({ description: 'ID servicio Produbanco', example: '75' })
-  @IsOptional()
-  @IsString()
-  idServicio?: string;
+  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa,
+  // idEmpresa, servicio, idServicio) ya NO se envía desde el cliente:
+  // la inyecta el microservicio desde su config (atributos_integraciones).
 
   @ApiPropertyOptional({
     description: 'Fecha inicio DD/MM/YYYY',

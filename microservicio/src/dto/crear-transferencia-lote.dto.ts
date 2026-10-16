@@ -121,28 +121,9 @@ export class TransferenciaDetalleItemDto {
 }
 
 export class CrearTransferenciaLoteDto {
-  @IsString()
-  @IsNotEmpty({ message: 'cuentaEmpresa es requerida' })
-  cuentaEmpresa: string;
-
-  @IsEnum(['CTE', 'AHO'], { message: 'tipoCuentaEmpresa debe ser CTE o AHO' })
-  tipoCuentaEmpresa: TipoCuentaBanco;
-
-  @IsString()
-  @IsNotEmpty({ message: 'empresa es requerida' })
-  empresa: string; // Razón social de la empresa ordenante
-
-  @IsString()
-  @IsNotEmpty({ message: 'idEmpresa es requerida' })
-  idEmpresa: string; // ID asignado por Produbanco
-
-  @IsString()
-  @IsNotEmpty({ message: 'servicio es requerido' })
-  servicio: string; // Código de servicio de exterior (confirmar con Produbanco)
-
-  @IsString()
-  @IsNotEmpty({ message: 'idServicio es requerido' })
-  idServicio: string; // ID de servicio de exterior (confirmar con Produbanco)
+  // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa,
+  // idEmpresa, servicio, idServicio) ya NO se envía: la inyecta el back
+  // desde atributos_integraciones (getProdubancoConfig).
 
   // Interno: lo genera el back (NOMBREAPP-{secuencia}-{timestamp}-{hex});
   // no se envía en el request (ValidationPipe whitelist la trunca).
