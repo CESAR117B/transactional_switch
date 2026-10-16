@@ -1,13 +1,13 @@
-# IntegraciÃ³n Produbanco â€” GuÃ­a para apps cliente
+# Integración Produbanco — Guía para apps cliente
 
-Pagos a otros bancos del Ecuador y transferencias al exterior vÃ­a Produbanco
+Pagos a otros bancos del Ecuador y transferencias al exterior ví­a Produbanco
 (Cash Directo), mÃ¡s consulta/listado del estado de las transacciones.
 
-**Base URL:** `http://localhost:3000` Â· **Swagger:** `/doc` (sÃ³lo en desarrollo)
+**Base URL:** `http://localhost:3000` · **Swagger:** `/doc` (solo en desarrollo)
 
 ---
 
-## 1. AutenticaciÃ³n
+## 1. Autenticación
 
 Todas las operaciones (excepto login) requieren un token JWT.
 
@@ -24,34 +24,34 @@ Respuesta:
 { "access_token": "eyJhbGciOi...", "expires_in": 3600 }
 ```
 
-Luego envÃ­a el token en cada peticiÃ³n:
+Luego envía el token en cada petición:
 
 ```http
 Authorization: Bearer <access_token>
 ```
 
-| CÃ³digo | Causa |
+| Código | Causa |
 |--------|-------|
-| `401` | Sin token, token invÃ¡lido o **expirado** (renueva en `/auth/login`) |
-| `403` | Token vÃ¡lido, pero la app no tiene el servicio `SPR_PRODUBANCO` |
-| `429` | Muchos intentos de login (mÃ¡x. 5/min por IP) |
+| `401` | Sin token, token inválido o **expirado** (renueva en `/auth/login`) |
+| `403` | Token válido, pero la app no tiene el servicio `SPR_PRODUBANCO` |
+| `429` | Muchos intentos de login (máx. 5/min por IP) |
 
-> El token vence a la hora. RenuÃ©valo en cada expiraciÃ³n.
+> El token vence a la hora. Renuévalo en cada expiración.
 
 ---
 
 ## 2. Endpoints
 
-| MÃ©todo | Ruta | Uso |
+| Método | Ruta | Uso |
 |--------|------|-----|
 | `POST` | `/tramas-produbanco/transferencia-nacional` | Pago a otros bancos nacionales |
 | `POST` | `/tramas-produbanco/transferencia-internacional` | Pago al exterior (Transfer Full) |
 | `GET` | `/tramas-produbanco/transacciones` | Listar transacciones (paginado) |
 | `GET` | `/tramas-produbanco/transacciones/estado/:dato` | Estado en vivo por `idTransaccion` o `referenciaLote` |
 
-> **Lo que NO se envÃ­a** (lo inyecta el back): `cuentaEmpresa`,
+> **Lo que NO se envía** (lo inyecta el back): `cuentaEmpresa`,
 > `tipoCuentaEmpresa`, `empresa`, `idEmpresa` y `referenciaLote`.
-> SÃ³lo se envÃ­a la data del pago.
+> Sólo se envía la data del pago.
 
 ---
 
@@ -86,10 +86,10 @@ POST /tramas-produbanco/transferencia-nacional
 
 | Campo | Notas |
 |-------|-------|
-| `servicio` / `idServicio` | Obligatorios; los asigna Produbanco por operaciÃ³n (PV/75 = pago interbancario) |
-| `formaPago` | `CTA` cuenta Produbanco Â· `SPI` otro banco Â· `CHQ` cheque Â· `EFE` ventanilla |
+| `servicio` / `idServicio` | Obligatorios; los asigna Produbanco por operación (PV/75 = pago interbancario) |
+| `formaPago` | `CTA` cuenta Produbanco · `SPI` otro banco · `CHQ` cheque · `EFE` ventanilla |
 | `tipoCuenta` / `cuenta` / `bancoCodigo` | Obligatorios si `formaPago` es `CTA` o `SPI` |
-| `referencia` | **Obligatoria**: nÃºmero de factura que tu sistema genera (va al banco como referencia del pago) |
+| `referencia` | **Obligatoria**: número de factura que tu sistema genera (va al banco como referencia del pago) |
 | `fechaInicio` / `fechaVencimiento` | Opcionales `DD/MM/YYYY` |
 
 **Respuesta** (`201`):
@@ -150,13 +150,13 @@ POST /tramas-produbanco/transferencia-internacional
 | Campo | Notas |
 |-------|-------|
 | `fechaInicio` / `fechaVencimiento` | **Obligatorias** `DD/MM/YYYY` |
-| `motivoTransferencia` | **Obligatoria**: `codigo,ejenciÃ³n` segÃºn catÃ¡logo SIB (ej: `106,0` = sin exenciÃ³n) |
-| `codigoSwiftAba` | SWIFT/BIC o ABA del banco destino, 8â€“11 mayÃºsculas |
+| `motivoTransferencia` | **Obligatoria**: `codigo,ejención` según catalogo SIB (ej: `106,0` = sin exención) |
+| `codigoSwiftAba` | SWIFT/BIC o ABA del banco destino, 8â€“11 mayusculas |
 | `moneda` | ISO-3, default `USD` |
 | `tipoComision` | `OUR` ordenante Â· `BEN` beneficiario Â· `SHA` compartida |
 | `referencia` | Opcional (mÃ¡x. 50); si falta, el back usa la `referenciaLote` generada |
 
-Misma respuesta que el pago nacional. Requiere **habilitaciÃ³n por contrato**
+Misma respuesta que el pago nacional. Requiere **habilitación por contrato**
 con Produbanco para transferencias al exterior.
 
 ---
@@ -167,8 +167,8 @@ con Produbanco para transferencias al exterior.
 GET /tramas-produbanco/transacciones?page=1&pageSize=20&status=1&operation=SPR_PRODUBANCO-PAGO
 ```
 
-Todos los query params son opcionales (`page=1`, `pageSize=20` mÃ¡x. 50,
-`status` 1/2/3, `operation` pago o transferencia). SÃ³lo muestra operaciones de
+Todos los query params son opcionales (`page=1`, `pageSize=20` max. 50,
+`status` 1/2/3, `operation` pago o transferencia). Solo muestra operaciones de
 Produbanco de **tu app**.
 
 ```json
@@ -201,7 +201,7 @@ Produbanco de **tu app**.
 
 ---
 
-## 6. Estado de una transacciÃ³n
+## 6. Estado de una transacción
 
 ```http
 GET /tramas-produbanco/transacciones/estado/21
@@ -256,19 +256,19 @@ Consulta el estado **en vivo** en Produbanco, actualiza la BD y responde:
 }
 ```
 
-### CÃ³mo leer los estados
+### Cómo leer los estados
 
 | Campo | Significado |
 |-------|-------------|
 | `status` (local) | Estado interno del back: `1` PENDIENTE (en proceso), `2` PROCESADO_BANCO, `3` ERROR |
 | `statusServicio` | Resumen legible del estado local (`PENDIENTE` / `PROCESADO_BANCO` / `ERROR`) |
-| `estadoTransaccion` | **Estado verbatim de Produbanco** (ej: `ACTIVO`, `APROBADO`, `REVOCADO`) â€” no estÃ¡ mapeado; usa tal cual |
+| `estadoTransaccion` | **Estado verbatim de Produbanco** (ej: `ACTIVO`, `APROBADO`, `REVOCADO`) — no está mapeado; usa tal cual |
 | `estadoItem` (detalle) | Estado verbatim por pago dentro del lote |
-| `banco.consultaPor` | CÃ³mo buscÃ³ el banco la orden: `envioId` o `referencia` |
-| `banco.sinDatos` | `true` = el banco aÃºn no tiene la orden (`codigo` `0005`) |
+| `banco.consultaPor` | Cómo buscó el banco la orden: `envioId` o `referencia` |
+| `banco.sinDatos` | `true` = el banco aún no tiene la orden (`codigo` `0005`) |
 
 Un fallo de consulta **no** rompe la respuesta: se reporta en `banco.error` y
-los datos locales siguen siendo vÃ¡lidos.
+los datos locales siguen siendo válidos.
 
 ---
 
@@ -278,20 +278,20 @@ Si Produbanco rechaza la trama o hay error de red, el back guarda el lote en
 `ERROR` y devuelve el error con la respuesta cruda del banco:
 
 ```json
-{ "message": "Trama invÃ¡lida", "respuestaBanco": "<respuesta cruda del SOAP>" }
+{ "message": "Trama inválida", "respuestaBanco": "<respuesta cruda del SOAP>" }
 ```
 
 ---
 
 ## 8. Idempotencia (importante)
 
-El back detecta **lotes con contenido idÃ©ntico** (mismo pago, mismo monto,
+El back detecta **lotes con contenido idéntico** (mismo pago, mismo monto,
 mismos beneficiarios):
 
-- Si el lote anterior terminÃ³ en `ERROR`: se **recicla automÃ¡ticamente**
-  (reenvÃ­a al banco y responde normal).
-- Si estÃ¡ `PENDIENTE` o `PROCESADO_BANCO`: responde `409 Conflict` â€” para
+- Si el lote anterior terminó en `ERROR`: se **recicla automáticamente**
+  (reenvía al banco y responde normal).
+- Si está `PENDIENTE` o `PROCESADO_BANCO`: responde `409 Conflict` — para
   reenviar el mismo pago usa **nuevos datos** (ej: nueva `referencia`).
 
 El login fallido y las claves de las apps se manejan en la BD del back; la
-documentaciÃ³n Swagger en `/doc` refleja siempre los DTOs vigentes.
+documentación Swagger en `/doc` refleja siempre los DTOs vigentes.
