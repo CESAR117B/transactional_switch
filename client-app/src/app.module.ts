@@ -15,8 +15,8 @@ import { JwtModule } from '@nestjs/jwt';
         name: 'MATH_SERVICE',
         transport: Transport.TCP,
         options: {
-          host: '127.0.0.1',
-          port: 3001,
+          host: process.env.MICROSERVICE_HOST || '127.0.0.1',
+          port: parseInt(process.env.MICROSERVICE_PORT ?? '3001', 10),
         },
       },
     ]),

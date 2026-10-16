@@ -12,7 +12,7 @@ async function bootstrap() {
     AppModule,
     {
       transport: Transport.TCP,
-      options: { host: '127.0.0.1', port: 3001 },
+      options: { host: process.env.HOST, port: parseInt(process.env.PORT ?? '3001', 10) },
     },
   );
   // Modificamos el pipe para que lance excepciones TCP
