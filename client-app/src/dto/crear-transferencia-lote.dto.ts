@@ -266,27 +266,9 @@ export class CrearTransferenciaLoteDto {
   @IsNotEmpty({ message: 'idServicio es requerido' })
   idServicio: string;
 
-  @ApiProperty({
-    description: 'Fecha de inicio del lote en formato DD/MM/YYYY',
-    example: '12/10/2026',
-    type: String,
-  })
-  @IsString()
-  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
-    message: 'fechaInicio debe tener el formato DD/MM/YYYY',
-  })
-  fechaInicio: string;
-
-  @ApiProperty({
-    description: 'Fecha de vencimiento del lote en formato DD/MM/YYYY',
-    example: '18/10/2026',
-    type: String,
-  })
-  @IsString()
-  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
-    message: 'fechaVencimiento debe tener el formato DD/MM/YYYY',
-  })
-  fechaVencimiento: string;
+  // fechaInicio/fechaVencimiento YA no se envían al microservicio: el back
+  // genera la vigencia del sobre (hoy → hoy + 1) y la incluye en el
+  // <Envelope> a Produbanco (TramasProdubanco.service).
 
   @ApiProperty({
     description:

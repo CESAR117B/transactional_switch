@@ -65,8 +65,6 @@ POST /tramas-produbanco/transferencia-nacional
 {
   "servicio": "PV",
   "idServicio": "75",
-  "fechaInicio": "01/01/2026",
-  "fechaVencimiento": "31/01/2026",
   "detalles": [
     {
       "tipoId": "C",
@@ -90,7 +88,7 @@ POST /tramas-produbanco/transferencia-nacional
 | `formaPago` | `CTA` cuenta Produbanco · `SPI` otro banco · `CHQ` cheque · `EFE` ventanilla |
 | `tipoCuenta` / `cuenta` / `bancoCodigo` | Obligatorios si `formaPago` es `CTA` o `SPI` |
 | `referencia` | **Obligatoria**: número de factura que tu sistema genera (va al banco como referencia del pago) |
-| `fechaInicio` / `fechaVencimiento` | Opcionales `DD/MM/YYYY` |
+| `fechaInicio` / `fechaVencimiento` | **No se envían**: el microservicio genera la vigencia del sobre automáticamente (hoy → hoy + 1) y la incluye en la trama al banco |
 
 **Respuesta** (`201`):
 
@@ -112,6 +110,11 @@ La `referenciaLote` la genera el back con el formato
 en Produbanco (puede venir `"0"` si el banco no lo registra; el back consulta
 igual por `referenciaLote`).
 
+> **Anti-duplicado (`429`):** se rechaza la transacción si la misma app ya
+> envió una con el **mismo monto a la misma cuenta beneficiario** dentro de
+> los últimos **5 minutos**. Si la transacción previa terminó en error se
+> permite reintentar. Aplica igual en el pago nacional y en el exterior.
+
 ---
 
 ## 4. Transferencia al exterior
@@ -124,8 +127,6 @@ POST /tramas-produbanco/transferencia-internacional
 {
   "servicio": "PE",
   "idServicio": "80",
-  "fechaInicio": "12/10/2026",
-  "fechaVencimiento": "18/10/2026",
   "detalles": [
     {
       "tipoId": "P",
@@ -149,7 +150,7 @@ POST /tramas-produbanco/transferencia-internacional
 
 | Campo | Notas |
 |-------|-------|
-| `fechaInicio` / `fechaVencimiento` | **Obligatorias** `DD/MM/YYYY` |
+| `fechaInicio` / `fechaVencimiento` | **No se envían**: el microservicio genera la vigencia del sobre automáticamente (hoy → hoy + 1) y la incluye en la trama al banco |
 | `motivoTransferencia` | **Obligatoria**: `codigo,ejención` según catalogo SIB (ej: `106,0` = sin exención) |
 | `codigoSwiftAba` | SWIFT/BIC o ABA del banco destino, 8â€“11 mayusculas |
 | `moneda` | ISO-3, default `USD` |
@@ -157,7 +158,9 @@ POST /tramas-produbanco/transferencia-internacional
 | `referencia` | Opcional (mÃ¡x. 50); si falta, el back usa la `referenciaLote` generada |
 
 Misma respuesta que el pago nacional. Requiere **habilitación por contrato**
-con Produbanco para transferencias al exterior.
+con Produbanco para transferencias al exterior. El límite anti-duplicado de
+5 minutos (`429`) también aplica aquí (mismo monto + misma cuenta
+beneficiario).
 
 ---
 

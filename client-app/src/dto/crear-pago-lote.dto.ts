@@ -174,21 +174,9 @@ export class CrearPagoLoteDto {
   @IsNotEmpty({ message: 'idServicio es requerido' })
   idServicio: string;
 
-  @ApiPropertyOptional({
-    description: 'Fecha inicio DD/MM/YYYY',
-    example: '01/01/2026',
-  })
-  @IsOptional()
-  @IsString()
-  fechaInicio?: string;
-
-  @ApiPropertyOptional({
-    description: 'Fecha vencimiento DD/MM/YYYY',
-    example: '31/01/2026',
-  })
-  @IsOptional()
-  @IsString()
-  fechaVencimiento?: string;
+  // fechaInicio/fechaVencimiento YA no se envían al microservicio: el back
+  // genera la vigencia del sobre (hoy → hoy + 1) y la incluye en el
+  // <Envelope> a Produbanco (TramasProdubanco.service).
 
   @ApiProperty({
     description: 'Listado de pagos individuales que componen el lote',
