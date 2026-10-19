@@ -13,6 +13,7 @@ import {
   TipoCuentaBanco,
 } from '../dto/crear-transferencia-lote.dto';
 import { UniversalCryptoService } from './universal-crypto.service';
+import { hashBusqueda } from './hash-busqueda';
 import {
   ConfigDbService,
   ProdubancoConfig,
@@ -217,6 +218,9 @@ export class TramasProdubancoService {
   /**
    * Lista las transacciones de una app (paginado), con estado local y totales.
    * La referencia se desencripta con la llave de la app antes de responder.
+   * Filtros opcionales: fecha de creación (DD/MM/YYYY, día completo horario
+   * Ecuador), cédula y cuenta del beneficiario (vía hash de búsqueda, match
+   * exacto normalizado sobre el MISMO detalle del lote).
    */
   async consultarTransacciones(
     idApp: number,
@@ -225,6 +229,10 @@ export class TramasProdubancoService {
       pageSize?: number;
       status?: number;
       operation?: string;
+      fechaDesde?: string;
+      fechaHasta?: string;
+      cedula?: string;
+      cuenta?: string;
     },
   ) {
     const page = Math.max(1, Math.trunc(Number(params.page) || 1));
@@ -248,6 +256,31 @@ export class TramasProdubancoService {
       where.operation = operation;
     }
 
+    // Fecha de creación (created_at se almacena en UTC; Ecuador = UTC-5 fijo)
+    const rango = this.rangoCreacion(params.fechaDesde, params.fechaHasta);
+    if (rango) {
+      where.createdAt = rango;
+    }
+
+    // Beneficiario: cédula y/o cuenta se buscan por hash determinista; ambos
+    // criterios deben cumplirse en el MISMO detalle (AND dentro de `some`).
+    const secretKey = await this.getEncryptionKey(idApp);
+    const cedula = params.cedula?.trim();
+    const cuenta = params.cuenta?.trim();
+    if (cedula || cuenta) {
+      const detalle: Prisma.TransaccionesBancariasDetalleWhereInput = {};
+      if (cedula) {
+        detalle.beneficiarioIdentificacionHash = hashBusqueda(
+          cedula,
+          secretKey,
+        );
+      }
+      if (cuenta) {
+        detalle.beneficiarioCuentaHash = hashBusqueda(cuenta, secretKey);
+      }
+      where.detalles = { some: detalle };
+    }
+
     const [total, items] = await Promise.all([
       this.prisma.transaccionesServicios.count({ where }),
       this.prisma.transaccionesServicios.findMany({
@@ -261,13 +294,62 @@ export class TramasProdubancoService {
       }),
     ]);
 
-    const secretKey = await this.getEncryptionKey(idApp);
     return {
       page,
       pageSize,
       total,
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
       items: items.map((tx) => this.formatearListado(tx, secretKey)),
+    };
+  }
+
+  /**
+   * Rango inclusivo [00:00:00.000, 23:59:59.999] de un día en horario
+   * Ecuador (UTC-5, sin DST) a partir de DD/MM/YYYY, para filtrar `createdAt`
+   * (almacenado en UTC). Lanza RpcException 400 con formato o fecha de
+   * calendario inválidos, o si desde > hasta.
+   */
+  private rangoCreacion(
+    fechaDesde?: string,
+    fechaHasta?: string,
+  ): { gte?: Date; lte?: Date } | null {
+    const dia = (fecha: string, inicio: boolean): number => {
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(fecha.trim());
+      if (!m) {
+        throw new RpcException({
+          statusCode: 400,
+          message: `Fecha inválida '${fecha}': use el formato DD/MM/YYYY`,
+        });
+      }
+      const [, dd, mm, yyyy] = m.map(Number);
+      // 00:00 Ecuador = 05:00Z; el re-control detecta días inexistentes
+      const inicioDia = Date.UTC(yyyy, mm - 1, dd, 5);
+      const check = new Date(inicioDia);
+      if (
+        check.getUTCDate() !== dd ||
+        check.getUTCMonth() !== mm - 1 ||
+        check.getUTCFullYear() !== yyyy
+      ) {
+        throw new RpcException({
+          statusCode: 400,
+          message: `Fecha de calendario inexistente '${fecha}'`,
+        });
+      }
+      return inicio ? inicioDia : inicioDia + 86_400_000 - 1;
+    };
+
+    const desde = fechaDesde?.trim() ? dia(fechaDesde, true) : undefined;
+    const hasta = fechaHasta?.trim() ? dia(fechaHasta, false) : undefined;
+    if (desde !== undefined && hasta !== undefined && desde > hasta) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'fechaDesde no puede ser mayor que fechaHasta',
+      });
+    }
+    if (desde === undefined && hasta === undefined) return null;
+    return {
+      ...(desde !== undefined ? { gte: new Date(desde) } : {}),
+      ...(hasta !== undefined ? { lte: new Date(hasta) } : {}),
     };
   }
 
@@ -556,12 +638,19 @@ export class TramasProdubancoService {
                       item.identificacion,
                       secretKey,
                     ),
+                  beneficiarioIdentificacionHash: hashBusqueda(
+                    item.identificacion,
+                    secretKey,
+                  ),
                   beneficiarioNombre: item.nombre,
                   beneficiarioCuenta: item.cuenta
                     ? this.universalCryptoService.encrypt(
                         item.cuenta,
                         secretKey,
                       )
+                    : null,
+                  beneficiarioCuentaHash: item.cuenta
+                    ? hashBusqueda(item.cuenta, secretKey)
                     : null,
                   beneficiarioBancoCodigo:
                     item.formaPago === 'CTA'
@@ -606,9 +695,16 @@ export class TramasProdubancoService {
                 item.identificacion,
                 secretKey,
               ),
+              beneficiarioIdentificacionHash: hashBusqueda(
+                item.identificacion,
+                secretKey,
+              ),
               beneficiarioNombre: item.nombre,
               beneficiarioCuenta: item.cuenta
                 ? this.universalCryptoService.encrypt(item.cuenta, secretKey)
+                : null,
+              beneficiarioCuentaHash: item.cuenta
+                ? hashBusqueda(item.cuenta, secretKey)
                 : null,
               beneficiarioBancoCodigo:
                 item.formaPago === 'CTA' ? '0036' : item.bancoCodigo || null,
@@ -693,8 +789,16 @@ export class TramasProdubancoService {
                       item.identificacion,
                       secretKey,
                     ),
+                  beneficiarioIdentificacionHash: hashBusqueda(
+                    item.identificacion,
+                    secretKey,
+                  ),
                   beneficiarioNombre: item.beneficiarioNombre,
                   beneficiarioCuenta: this.universalCryptoService.encrypt(
+                    item.beneficiarioCuenta,
+                    secretKey,
+                  ),
+                  beneficiarioCuentaHash: hashBusqueda(
                     item.beneficiarioCuenta,
                     secretKey,
                   ),
@@ -747,8 +851,16 @@ export class TramasProdubancoService {
                 item.identificacion,
                 secretKey,
               ),
+              beneficiarioIdentificacionHash: hashBusqueda(
+                item.identificacion,
+                secretKey,
+              ),
               beneficiarioNombre: item.beneficiarioNombre,
               beneficiarioCuenta: this.universalCryptoService.encrypt(
+                item.beneficiarioCuenta,
+                secretKey,
+              ),
+              beneficiarioCuentaHash: hashBusqueda(
                 item.beneficiarioCuenta,
                 secretKey,
               ),

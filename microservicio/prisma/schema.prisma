@@ -241,6 +241,13 @@ model TransaccionesBancariasDetalle {
   codigoRespuesta  String? @map("codigo_respuesta") @db.VarChar(20)
   mensajeRespuesta String? @map("mensaje_respuesta") @db.Text
 
+  // Hash determinista de búsqueda (HMAC-SHA256 con la encryptionKey de la app
+  // sobre el valor normalizado) — el campo en claro está cifrado con IV
+  // aleatorio, así que NO permite WHERE; con estos hash sí (patrón como
+  // referenceHash/requestHash). NULL sólo en filas previas al backfill.
+  beneficiarioIdentificacionHash String? @map("beneficiario_identificacion_hash") @db.VarChar(64)
+  beneficiarioCuentaHash         String? @map("beneficiario_cuenta_hash") @db.VarChar(64)
+
   // Tiempos y Relaciones
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -250,6 +257,8 @@ model TransaccionesBancariasDetalle {
   @@unique([idTransaccion, secuencia])
   @@index([idTransaccion])
   @@index([beneficiarioIdentificacion])
+  @@index([beneficiarioIdentificacionHash], map: "tx_detalle_ident_hash_idx")
+  @@index([beneficiarioCuentaHash], map: "tx_detalle_cuenta_hash_idx")
   @@index([estadoItem])
   @@map("transacciones_bancarias_detalle")
 }

@@ -62,7 +62,16 @@ export class AppService {
 
   async consultarTransacciones(
     idApp: number,
-    query: { page?: number; pageSize?: number; status?: number },
+    query: {
+      page?: number;
+      pageSize?: number;
+      status?: number;
+      operation?: string;
+      fechaDesde?: string;
+      fechaHasta?: string;
+      cedula?: string;
+      cuenta?: string;
+    },
   ): Promise<unknown> {
     const payload = { idApp: Number(idApp), ...query };
     return firstValueFrom(
