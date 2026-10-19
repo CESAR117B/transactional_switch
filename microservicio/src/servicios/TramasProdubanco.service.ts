@@ -44,6 +44,14 @@ type DatosPago = CrearPagoLoteDto & {
   tipoCuentaEmpresa: TipoCuenta;
   empresa: string;
   idEmpresa: string;
+  /** Vigencia del sobre generada por el back (no la envía el cliente):
+   * hoy → hoy + 1, America/Guayaquil. Ver fechasVigenciaSobre(). */
+  fechaInicio: string;
+  fechaVencimiento: string;
+  /** Mismas fechas como Date (UTC midnight) para persistir en
+   * transacciones_bancarias_detalle.fecha_inicio/fecha_fin (@db.Date). */
+  fechaInicioDate: Date;
+  fechaFinDate: Date;
 };
 
 /** Ídem DatosPago para transferencias; servicio/idServicio vienen del DTO. */
@@ -52,6 +60,14 @@ type DatosTransferencia = CrearTransferenciaLoteDto & {
   tipoCuentaEmpresa: TipoCuentaBanco;
   empresa: string;
   idEmpresa: string;
+  /** Vigencia del sobre generada por el back (no la envía el cliente):
+   * hoy → hoy + 1, America/Guayaquil. Ver fechasVigenciaSobre(). */
+  fechaInicio: string;
+  fechaVencimiento: string;
+  /** Mismas fechas como Date (UTC midnight) para persistir en
+   * transacciones_bancarias_detalle.fecha_inicio/fecha_fin (@db.Date). */
+  fechaInicioDate: Date;
+  fechaFinDate: Date;
 };
 
 /** Registro de Consulta_Sobres_VIEW (Manual §2.2.1). */
@@ -96,6 +112,9 @@ export class TramasProdubancoService {
     'SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR',
   ];
 
+  /** Ventana del límite anti-duplicado (mismo monto + misma cuenta beneficiario por app). */
+  private static readonly VENTANA_DUPLICADO_MINUTOS = 5;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly soapProdubanco: ProdubancoSoapService,
@@ -114,6 +133,16 @@ export class TramasProdubancoService {
     const datos = this.parametrizarPago(data, config);
     datos.referenciaLote = await this.generarReferenciaLote(idApp);
     this.validarLotePago(datos);
+    // Límite anti-duplicado: mismo monto + misma cuenta beneficiario en la
+    // misma app dentro de la ventana (429). Antes de persistir: un
+    // duplicado rechazado nunca crea filas en BD.
+    await this.validarDuplicadosRecientes(
+      idApp,
+      datos.detalles.map((item) => ({
+        cuenta: item.cuenta,
+        monto: item.monto,
+      })),
+    );
 
     // 1. Guardar en BD en estado PENDIENTE con sus detalles[cite: 4]
     const transaccion = await this.guardarTransaccionPagoBD(
@@ -168,6 +197,16 @@ export class TramasProdubancoService {
     const datos = this.parametrizarTransferencia(data, config);
     datos.referenciaLote = await this.generarReferenciaLote(idApp);
     this.validarLoteTransferencia(datos);
+    // Límite anti-duplicado: mismo monto + misma cuenta beneficiario en la
+    // misma app dentro de la ventana (429). Antes de persistir: un
+    // duplicado rechazado nunca crea filas en BD.
+    await this.validarDuplicadosRecientes(
+      idApp,
+      datos.detalles.map((item) => ({
+        cuenta: item.beneficiarioCuenta,
+        monto: item.monto,
+      })),
+    );
 
     // 1. Guardar en BD en estado PENDIENTE[cite: 4]
     const transaccion = await this.guardarTransaccionTransferenciaBD(
@@ -540,6 +579,51 @@ export class TramasProdubancoService {
    * el cliente. Estos valores quedan en requestPayload para auditoría y
    * para que consultarEstadoTransaccion funcione con lotes viejos y nuevos.
    */
+  /**
+   * Vigencia del sobre para el <Envelope> (ejemplo del Manual §2.1.1):
+   * hoy → hoy + 1. El cliente YA no envía fechaInicio/fechaVencimiento;
+   * el back las genera aquí para que la trama enviada a Produbanco sea
+   * idéntica a la documentada. Se calculan en America/Guayaquil (UTC-5,
+   * sin DST): la zona de referencia del banco, para evitar corrimientos
+   * de día por la zona UTC del servidor.
+   */
+  private fechasVigenciaSobre(): {
+    fechaInicio: string;
+    fechaVencimiento: string;
+    fechaInicioDate: Date;
+    fechaFinDate: Date;
+  } {
+    const formatear = (fecha: Date): string =>
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/Guayaquil',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(fecha); // dd/mm/yyyy
+
+    const ahora = new Date();
+    const fechaInicio = formatear(ahora);
+    const fechaVencimiento = formatear(
+      new Date(ahora.getTime() + 24 * 60 * 60 * 1000),
+    );
+
+    return {
+      fechaInicio,
+      fechaVencimiento,
+      // Date a medianoche UTC derivado del MISMO string dd/mm/yyyy que va
+      // al banco: así la columna @db.Date guarda exactamente el día enviado
+      // en el <Envelope> (usar hora local del servidor correría el día).
+      fechaInicioDate: this.parsearFechaCorta(fechaInicio),
+      fechaFinDate: this.parsearFechaCorta(fechaVencimiento),
+    };
+  }
+
+  /** 'dd/mm/yyyy' → Date a medianoche UTC (para columnas @db.Date). */
+  private parsearFechaCorta(fecha: string): Date {
+    const [dia, mes, anio] = fecha.split('/').map(Number);
+    return new Date(Date.UTC(anio, mes - 1, dia));
+  }
+
   private parametrizarPago(
     data: CrearPagoLoteDto,
     cfg: ProdubancoConfig,
@@ -550,6 +634,7 @@ export class TramasProdubancoService {
       tipoCuentaEmpresa: cfg.tipocuenta as TipoCuenta,
       empresa: cfg.empresa,
       idEmpresa: cfg.idempresa,
+      ...this.fechasVigenciaSobre(),
     };
   }
 
@@ -564,6 +649,7 @@ export class TramasProdubancoService {
       tipoCuentaEmpresa: cfg.tipocuenta as TipoCuentaBanco,
       empresa: cfg.empresa,
       idEmpresa: cfg.idempresa,
+      ...this.fechasVigenciaSobre(),
     };
   }
 
@@ -660,6 +746,8 @@ export class TramasProdubancoService {
                   moneda: 'USD',
                   formaPago: item.formaPago,
                   referenciaDocumento: item.referencia || null,
+                  fechaInicio: data.fechaInicioDate,
+                  fechaFin: data.fechaFinDate,
                   estadoItem: 'PENDIENTE',
                 }),
               ),
@@ -712,6 +800,8 @@ export class TramasProdubancoService {
               moneda: 'USD',
               formaPago: item.formaPago,
               referenciaDocumento: item.referencia || null,
+              fechaInicio: data.fechaInicioDate,
+              fechaFin: data.fechaFinDate,
               estadoItem: 'PENDIENTE',
             }),
           ),
@@ -817,6 +907,8 @@ export class TramasProdubancoService {
                     : item.codigoSwiftAba,
                   conceptoInvisibles: item.conceptoInvisibles,
                   codigoExoneracionIsd: item.codigoExoneracionIsd || '0',
+                  fechaInicio: data.fechaInicioDate,
+                  fechaFin: data.fechaFinDate,
                   estadoItem: 'PENDIENTE',
                 }),
               ),
@@ -879,6 +971,8 @@ export class TramasProdubancoService {
                 : item.codigoSwiftAba,
               conceptoInvisibles: item.conceptoInvisibles,
               codigoExoneracionIsd: item.codigoExoneracionIsd || '0',
+              fechaInicio: data.fechaInicioDate,
+              fechaFin: data.fechaFinDate,
               estadoItem: 'PENDIENTE',
             }),
           ),
@@ -1609,6 +1703,64 @@ ${itemsXml}
         throw new RpcException({
           statusCode: 400,
           message: `Detalle posición ${indice + 1}: tipoId "${item.tipoId}" requiere exactamente ${digitosEsperados} dígitos de identificación (enviados: ${digitos}). C=cédula (10), R=RUC (13), P=pasaporte (5 a 13).`,
+        });
+      }
+    }
+  }
+
+  /**
+   * Límite anti-duplicado por app: rechaza con 429 si ya existe una
+   * transacción de ESTA app con el mismo monto a la misma cuenta
+   * beneficiario creada en los últimos VENTANA_DUPLICADO_MINUTOS minutos.
+   *
+   * - Busca por beneficiarioCuentaHash (HMAC con la encryptionKey de la
+   *   app y la misma normalización de hashBusqueda): el campo en claro
+   *   está cifrado con IV aleatorio y no permite WHERE.
+   * - Excluye status ERROR: si la transacción previa falló (banco o red),
+   *   el usuario puede reintentar con el mismo monto/cuenta.
+   * - Ítems sin cuenta beneficiario (pagos CHQ/EFE) no aplican al criterio.
+   * - Best-effort: no hay constraint único en BD; dos peticiones
+   *   exactamente simultáneas podrían pasar ambas.
+   */
+  private async validarDuplicadosRecientes(
+    idApp: number,
+    items: Array<{ cuenta?: string; monto: number }>,
+  ): Promise<void> {
+    const secretKey = await this.getEncryptionKey(idApp);
+    const desde = new Date(
+      Date.now() -
+        TramasProdubancoService.VENTANA_DUPLICADO_MINUTOS * 60 * 1000,
+    );
+
+    for (const item of items) {
+      if (!item.cuenta) {
+        continue; // CHQ/EFE: sin cuenta beneficiario, no aplica el criterio
+      }
+
+      const duplicado =
+        await this.prisma.transaccionesBancariasDetalle.findFirst({
+          where: {
+            beneficiarioCuentaHash: hashBusqueda(item.cuenta, secretKey),
+            monto: item.monto,
+            createdAt: { gte: desde },
+            transaccionServicio: {
+              idApp,
+              status: { not: EstadoTransaccion.ERROR },
+            },
+          },
+          select: { idTransaccion: true, createdAt: true },
+        });
+
+      if (duplicado) {
+        throw new RpcException({
+          statusCode: 429,
+          message:
+            `Límite anti-duplicado: ya existe una transacción de esta app con el mismo monto ` +
+            `(${item.monto}) a la misma cuenta beneficiario en los últimos ` +
+            `${TramasProdubancoService.VENTANA_DUPLICADO_MINUTOS} minutos ` +
+            `(idTransaccion=${duplicado.idTransaccion}, creada=${duplicado.createdAt.toISOString()}). ` +
+            `Intente con otro monto/cuenta o espere a que venza la ventana.`,
+          error: 'Too Many Requests',
         });
       }
     }

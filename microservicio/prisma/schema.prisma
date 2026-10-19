@@ -248,6 +248,9 @@ model TransaccionesBancariasDetalle {
   beneficiarioIdentificacionHash String? @map("beneficiario_identificacion_hash") @db.VarChar(64)
   beneficiarioCuentaHash         String? @map("beneficiario_cuenta_hash") @db.VarChar(64)
 
+  fechaInicio DateTime? @map("fecha_inicio") @db.Date
+  fechaFin    DateTime? @map("fecha_fin") @db.Date
+
   // Tiempos y Relaciones
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

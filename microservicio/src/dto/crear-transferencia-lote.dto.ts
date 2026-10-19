@@ -137,17 +137,9 @@ export class CrearTransferenciaLoteDto {
   // no se envía en el request (ValidationPipe whitelist la trunca).
   referenciaLote?: string;
 
-  @IsString()
-  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
-    message: 'fechaInicio debe tener el formato DD/MM/YYYY',
-  })
-  fechaInicio: string;
-
-  @IsString()
-  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
-    message: 'fechaVencimiento debe tener el formato DD/MM/YYYY',
-  })
-  fechaVencimiento: string;
+  // fechaInicio/fechaVencimiento YA no se envían: el back genera la
+  // vigencia del sobre (hoy → hoy + 1) en TramasProdubanco.service
+  // (parametrizarTransferencia) y la incluye en el <Envelope> a Produbanco.
 
   @IsArray({ message: 'detalles debe ser un arreglo' })
   @ArrayMinSize(1, { message: 'detalles debe tener al menos 1 elemento' })
