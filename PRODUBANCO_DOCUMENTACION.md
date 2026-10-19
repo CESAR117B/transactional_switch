@@ -171,6 +171,19 @@ Todos los query params son opcionales (`page=1`, `pageSize=20` max. 50,
 `status` 1/2/3, `operation` pago o transferencia). Solo muestra operaciones de
 Produbanco de **tu app**.
 
+### Filtros de búsqueda
+
+| Parámetro | Ejemplo | Comportamiento |
+|-----------|---------|----------------|
+| `fechaDesde` / `fechaHasta` | `?fechaDesde=01/10/2026&fechaHasta=19/10/2026` | Formato `DD/MM/YYYY`, rango **inclusivo** de día completo en **horario Ecuador** (UTC-5). `400` si el formato es inválido, la fecha no existe (ej: `31/02`) o `fechaDesde > fechaHasta` |
+| `cedula` | `?cedula=1723456789` | Match **exacto normalizado** (sin espacios ni guiones, mayúsculas): `04018 85397` también coincide con `0401885397` |
+| `cuenta` | `?cuenta=DE89370400440532013000` | Ídem exacto normalizado: un IBAN con espacios (`DE89 3704...`) también coincide |
+
+- `cedula` y `cuenta` devuelven los **lotes que contienen ese beneficiario**;
+  si envías ambos, deben estar en el **mismo detalle** del lote (AND).
+- Todos los filtros se **combinan** entre sí y con `status`/`operation`.
+- Ejemplo completo: `?cedula=1723456789&fechaDesde=01/10/2026&fechaHasta=19/10/2026&page=1`.
+
 ```json
 {
   "page": 1,

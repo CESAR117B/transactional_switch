@@ -112,7 +112,10 @@ export class TramasProdubancoController {
       });
     }
     this.logger.log(
-      `consultarTransacciones idApp=${idApp} page=${payload?.page ?? 1}`,
+      `consultarTransacciones idApp=${idApp} page=${payload?.page ?? 1} ` +
+        `fechas=${payload?.fechaDesde ?? '*'}..${payload?.fechaHasta ?? '*'} ` +
+        `cedula=${payload?.cedula?.trim() ? 'si' : 'no'} ` +
+        `cuenta=${payload?.cuenta?.trim() ? 'si' : 'no'}`,
     );
     try {
       return await this.tramasProdubancoService.consultarTransacciones(
@@ -196,6 +199,10 @@ interface ConsultarTransaccionesCmd {
   pageSize?: number;
   status?: number;
   operation?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
+  cedula?: string;
+  cuenta?: string;
 }
 
 interface ConsultarEstadoCmd {
