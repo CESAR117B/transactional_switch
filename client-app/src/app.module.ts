@@ -11,6 +11,11 @@ import { TramasProdubancoController } from './TramasProdubanco.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApiKeyGuard } from './api-key.guard';
+import { AppThrottlerGuard } from './app-throttler.guard';
+import {
+  rateLimitIpMax,
+  rateLimitIpVentanaMs,
+} from './throttler.config';
 
 // Carga .env (sin sobreescribir variables ya definidas) ANTES de leer JWT_SECRET.
 loadEnv();
@@ -46,9 +51,14 @@ if (!jwtSecret) {
       signOptions: { expiresIn: '1h' },
     }),
 
-    // Rate limit global (100 req/min/IP); /auth/login lo restringe a 5 con @Throttle({ default: ... })
+    // Rate limit global por IP (RATE_LIMIT_IP_MAX, 100/min por defecto);
+    // /auth/login lo restringe a 5 con @Throttle({ default: ... }). Las Apps
+    // autenticadas tienen además su propio límite (RATE_LIMIT_APP_MAX,
+    // 10/min por defecto) en AppThrottlerGuard.
     ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60000, limit: 100 }],
+      throttlers: [
+        { ttl: rateLimitIpVentanaMs(), limit: rateLimitIpMax() },
+      ],
     }),
   ],
   controllers: [
@@ -60,11 +70,17 @@ if (!jwtSecret) {
   ],
   providers: [
     AppService,
-    // Orden importa: primero rate limit, luego autenticación.
+    // Orden importa:
+    // 1) ThrottlerGuard   → rate limit por IP (100 req/min; login 5/min).
+    // 2) ApiKeyGuard      → autenticación JWT (inyecta request.appAuth).
+    // 3) AppThrottlerGuard→ rate limit por App autenticada (10/min por
+    //                       defecto, bucket global compartido por todos los
+    //                       endpoints; ver .env → throttler.config.ts).
     // Fail-closed: TODO endpoint nuevo queda protegido por JWT salvo que
     // marque explícitamente @Public().
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: ApiKeyGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
   ],
 })
 export class AppModule {}
