@@ -13,6 +13,7 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { firstValueFrom } from 'rxjs';
 import { LoginDto } from './dto/auth.dto';
 import { Public } from './public.decorator';
+import { rateLimitLoginMax } from './throttler.config';
 
 @ApiTags('App')
 @Public() // Único endpoint sin JWT (el guard global lo respeta)
@@ -26,8 +27,8 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  // Fuerza bruta: máximo 5 intentos/minuto por IP
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  // Fuerza bruta: máximo RATE_LIMIT_LOGIN_MAX intentos/minuto por IP (5 por defecto)
+  @Throttle({ default: { limit: () => rateLimitLoginMax(), ttl: 60000 } })
   @ApiOperation({
     summary: 'Iniciar sesión de la aplicación',
     description:

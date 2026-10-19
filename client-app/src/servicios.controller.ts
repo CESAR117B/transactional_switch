@@ -1,18 +1,18 @@
 import { Controller, Get, Req } from '@nestjs/common';
 import { AppService } from './app.service';
-import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
-import { RequireService } from './require-service.decorator';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Servicios')
-@ApiSecurity('AppId')
-@ApiSecurity('AppKey')
-@RequireService('fdv')
+@ApiBearerAuth()
 @Controller('servicios')
 export class ServiciosController {
   constructor(private readonly appService: AppService) {}
 
   @ApiOperation({
-    summary: 'Obtiene los servicios asociados a la app autenticada.',
+    summary: 'Obtiene los servicios asignados a la app autenticada.',
+    description:
+      'Accesible para cualquier app registrada con JWT válido; no requiere ' +
+      'servicios ni permisos adicionales asignados (igual que GET /app).',
   })
   @Get('mis-servicios')
   async obtenerMisServicios(@Req() request: any) {

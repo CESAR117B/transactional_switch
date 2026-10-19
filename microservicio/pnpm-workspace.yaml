@@ -22,19 +22,19 @@ minimumReleaseAgeExclude:
   - '@prisma/fetch-engine@7.10.0 || 7.10.1'
   - '@prisma/get-platform@7.10.0 || 7.10.1'
   - '@types/node@26.3.0 || 26.4.0 || 26.5.0 || 26.5.1 || 26.6.1 || 26.6.4'
-  - '@typescript-eslint/eslint-plugin@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/parser@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/project-service@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/scope-manager@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/tsconfig-utils@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/type-utils@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/types@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/typescript-estree@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/utils@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
-  - '@typescript-eslint/visitor-keys@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2'
+  - '@typescript-eslint/eslint-plugin@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/parser@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/project-service@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/scope-manager@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/tsconfig-utils@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/type-utils@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/types@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/typescript-estree@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/utils@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
+  - '@typescript-eslint/visitor-keys@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0'
   - eslint@10.9.1 || 10.10.0 || 10.13.0
   - prisma@7.10.0 || 7.10.1
-  - typescript-eslint@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2
+  - typescript-eslint@8.68.0 || 8.70.0 || 8.70.1 || 8.71.0 || 8.71.2 || 8.72.0
   - '@jest/console@30.5.0 || 30.5.2'
   - '@jest/core@30.5.0 || 30.5.2'
   - '@jest/diff-sequences@30.5.0'
@@ -84,9 +84,9 @@ minimumReleaseAgeExclude:
   - pretty-format@30.5.0
   - '@eslint/plugin-kit@0.7.3'
   - soap@1.12.0 || 1.13.1 || 1.13.2 || 1.13.3 || 1.14.0
-  - '@nestjs/schematics@12.0.1 || 12.0.2 || 12.0.3 || 12.0.4 || 12.0.5 || 12.0.6 || 12.0.7'
+  - '@nestjs/schematics@12.0.1 || 12.0.2 || 12.0.3 || 12.0.4 || 12.0.5 || 12.0.6 || 12.0.7 || 12.0.9'
   - '@nestjs/axios@12.0.1'
-  - '@nestjs/cli@12.0.1 || 12.0.3 || 12.0.6 || 12.0.7 || 12.0.8'
+  - '@nestjs/cli@12.0.1 || 12.0.3 || 12.0.6 || 12.0.7 || 12.0.8 || 12.0.9'
   - '@nestjs/event-emitter@12.0.1'
   - prettier@3.9.7 || 3.9.8 || 3.9.9
   - dotenv@18.0.2 || 18.0.3 || 18.0.4 || 18.0.5 || 18.0.6 || 18.0.8
