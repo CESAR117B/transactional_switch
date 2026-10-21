@@ -545,7 +545,7 @@ export class TramasProdubancoService {
     if (!appRecord || !appRecord.encryptionKey) {
       throw new RpcException({
         statusCode: 500,
-        message: `La app con ID ${idApp} no tiene llave de encriptación configurada. Genere una con add_app_encryption_key. El client desencripta con la misma llave.`,
+        message: `La app con ID ${idApp} no tiene llave de encriptación configurada. La encryptionKey se genera por defecto al registrar la app (POST /admin/apps); en apps antiguas debe asignarla el administrador. El cliente desencripta con la misma llave.`,
       });
     }
     if (appRecord.encryptionKey.length !== 32) {
@@ -583,7 +583,7 @@ export class TramasProdubancoService {
     if (!appRecord || !appRecord.encryptionKey) {
       throw new RpcException({
         statusCode: 500,
-        message: `La app con ID ${idApp} no tiene llave de encriptación configurada. Genere una con add_app_encryption_key.`,
+        message: `La app con ID ${idApp} no tiene llave de encriptación configurada. La encryptionKey se genera por defecto al registrar la app (POST /admin/apps); en apps antiguas debe asignarla el administrador.`,
       });
     }
     const registrada = appRecord.encryptionKey;

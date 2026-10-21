@@ -16,8 +16,14 @@ export class AuthService {
 
   constructor(private prisma: PrismaService) {}
 
-  /** Hash scrypt con salt aleatorio para almacenar app.key. */
-  private async hashKey(key: string): Promise<string> {
+  /**
+   * Hash scrypt con salt aleatorio para almacenar app.key.
+   *
+   * PÚBLICO: lo reutiliza AppsService para guardar la key generada en el
+   * alta de una app (el hash es irreversible, por eso la key cruda sólo
+   * se devuelve en la respuesta de creación).
+   */
+  async hashKey(key: string): Promise<string> {
     const salt = randomBytes(16);
     const derived = (await scryptAsync(key, salt, SCRYPT_LONGITUD)) as Buffer;
     return `${SCRYPT_PREFIJO}$${salt.toString('hex')}$${derived.toString('hex')}`;

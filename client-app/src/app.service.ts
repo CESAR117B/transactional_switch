@@ -7,6 +7,7 @@ import {
   GenerarPagoPayloadDto,
 } from './dto/crear-pago-lote.dto';
 import { CrearTransferenciaLoteDto } from './dto/crear-transferencia-lote.dto';
+import { CrearAppDto } from './dto/crear-app.dto';
 
 @Injectable()
 export class AppService {
@@ -36,14 +37,14 @@ export class AppService {
     );
   }
 
-  async encrypkeyApp(appId: number) {
-    // 1. Armamos el objeto con la propiedad idApp que espera el microservicio
-    const payloadInterno = { idApp: Number(appId) };
-
-    // 2. Usamos .send() en lugar de .emit() y retornamos el resultado
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'add_app_encryption_key' }, payloadInterno),
-    );
+  /**
+   * Alta de una app consumidora. El microservicio genera identificador,
+   * key (hash scrypt en BD) y encryptionKey en una transacción, y devuelve
+   * las credenciales EN CLARO una sola vez.
+   */
+  async crearApp(idAppAdmin: number, data: CrearAppDto) {
+    const payload = { idApp: Number(idAppAdmin), data };
+    return firstValueFrom(this.mathClient.send({ cmd: 'crear_app' }, payload));
   }
 
   async generarPago(idApp: number, data: CrearPagoLoteDto) {
