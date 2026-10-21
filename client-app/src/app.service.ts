@@ -72,8 +72,15 @@ export class AppService {
       cedula?: string;
       cuenta?: string;
     },
+    llave: string,
   ): Promise<unknown> {
-    const payload = { idApp: Number(idApp), ...query };
+    const payload = {
+      idApp: Number(idApp),
+      ...query,
+      // EncryptionKey de la app: el microservicio la valida contra BD y la
+      // usa para desencriptar la respuesta (llega del header X-Encryption-Key).
+      llaveDesencriptacion: llave,
+    };
     return firstValueFrom(
       this.mathClient.send<unknown>(
         { cmd: 'consultar_transacciones' },
@@ -85,8 +92,15 @@ export class AppService {
   async consultarEstadoTransaccion(
     idApp: number,
     dato: string,
+    llave: string,
   ): Promise<unknown> {
-    const payload = { idApp: Number(idApp), dato };
+    const payload = {
+      idApp: Number(idApp),
+      dato,
+      // EncryptionKey de la app: el microservicio la valida contra BD y la
+      // usa para desencriptar la respuesta (llega del header X-Encryption-Key).
+      llaveDesencriptacion: llave,
+    };
     return firstValueFrom(
       this.mathClient.send<unknown>(
         { cmd: 'consultar_estado_transaccion' },

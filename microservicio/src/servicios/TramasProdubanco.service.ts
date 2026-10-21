@@ -33,7 +33,17 @@ type TxConDetalles = Prisma.TransaccionesServiciosGetPayload<{
 }>;
 
 type TxListado = Prisma.TransaccionesServiciosGetPayload<{
-  include: { detalles: { select: { monto: true; estadoItem: true } } };
+  include: {
+    detalles: {
+      select: {
+        secuencia: boolean;
+        monto: boolean;
+        estadoItem: boolean;
+        beneficiarioIdentificacion: boolean;
+        beneficiarioCuenta: boolean;
+      };
+    };
+  };
 }>;
 
 /** DTO de pago + parametrización bancaria inyectada desde config BD
@@ -167,12 +177,13 @@ export class TramasProdubancoService {
         respuesta,
       );
 
+      // Respuesta reducida: solo la referencia (Cifrada) y el total abonado.
+      // transaccion.reference es el referenceEncrypted ya persistido en
+      // transacciones_servicios.reference (IV:AuthTag:Texto), idéntico byte a
+      // byte: la app cliente lo guarda encriptado y lo desencripta con su
+      // encryptionKey. NO se re-cifra aquí (el IV es aleatorio y no coincidiría).
       return {
-        exito: true,
-        idTransaccion: transaccion.idTransaccion.toString(),
-        referenciaLote: datos.referenciaLote,
-        envioId,
-        totalRegistros: data.detalles.length,
+        referenciaLote: transaccion.reference,
         montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
       };
     } catch (error: unknown) {
@@ -231,12 +242,13 @@ export class TramasProdubancoService {
         respuesta,
       );
 
+      // Respuesta reducida: solo la referencia (Cifrada) y el total abonado.
+      // transaccion.reference es el referenceEncrypted ya persistido en
+      // transacciones_servicios.reference (IV:AuthTag:Texto), idéntico byte a
+      // byte: la app cliente lo guarda encriptado y lo desencripta con su
+      // encryptionKey. NO se re-cifra aquí (el IV es aleatorio y no coincidiría).
       return {
-        exito: true,
-        idTransaccion: transaccion.idTransaccion.toString(),
-        referenciaLote: datos.referenciaLote,
-        envioId,
-        totalRegistros: data.detalles.length,
+        referenciaLote: transaccion.reference,
         montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
       };
     } catch (error: unknown) {
@@ -272,6 +284,9 @@ export class TramasProdubancoService {
       fechaHasta?: string;
       cedula?: string;
       cuenta?: string;
+      /** EncryptionKey de la app, obligatoria: se valida contra BD y se usa
+       * para desencriptar la respuesta y para el hash de búsqueda. */
+      llaveDesencriptacion?: string;
     },
   ) {
     const page = Math.max(1, Math.trunc(Number(params.page) || 1));
@@ -303,7 +318,12 @@ export class TramasProdubancoService {
 
     // Beneficiario: cédula y/o cuenta se buscan por hash determinista; ambos
     // criterios deben cumplirse en el MISMO detalle (AND dentro de `some`).
-    const secretKey = await this.getEncryptionKey(idApp);
+    // La llave no se lee de la BD: la aporta el cliente y se valida contra
+    // app.encryptionKey antes de usarse para el hash y el desencriptado.
+    const secretKey = await this.validarLlaveCliente(
+      idApp,
+      params.llaveDesencriptacion,
+    );
     const cedula = params.cedula?.trim();
     const cuenta = params.cuenta?.trim();
     if (cedula || cuenta) {
@@ -328,7 +348,16 @@ export class TramasProdubancoService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
-          detalles: { select: { monto: true, estadoItem: true } },
+          detalles: {
+            select: {
+              secuencia: true,
+              monto: true,
+              estadoItem: true,
+              beneficiarioIdentificacion: true,
+              beneficiarioCuenta: true,
+            },
+            orderBy: { secuencia: 'asc' },
+          },
         },
       }),
     ]);
@@ -405,9 +434,17 @@ export class TramasProdubancoService {
     idApp: number,
     params: {
       dato?: string | number;
+      /** EncryptionKey de la app, obligatoria: se valida contra BD y se usa
+       * para desencriptar la respuesta (y la referencia del lote). */
+      llaveDesencriptacion?: string;
     },
   ) {
-    const secretKey = await this.getEncryptionKey(idApp);
+    // La llave no se lee de la BD: la aporta el cliente y se valida contra
+    // app.encryptionKey antes de usarse para desencriptar.
+    const secretKey = await this.validarLlaveCliente(
+      idApp,
+      params.llaveDesencriptacion,
+    );
     // El filtro de operaciones (por defecto solo Produbanco) se aplica
     // dentro de resolverTransaccion, a nivel de consulta.
     const tx = await this.resolverTransaccion(idApp, params);
@@ -518,6 +555,58 @@ export class TramasProdubancoService {
       });
     }
     return appRecord.encryptionKey;
+  }
+
+  /**
+   * Valida que la llave de encriptación enviada por la app cliente coincida
+   * con la registrada en BD (app.encryptionKey) y la devuelve para usarla en
+   * el desencriptado y en el hash de búsqueda. A diferencia de
+   * getEncryptionKey, la llave NO se lee "a ciegas" desde la BD: el cliente
+   * debe aportarla en cada petición (header X-Encryption-Key), capa adicional
+   * más allá del JWT. Comparación timing-safe.
+   */
+  private async validarLlaveCliente(
+    idApp: number,
+    llaveCliente: unknown,
+  ): Promise<string> {
+    if (typeof llaveCliente !== 'string' || llaveCliente.trim() === '') {
+      throw new RpcException({
+        statusCode: 400,
+        message:
+          'llaveDesencriptacion es requerida (header X-Encryption-Key) y no puede estar vacía.',
+      });
+    }
+    const appRecord = await this.prisma.app.findUnique({
+      where: { id_app: idApp },
+      select: { encryptionKey: true },
+    });
+    if (!appRecord || !appRecord.encryptionKey) {
+      throw new RpcException({
+        statusCode: 500,
+        message: `La app con ID ${idApp} no tiene llave de encriptación configurada. Genere una con add_app_encryption_key.`,
+      });
+    }
+    const registrada = appRecord.encryptionKey;
+    if (llaveCliente.length !== 32) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'llaveDesencriptacion debe tener exactamente 32 caracteres.',
+      });
+    }
+    // Mismo largo garantizado (32 vs 32) antes de timingSafeEqual.
+    const mismoValor =
+      registrada.length === llaveCliente.length &&
+      crypto.timingSafeEqual(
+        Buffer.from(registrada, 'utf8'),
+        Buffer.from(llaveCliente, 'utf8'),
+      );
+    if (!mismoValor) {
+      throw new RpcException({
+        statusCode: 401,
+        message: 'Llave de encriptación inválida para esta App.',
+      });
+    }
+    return llaveCliente;
   }
 
   private sha256(value: string): string {
@@ -1217,6 +1306,9 @@ export class TramasProdubancoService {
     for (const d of tx.detalles) {
       estadosDetalle[d.estadoItem] = (estadosDetalle[d.estadoItem] ?? 0) + 1;
     }
+    // Primer detalle del lote (ya ordenado por secuencia): resume la
+    // identificación y cuenta del beneficiario para el listado.
+    const primero = tx.detalles[0];
     return {
       idTransaccion: tx.idTransaccion.toString(),
       referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
@@ -1230,6 +1322,18 @@ export class TramasProdubancoService {
       envioId,
       errorMessage: tx.errorMessage,
       fechaCreacion: tx.createdAt,
+      // Resumen del primer detalle: identificación y cuenta del
+      // beneficiario, desencriptadas con la llave de la app (null si no
+      // hay detalles o si el valor no es descifrable).
+      beneficiarioIdentificacion: primero
+        ? this.desencriptarSeguro(
+            primero.beneficiarioIdentificacion,
+            secretKey,
+          )
+        : null,
+      beneficiarioCuenta: primero
+        ? this.desencriptarSeguro(primero.beneficiarioCuenta, secretKey)
+        : null,
       registros: tx.detalles.length,
       montoTotal: tx.detalles.reduce((acc, d) => acc + Number(d.monto), 0),
       estadosDetalle,

@@ -38,6 +38,30 @@ Authorization: Bearer <access_token>
 
 > El token vence a la hora. Renuévalo en cada expiración.
 
+### Encryption key (segundo factor para consultar data)
+
+Los endpoints de **consulta** de data encriptada (`GET /transacciones` y
+`GET /transacciones/estado/:dato`) exigen, **además del JWT**, enviar la
+`encryptionKey` de tu app en el header `X-Encryption-Key` (32 caracteres).
+
+- Tu app recibe tres credenciales: `identificador_app` (identificación),
+  `key` (para autenticarte en `/auth/login`) y `encryptionKey` (para ver la
+  data encriptada).
+- El back **valida** que la llave enviada coincida con la registrada y la usa
+  para desencriptar la respuesta. Un JWT válido **sin** la `encryptionKey` no
+  obtiene data en claro.
+- Recomendable sobre **TLS**: la llave viaja en cada petición.
+
+| Código | Causa |
+|--------|-------|
+| `400` | Falta el header `X-Encryption-Key`, está vacío o no tiene 32 caracteres |
+| `401` | La llave no coincide con la `encryptionKey` registrada de la app |
+| `500` | La app no tiene `encryptionKey` configurada en el back |
+
+Las operaciones de **carga** (`transferencia-nacional` /
+`transferencia-internacional`) no requieren este header: el back las encripta
+con la llave registrada.
+
 ---
 
 ## 2. Endpoints
@@ -94,21 +118,22 @@ POST /tramas-produbanco/transferencia-nacional
 
 ```json
 {
-  "exito": true,
-  "idTransaccion": "21",
-  "referenciaLote": "TIENDA-00001-20261016143052-a3f9",
-  "envioId": "12345678",
-  "totalRegistros": 1,
+  "referenciaLote": "OWFiYzoxYWJjZGVm[…]",
   "montoTotal": 150.75
 }
 ```
 
-`idTransaccion` y `referenciaLote` son tus llaves para consultar el estado.
-La `referenciaLote` la genera el back con el formato
-`NOMBREAPP-{secuencia}-{yyyyMMddHHmmss}-{4 hex}` (ej:
-`TIENDA-00001-20261016143052-a3f9`). `envioId` es el identificador del sobre
-en Produbanco (puede venir `"0"` si el banco no lo registra; el back consulta
-igual por `referenciaLote`).
+> **`referenciaLote` viene ENRIPTADA** con la `encryptionKey` de tu app (no la
+> desencripta el back al responder): guárdala tal cual en tu base de datos y
+> desencripta tú localmente cuando la necesites en claro. Su formato en claro
+> es `NOMBREAPP-{secuencia}-{yyyyMMddHHmmss}-{4 hex}` (ej:
+> `TIENDA-00001-20261016143052-a3f9`) y su valor cifrado es
+> `IV:AuthTag:Texto` (base64 separado por `:`).
+
+> **Ya NO se devuelven** `exito`, `idTransaccion`, `envioId` ni
+> `totalRegistros`: la respuesta se limita a `referenciaLote` y
+> `montoTotal`. Para obtener `idTransaccion` y `envioId` consulta el listado
+> (sección 5) o el estado (sección 6) — esos sí los incluyen.
 
 > **Anti-duplicado (`429`):** se rechaza la transacción si la misma app ya
 > envió una con el **mismo monto a la misma cuenta beneficiario** dentro de
@@ -168,7 +193,14 @@ beneficiario).
 
 ```http
 GET /tramas-produbanco/transacciones?page=1&pageSize=20&status=1&operation=SPR_PRODUBANCO-PAGO
+X-Encryption-Key: <encryptionKey de tu app>
 ```
+
+> **Header `X-Encryption-Key` obligatorio** (ver sección 1). Sin él → `400`;
+> con una llave distinta a la registrada → `401`. En **esta** respuesta la
+> data sensible (`referenciaLote`, `beneficiarioIdentificacion`,
+> `beneficiarioCuenta`) viene **desencriptada** — el back usa tu llave antes
+> de responder (a diferencia de la carga, sección 3, que la devuelve cifrada).
 
 Todos los query params son opcionales (`page=1`, `pageSize=20` max. 50,
 `status` 1/2/3, `operation` pago o transferencia). Solo muestra operaciones de
@@ -207,6 +239,8 @@ Produbanco de **tu app**.
       "envioId": "12345678",
       "errorMessage": null,
       "fechaCreacion": "2026-10-15T10:00:00.000Z",
+      "beneficiarioIdentificacion": "1723456789",
+      "beneficiarioCuenta": "0036001234567890",
       "registros": 1,
       "montoTotal": 150.75,
       "estadosDetalle": { "APROBADO": 1 }
@@ -221,8 +255,14 @@ Produbanco de **tu app**.
 
 ```http
 GET /tramas-produbanco/transacciones/estado/21
-GET /tramas-produbanco/transacciones/estado/TIENDA-00001-20261016143052-a3f9
+X-Encryption-Key: <encryptionKey de tu app>
 ```
+
+> **Header `X-Encryption-Key` obligatorio** (ver sección 1). Sin él → `400`;
+> con una llave distinta a la registrada → `401`. La app cliente debe
+> desencriptar localmente la `referenciaLote` que le devolvió la carga
+> (sección 3) y usarla **en claro** como `:dato` para buscar por referencia.
+> La respuesta, como en el listado, viene **desencriptada**.
 
 `/estado/:dato` acepta **un** valor: `idTransaccion` o `referenciaLote`.
 Consulta el estado **en vivo** en Produbanco, actualiza la BD y responde:
