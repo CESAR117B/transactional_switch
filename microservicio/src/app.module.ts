@@ -7,8 +7,8 @@ import { ServiciosModule } from './servicios/servicios.modules';
 
 import { ConfigDbModule } from './config-db/config-db.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { EncriptionKeysModule } from './keys/encription.keys.module';
 import { IntegracionesModule } from './Integraciones/integraciones.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -18,7 +18,7 @@ import { IntegracionesModule } from './Integraciones/integraciones.module';
     ServiciosModule,
     IntegracionesModule,
     ConfigDbModule,
-    EncriptionKeysModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
