@@ -104,11 +104,20 @@ export class TramasProdubancoController {
 
   @MessagePattern({ cmd: 'consultar_transacciones' })
   async consultarTransacciones(@Payload() payload: ConsultarTransaccionesCmd) {
-    const { idApp } = payload ?? {};
+    const { idApp, llaveDesencriptacion } = payload ?? {};
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
         statusCode: 400,
         message: 'idApp es requerido',
+      });
+    }
+    if (
+      typeof llaveDesencriptacion !== 'string' ||
+      llaveDesencriptacion.trim() === ''
+    ) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'llaveDesencriptacion es requerida.',
       });
     }
     this.logger.log(
@@ -147,7 +156,7 @@ export class TramasProdubancoController {
 
   @MessagePattern({ cmd: 'consultar_estado_transaccion' })
   async consultarEstadoTransaccion(@Payload() payload: ConsultarEstadoCmd) {
-    const { idApp, dato } = payload ?? {};
+    const { idApp, dato, llaveDesencriptacion } = payload ?? {};
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
         statusCode: 400,
@@ -160,13 +169,22 @@ export class TramasProdubancoController {
         message: 'Se requiere el campo dato (idTransaccion o referenciaLote).',
       });
     }
+    if (
+      typeof llaveDesencriptacion !== 'string' ||
+      llaveDesencriptacion.trim() === ''
+    ) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'llaveDesencriptacion es requerida.',
+      });
+    }
     this.logger.log(
       `consultarEstadoTransaccion idApp=${idApp} dato=${String(dato)}`,
     );
     try {
       return await this.tramasProdubancoService.consultarEstadoTransaccion(
         idApp,
-        { dato },
+        { dato, llaveDesencriptacion },
       );
     } catch (error: unknown) {
       if (error instanceof RpcException) throw error;
@@ -203,9 +221,15 @@ interface ConsultarTransaccionesCmd {
   fechaHasta?: string;
   cedula?: string;
   cuenta?: string;
+  /** EncryptionKey de la app (32 chars), obligatoria: llega vía header
+   * X-Encryption-Key en el HTTP y se valida contra app.encryptionKey. */
+  llaveDesencriptacion?: string;
 }
 
 interface ConsultarEstadoCmd {
   idApp?: number;
   dato?: string | number;
+  /** EncryptionKey de la app (32 chars), obligatoria: llega vía header
+   * X-Encryption-Key en el HTTP y se valida contra app.encryptionKey. */
+  llaveDesencriptacion?: string;
 }

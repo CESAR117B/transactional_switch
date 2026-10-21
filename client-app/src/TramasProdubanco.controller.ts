@@ -8,7 +8,12 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RequireService } from './require-service.decorator';
 import { AppService } from './app.service';
 import { CrearPagoLoteDto } from './dto/crear-pago-lote.dto';
@@ -58,7 +63,15 @@ export class TramasProdubancoController {
   @ApiOperation({
     summary:
       'Listar transacciones de Produbanco de la App (paginado, estado local); ' +
-      'excluye operaciones de otros servicios',
+      'excluye operaciones de otros servicios. Requiere el header ' +
+      'X-Encryption-Key para desencriptar la data.',
+  })
+  @ApiHeader({
+    name: 'X-Encryption-Key',
+    description:
+      'EncryptionKey de la app (32 chars). Se valida contra BD y se usa para ' +
+      'desencriptar la respuesta.',
+    required: true,
   })
   @Get('transacciones')
   async listarTransacciones(
@@ -71,14 +84,23 @@ export class TramasProdubancoController {
         'No se pudo identificar la App desde el token',
       );
     }
-    return this.appService.consultarTransacciones(idApp, query);
+    const llave = extraerLlaveEncriptacion(req);
+    return this.appService.consultarTransacciones(idApp, query, llave);
   }
 
   @ApiOperation({
     summary:
       'Estado de una transacción de Produbanco por un único campo (id o ' +
       'referenciaLote): local + banco en vivo + actualización automática en ' +
-      'BD; operaciones de otros servicios → 404',
+      'BD; operaciones de otros servicios → 404. Requiere el header ' +
+      'X-Encryption-Key para desencriptar la data.',
+  })
+  @ApiHeader({
+    name: 'X-Encryption-Key',
+    description:
+      'EncryptionKey de la app (32 chars). Se valida contra BD y se usa para ' +
+      'desencriptar la respuesta.',
+    required: true,
   })
   @Get('transacciones/estado/:dato')
   async estadoTransaccion(
@@ -96,10 +118,24 @@ export class TramasProdubancoController {
         'dato es requerido (idTransaccion o referenciaLote)',
       );
     }
-    return this.appService.consultarEstadoTransaccion(idApp, dato.trim());
+    const llave = extraerLlaveEncriptacion(req);
+    return this.appService.consultarEstadoTransaccion(idApp, dato.trim(), llave);
   }
+}
+
+/** Lee el header X-Encryption-Key; lanza 400 si falta o está vacío. */
+function extraerLlaveEncriptacion(req: ReqConAppAuth): string {
+  const raw = req.headers?.['x-encryption-key'];
+  const llave = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof llave !== 'string' || llave.trim() === '') {
+    throw new BadRequestException(
+      'Falta el header X-Encryption-Key (encryptionKey de la app, 32 caracteres)',
+    );
+  }
+  return llave.trim();
 }
 
 interface ReqConAppAuth {
   appAuth?: { id_app?: number };
+  headers?: Record<string, string | string[] | undefined>;
 }
