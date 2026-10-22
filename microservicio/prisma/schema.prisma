@@ -50,6 +50,7 @@ model info_app {
   nombre        String? @db.VarChar(300)
   desarrollador String? @db.VarChar(100)
   ruc           String? @db.VarChar(200)
+  email         String? @db.VarChar(200)
   id_app        Int     @unique(map: "info_app_unique")
   app           app     @relation(fields: [id_app], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "info_app_app_fk")
 }
