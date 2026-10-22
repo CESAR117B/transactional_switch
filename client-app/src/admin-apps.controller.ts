@@ -14,6 +14,7 @@ import { RequireCmd } from './require-cmd.decorator';
 import { AppService } from './app.service';
 import { CrearAppDto } from './dto/crear-app.dto';
 import { BloquearAppDto } from './dto/bloquear-app.dto';
+import { UpdateAppDto } from './dto/update-app.dto';
 
 /**
  * Funciones del App administrador.
@@ -94,6 +95,27 @@ export class AdminAppsController {
       );
     }
     return this.appService.listarApps();
+  }
+
+  @ApiOperation({
+    summary:
+      'Actualiza los datos de una app consumidora (identificador, nombre, desarrollador, ruc). ' +
+      'No devuelve la key ni la encryptionKey: serán actualizados en otra función.',
+  })
+  @RequireCmd('actualizar_app')
+  @HttpCode(HttpStatus.OK)
+  @Post('actualizar_app')
+  async actualizarApp(
+    @Req() req: ReqConAppAuth,
+    @Body() dto: UpdateAppDto,
+  ): Promise<unknown> {
+    const idAppAdmin = req.appAuth?.id_app;
+    if (!idAppAdmin) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    return this.appService.actualizarApp(idAppAdmin, dto);
   }
 }
 

@@ -9,6 +9,7 @@ import {
 import { CrearTransferenciaLoteDto } from './dto/crear-transferencia-lote.dto';
 import { CrearAppDto } from './dto/crear-app.dto';
 import { BloquearAppDto } from './dto/bloquear-app.dto';
+import { UpdateAppDto } from './dto/update-app.dto';
 
 @Injectable()
 export class AppService {
@@ -65,6 +66,13 @@ export class AppService {
   async listarApps() {
     return firstValueFrom(
       this.mathClient.send({ cmd: 'listar_apps' }, {}),
+    );
+  }
+
+  async actualizarApp(idAppAdmin: number, data: UpdateAppDto) {
+    const payload = { idApp: Number(idAppAdmin), data };
+    return firstValueFrom(
+      this.mathClient.send({ cmd: 'actualizar_app' }, payload),
     );
   }
 

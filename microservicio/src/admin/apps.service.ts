@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { ApplicationService } from '../servicios/application.service';
 import { CrearAppDto } from '../dto/crear-app.dto';
+import { UpdateAppDto } from '../dto/update-app.dto';
 
 /** Largo de la key de login generada (24 bytes → 32 chars base64url). */
 const KEY_LONGITUD_BYTES = 24;
@@ -197,5 +198,46 @@ export class AppsService {
       activo: app.activo,
       info_app: app.info_app
     }));
+  }
+
+
+  async actualizarApp(idApp: number, dto:UpdateAppDto ) {
+    const appExistente = await this.prisma.app.findUnique({
+      where: { id_app: idApp },
+      select: {
+        id_app: true,
+        activo: true,
+        identificador_app: true,
+        info_app: {
+          select: { nombre: true, desarrollador: true, ruc: true, email: true },
+        },
+      },
+    });
+
+    if (!appExistente) {
+      throw new RpcException({
+        statusCode: 404,
+        message: `No se encontró la app con id_app=${idApp}`,
+        error: 'Not Found',
+      });
+    }
+
+    const updatedApp = await this.prisma.app.update({
+      where: { id_app: idApp },
+      data: {
+        identificador_app: dto.identificador_app,
+        info_app: {
+          update: {
+            nombre: dto.nombre ?? appExistente.info_app?.nombre,
+            desarrollador: dto.desarrollador ?? appExistente.info_app?.desarrollador,
+            ruc: dto.ruc ?? appExistente.info_app?.ruc,
+            email: dto.email ?? appExistente.info_app?.email,
+          },
+        },
+      },
+      include: { info_app: true },
+    });
+
+    return updatedApp;
   }
 }
