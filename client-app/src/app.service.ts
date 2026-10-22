@@ -76,6 +76,42 @@ export class AppService {
     );
   }
 
+  /**
+   * Genera una nueva key para la app consumidora.
+   *
+   * La nueva key se entrega en claro UNA sola vez (igual que en el
+   * registro inicial). La key hasheada en BD no puede recuperarse.
+   * Los servicios de la app deberán actualizar su configuración con
+   * la nueva key.
+   *
+   * Nota: una app no puede generar una nueva key para sí misma
+   * (idApp === idAppAdmin está prohibido).
+   */
+  async nuevokeyApp(idAppAdmin: number, idApp: number) {
+    const payload = { idAppAdmin: Number(idAppAdmin), idApp: Number(idApp) };
+    return firstValueFrom(
+      this.mathClient.send({ cmd: 'nuevokey_app' }, payload),
+    );
+  }
+
+  /**
+   * Genera una nueva encryptionKey para la app consumidora.
+   *
+   * La nueva encryptionKey se entrega en claro UNA sola vez (igual que en el
+   * registro inicial). La encryptionKey hasheada en BD no puede recuperarse.
+   * Los servicios de la app deberán actualizar su configuración con
+   * la nueva encryptionKey.
+   *
+   * Nota: una app no puede generar una nueva encryptionKey para sí misma
+   * (idApp === idAppAdmin está prohibido).
+   */
+  async nuevoencryptionkeyApp(idAppAdmin: number, idApp: number) {
+    const payload = { idAppAdmin: Number(idAppAdmin), idApp: Number(idApp) };
+    return firstValueFrom(
+      this.mathClient.send({ cmd: 'nuevoencryptionkey_app' }, payload),
+    );
+  }
+
 
   async generarPago(idApp: number, data: CrearPagoLoteDto) {
     const payload = { idApp: Number(idApp), data };

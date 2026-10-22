@@ -117,6 +117,53 @@ export class AdminAppsController {
     }
     return this.appService.actualizarApp(idAppAdmin, dto);
   }
+
+  @ApiOperation({
+    summary:
+      'Genera una nueva key para la app consumidora. La key se entrega en claro ' +
+      'UNA sola vez (igual que en el registro inicial). La key hasheada en BD no ' +
+      'puede recuperarse. Los servicios de la app deberán actualizar su configuración ' +
+      'con la nueva key.',
+  })
+  @RequireCmd('nuevokey_app')
+  @HttpCode(HttpStatus.OK)
+  @Post('nuevokey_app')
+  async nuevokeyApp(
+    @Req() req: ReqConAppAuth,
+  ): Promise<unknown> {
+    const idAppAdmin = req.appAuth?.id_app;
+    if (!idAppAdmin) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    // La app admin genera una nueva key para una de sus apps.
+    // Se usa el mismo idAppAdmin para validar que no se bloquea la app misma.
+    return this.appService.nuevokeyApp(idAppAdmin, idAppAdmin);
+  }
+
+  @ApiOperation({
+    summary:
+      'Genera una nueva encryptionKey para la app consumidora. La key se entrega en claro ' +
+      'UNA sola vez (igual que en el registro inicial). La encryptionKey hasheada en BD no ' +
+      'puede recuperarse. Los servicios de la app deberán actualizar su configuración ' +
+      'con la nueva encryptionKey.',
+  })
+  @RequireCmd('nuevoencryptionkey_app')
+  @HttpCode(HttpStatus.OK)
+  @Post('nuevoencryptionkey_app')
+  async nuevoencryptionkeyApp(
+    @Req() req: ReqConAppAuth,
+  ): Promise<unknown> {
+    const idAppAdmin = req.appAuth?.id_app;
+    if (!idAppAdmin) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    // Se genera una nueva encryptionKey para la app administrador propia.
+    return this.appService.nuevoencryptionkeyApp(idAppAdmin, idAppAdmin);
+  }
 }
 
 /** Request con el appAuth inyectado por el ApiKeyGuard global (JWT). */

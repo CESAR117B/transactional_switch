@@ -240,4 +240,99 @@ export class AppsService {
 
     return updatedApp;
   }
+
+
+  async nuevokeyApp(idApp: number, idAppAdmin: number) {
+    if (idApp === idAppAdmin) {
+      throw new RpcException({
+        statusCode: 400,
+        message: `La app con id_app=${idApp} no puede generar una nueva key para sí misma`,
+        error: 'Bad Request',
+      });
+    }
+
+    const appExistente = await this.prisma.app.findUnique({
+      where: { id_app: idApp },
+      select: { id_app: true, identificador_app: true, key: true },
+    });
+
+    if (!appExistente) {
+      throw new RpcException({
+        statusCode: 404,
+        message: `No se encontró la app con id_app=${idApp}`,
+        error: 'Not Found',
+      });
+    }
+
+    const key = randomBytes(KEY_LONGITUD_BYTES).toString('base64url');
+    const keyHash = await this.authService.hashKey(key);
+
+    await this.prisma.app.update({
+      where: { id_app: idApp },
+      data: { key: keyHash, fecha_actualizacion: new Date() },
+    });
+
+    this.logger.log(
+      `Nueva key generada para app id_app=${idApp} identificador=${appExistente.identificador_app} ` +
+        `por idAppAdmin=${idAppAdmin}`,
+    );
+
+    return {
+      id_app: appExistente.id_app,
+      identificador_app: appExistente.identificador_app,
+      key,
+      mensaje:
+        'Se generó una nueva key para la app. Esta key se entrega en claro UNA sola vez ' +
+        'igual que en el registro inicial; la key hasheada en BD no puede recuperarse. ' +
+        'Los servicios de la app deberán actualizar su configuración con la nueva key.',
+    };
+  }
+
+
+  async nuevoencryptionKeyApp(idApp: number, idAppAdmin: number) {
+    if (idApp === idAppAdmin) {
+      throw new RpcException({
+        statusCode: 400,
+        message: `La app con id_app=${idApp} no puede generar una nueva encryptionKey para sí misma`,
+        error: 'Bad Request',
+      });
+    }
+
+    const appExistente = await this.prisma.app.findUnique({
+      where: { id_app: idApp },
+      select: { id_app: true, identificador_app: true, encryptionKey: true },
+    });
+
+    if (!appExistente) {
+      throw new RpcException({
+        statusCode: 404,
+        message: `No se encontró la app con id_app=${idApp}`,
+        error: 'Not Found',
+      });
+    }
+
+    
+    const encryptionKey = this.applicationService.generarLlaveEncriptacion();
+
+    await this.prisma.app.update({
+      where: { id_app: idApp },
+      data: { encryptionKey, fecha_actualizacion: new Date() },
+    });
+
+    this.logger.log(
+      `Nueva encryptionKey generada para app id_app=${idApp} identificador=${appExistente.identificador_app} ` +
+        `por idAppAdmin=${idAppAdmin}`,
+    );
+
+    return {
+      id_app: appExistente.id_app,
+      identificador_app: appExistente.identificador_app,
+      encryptionKey,
+      mensaje:
+        'Se generó una nueva encryptionKey para la app. Esta key se entrega en claro UNA sola vez ' +
+        'igual que en el registro inicial; la encryptionKey almacenada en BD no puede recuperarse. ' +
+        'Los servicios de la app deberán actualizar su configuración con la nueva encryptionKey.',
+    };
+  }
+
 }

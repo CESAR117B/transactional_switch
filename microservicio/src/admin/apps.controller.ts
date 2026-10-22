@@ -181,4 +181,96 @@ export class AppsController {
       });
     }
   }
+
+  @MessagePattern({ cmd: 'nuevokey_app' })
+  async nuevokeyApp(@Payload() payload: any) {
+    const { idApp, idAppAdmin } = payload ?? ({} as any);
+
+    if (idApp === undefined || idApp === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idApp es requerido para nuevokey_app',
+        error: 'Bad Request',
+      });
+    }
+    if (idAppAdmin === undefined || idAppAdmin === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idAppAdmin es requerido para nuevokey_app',
+        error: 'Bad Request',
+      });
+    }
+
+    this.logger.log(`nuevokey_app idApp=${idApp} idAppAdmin=${idAppAdmin}`);
+    
+    try {
+      return await this.appsService.nuevokeyApp(idApp, idAppAdmin);
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const err = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        stack?: string;
+        error?: unknown;
+      };
+      const status = err.status ?? err.statusCode ?? 500;
+      const message = err.message ?? 'Error interno en nuevokey_app';
+      this.logger.error(
+        `Error nuevokey_app idApp=${idApp} idAppAdmin=${idAppAdmin}: ${message}`,
+        err.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: err.error,
+      });
+    }
+  }
+
+  @MessagePattern({ cmd: 'nuevoencryptionkey_app' })
+  async nuevoencryptionKeyApp(@Payload() payload: any) {
+    const { idApp, idAppAdmin } = payload ?? ({} as any);
+
+    if (idApp === undefined || idApp === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idApp es requerido para nuevoencryptionkey_app',
+        error: 'Bad Request',
+      });
+    }
+    if (idAppAdmin === undefined || idAppAdmin === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idAppAdmin es requerido para nuevoencryptionkey_app',
+        error: 'Bad Request',
+      });
+    }
+
+    this.logger.log(`nuevoencryptionkey_app idApp=${idApp} idAppAdmin=${idAppAdmin}`);
+    
+    try {
+      return await this.appsService.nuevoencryptionKeyApp(idApp, idAppAdmin);
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const err = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        stack?: string;
+        error?: unknown;
+      };
+      const status = err.status ?? err.statusCode ?? 500;
+      const message = err.message ?? 'Error interno en nuevoencryptionkey_app';
+      this.logger.error(
+        `Error nuevoencryptionkey_app idApp=${idApp} idAppAdmin=${idAppAdmin}: ${message}`,
+        err.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: err.error,
+      });
+    }
+  }
 }
