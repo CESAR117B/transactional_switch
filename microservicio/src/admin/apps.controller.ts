@@ -133,4 +133,52 @@ export class AppsController {
       });
     }
   }
+
+  @MessagePattern({ cmd: 'actualizar_app' })
+  async actualizarApp(@Payload() payload: any) {
+    const { idApp, data } = payload ?? ({} as any);
+    
+    if (idApp === undefined || idApp === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idApp es requerido para actualizar_app',
+        error: 'Bad Request',
+      });
+    }
+    if (!data) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'data es requerida para actualizar_app',
+        error: 'Bad Request',
+      });
+    }
+
+    this.logger.log(
+      `actualizar_app idApp=${idApp}`,
+    );
+
+    try {
+      return await this.appsService.actualizarApp(idApp, data);
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const err = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        stack?: string;
+        error?: unknown;
+      };
+      const status = err.status ?? err.statusCode ?? 500;
+      const message = err.message ?? 'Error interno en actualizar_app';
+      this.logger.error(
+        `Error actualizar_app idApp=${idApp}: ${message}`,
+        err.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: err.error,
+      });
+    }
+  }
 }
