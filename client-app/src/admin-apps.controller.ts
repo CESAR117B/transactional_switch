@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -12,6 +13,7 @@ import { RequireService } from './require-service.decorator';
 import { RequireCmd } from './require-cmd.decorator';
 import { AppService } from './app.service';
 import { CrearAppDto } from './dto/crear-app.dto';
+import { BloquearAppDto } from './dto/bloquear-app.dto';
 
 /**
  * Funciones del App administrador.
@@ -50,6 +52,48 @@ export class AdminAppsController {
       );
     }
     return this.appService.crearApp(idApp, dto);
+  }
+
+  @ApiOperation({
+    summary:
+      'Bloquear una app consumidora (activo = false). La app no podrá ' +
+      'volver a autenticarse en /auth/login. Los JWT ya emitidos siguen ' +
+      'vigentes hasta su expiración (1 h). Una app no puede bloquearse a sí ' +
+      'misma.',
+  })
+  @RequireCmd('bloquear_app')
+  @HttpCode(HttpStatus.OK)
+  @Post('bloquear_app')
+  async bloquearApp(
+    @Req() req: ReqConAppAuth,
+    @Body() dto: BloquearAppDto,
+  ): Promise<unknown> {
+    const idAppAdmin = req.appAuth?.id_app;
+    if (!idAppAdmin) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    return this.appService.bloquearApp(idAppAdmin, dto);
+  }
+
+  @ApiOperation({
+    summary:
+      'Lista de apps registradas en el microservicio. Devuelve id_app, identificador_app y activo. No devuelve la key ni la encryptionKey.',
+  })
+  @RequireCmd('listar_apps')
+  @HttpCode(HttpStatus.OK)
+  @Get('listar_apps')
+  async listarApps(
+    @Req() req: ReqConAppAuth,
+  ): Promise<unknown> {
+    const idAppAdmin = req.appAuth?.id_app;
+    if (!idAppAdmin) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    return this.appService.listarApps();
   }
 }
 

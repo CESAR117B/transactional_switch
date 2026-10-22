@@ -8,6 +8,7 @@ import {
 } from './dto/crear-pago-lote.dto';
 import { CrearTransferenciaLoteDto } from './dto/crear-transferencia-lote.dto';
 import { CrearAppDto } from './dto/crear-app.dto';
+import { BloquearAppDto } from './dto/bloquear-app.dto';
 
 @Injectable()
 export class AppService {
@@ -46,6 +47,27 @@ export class AppService {
     const payload = { idApp: Number(idAppAdmin), data };
     return firstValueFrom(this.mathClient.send({ cmd: 'crear_app' }, payload));
   }
+
+  /**
+   * Bloquea una app consumidora (activo = false).
+   *
+   * `idAppAdmin` viaja para auditoría y para que el microservicio impida que
+   * una app se bloquee a sí misma. El bloqueo impacta en el próximo login:
+   * los JWT ya emitidos siguen vigentes hasta su expiración (1 h).
+   */
+  async bloquearApp(idAppAdmin: number, data: BloquearAppDto) {
+    const payload = { idApp: Number(data.id_app), idAppAdmin: Number(idAppAdmin) };
+    return firstValueFrom(
+      this.mathClient.send({ cmd: 'bloquear_app' }, payload),
+    );
+  }
+
+  async listarApps() {
+    return firstValueFrom(
+      this.mathClient.send({ cmd: 'listar_apps' }, {}),
+    );
+  }
+
 
   async generarPago(idApp: number, data: CrearPagoLoteDto) {
     const payload = { idApp: Number(idApp), data };
