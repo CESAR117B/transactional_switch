@@ -113,4 +113,89 @@ export class AppsService {
       throw error;
     }
   }
+
+  /**
+   * Bloquea (activo = false) una app consumidora.
+   *
+   * `activo` es nullable en la BD (`Boolean?`): NULL se considera ACTIVA,
+   * porque `validarCredencialesApp()` sólo rechaza `activo === false`. Por eso
+   * el UPDATE alcanza `activo = true` y `activo = NULL` (un `NOT: { activo:
+   * false }` de Prisma no matchea NULLs por la lógica de tres valores de SQL).
+   *
+   * El `updateMany` + `count` hace el cambio de estado atómico: dos requests
+   * simultáneos no pueden pasar ambos el chequeo.
+   *
+   * El bloqueo NO revoca los JWT ya emitidos: impacta en el próximo login.
+   */
+  async bloquearApp(idApp: number, idAppAdmin: number) {
+    if (idApp === idAppAdmin) {
+      throw new RpcException({
+        statusCode: 400,
+        message: `La app con id_app=${idApp} no puede bloquearse a sí misma`,
+        error: 'Bad Request',
+      });
+    }
+
+    const { count } = await this.prisma.app.updateMany({
+      where: {
+        id_app: idApp,
+        OR: [{ activo: true }, { activo: null }],
+      },
+      data: { activo: false, fecha_actualizacion: new Date() },
+    });
+
+    if (count === 0) {
+      // O no existe, o ya estaba bloqueada: distinguimos para el status HTTP.
+      const existe = await this.prisma.app.findUnique({
+        where: { id_app: idApp },
+        select: { id_app: true },
+      });
+      if (!existe) {
+        throw new RpcException({
+          statusCode: 404,
+          message: `No se encontró la app con id_app=${idApp}`,
+          error: 'Not Found',
+        });
+      }
+      throw new RpcException({
+        statusCode: 409,
+        message: `La app con id_app=${idApp} ya está bloqueada`,
+        error: 'Conflict',
+      });
+    }
+
+    const bloqueada = await this.prisma.app.findUnique({
+      where: { id_app: idApp },
+      select: { identificador_app: true },
+    });
+    const identificador = bloqueada?.identificador_app ?? `id_app=${idApp}`;
+
+    this.logger.log(
+      `App bloqueada id_app=${idApp} identificador=${identificador} ` +
+        `por idAppAdmin=${idAppAdmin}`,
+    );
+
+    return {
+      id_app: idApp,
+      identificador_app: bloqueada?.identificador_app ?? null,
+      activo: false,
+      mensaje:
+        `App ${identificador} bloqueada. No podrá autenticarse en /auth/login; ` +
+        'los tokens ya emitidos siguen vigentes hasta su expiración.',
+    };
+  }
+
+
+  async listarApps() {
+    const apps = await this.prisma.app.findMany({
+      include: { info_app: true, app_servicios: true },
+    });
+
+    return apps.map((app) => ({
+      id_app: app.id_app,
+      identificador_app: app.identificador_app,
+      activo: app.activo,
+      info_app: app.info_app
+    }));
+  }
 }
