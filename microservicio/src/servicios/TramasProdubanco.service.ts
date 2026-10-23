@@ -532,6 +532,12 @@ export class TramasProdubancoService {
     return { ...this.formatearDetalleTransaccion(tx, secretKey), banco };
   }
 
+  // listar todas las transaccciones produbanco de todas las apps registradas (solo admin)
+  async transaccionesAdmin(){}
+
+  //mirar estado de una transaccion produbanco de todas las apps registradas (solo admin)
+  async estadoTransaccionAdmin(){}
+
   // ==========================================
   // MÉTODOS DE PERSISTENCIA EN BD (PRISMA)
   // ==========================================
