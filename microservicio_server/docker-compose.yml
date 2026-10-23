@@ -10,9 +10,8 @@ services:
     volumes:
       - ../microservicio:/app
       - /app/node_modules
-    environment:
-      - PORT=3001
-      - NODE_ENV=development
+    env_file:
+      - ../microservicio/.env
     networks:
       - postgres_network
 
@@ -27,11 +26,8 @@ services:
     volumes:
       - ../client-app:/app
       - /app/node_modules
-    environment:
-      - PORT=3000
-      - NODE_ENV=development
-      - MICROSERVICE_HOST=microservicio
-      - MICROSERVICE_PORT=3001
+    env_file:
+      - ../client-app/.env
     depends_on:
       - microservicio
     networks:
