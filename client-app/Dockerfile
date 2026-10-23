@@ -1,19 +1,20 @@
 FROM node:24-alpine
 
+# Instalar pnpm de forma global
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
-# Copiar archivos de dependencias
-COPY package*.json ./
+# Copiar archivos de definición de dependencias
+COPY package.json pnpm-lock.yaml* ./
 
-# Instalar dependencias
-RUN npm install
+# Instalar dependencias con pnpm
+RUN pnpm install
 
-# Copiar el resto del código
+# Copiar el resto del código fuente
 COPY . .
-
-# Compilar la aplicación NestJS
-RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start:prod"]
+# Ejecutar NestJS en modo desarrollo
+CMD ["pnpm", "run", "start:dev"]
