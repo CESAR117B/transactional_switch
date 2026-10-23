@@ -1,22 +1,20 @@
 FROM node:24-alpine
 
+# Instalar pnpm de forma global
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
-# Copiar archivos de dependencias
-COPY package*.json ./
+# Copiar archivos de definición de dependencias
+COPY package.json pnpm-lock.yaml* ./
 
-# Instalar dependencias
-RUN npm install
+# Instalar dependencias con pnpm
+RUN pnpm install
 
-# Copiar el código fuente
+# Copiar el resto del código fuente
 COPY . .
-
-# Si usas Prisma, genera el cliente (descomenta la siguiente línea si aplica)
-# RUN npx prisma generate
-
-# Compilar el microservicio
-RUN npm run build
 
 EXPOSE 3001
 
-CMD ["npm", "run", "start:prod"]
+# Ejecutar NestJS en modo desarrollo
+CMD ["pnpm", "run", "start:dev"]
