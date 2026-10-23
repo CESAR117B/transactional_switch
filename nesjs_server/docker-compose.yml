@@ -1,0 +1,38 @@
+services:
+  microservicio:
+    build:
+      context: ../microservicio
+      dockerfile: Dockerfile
+    container_name: nest_microservicio
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+    networks:
+      - nestjs_network
+
+  client-app:
+    build:
+      context: ../client-app
+      dockerfile: Dockerfile
+    container_name: nest_client_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      # Permite al Gateway/Cliente comunicarse con el microservicio dentro del mismo contenedor de Docker
+      - MICROSERVICE_HOST=microservicio
+      - MICROSERVICE_PORT=3001
+    depends_on:
+      - microservicio
+    networks:
+      - nestjs_network
+
+networks:
+  nestjs_network:
+    name: postgres_network  # Usa 'postgres_network' para unirse a la misma red de tu contenedor de PostgreSQL
+    external: true
