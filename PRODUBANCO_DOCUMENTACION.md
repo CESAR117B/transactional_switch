@@ -265,7 +265,10 @@ X-Encryption-Key: <encryptionKey de tu app>
 > La respuesta, como en el listado, viene **desencriptada**.
 
 `/estado/:dato` acepta **un** valor: `idTransaccion` o `referenciaLote`.
-Consulta el estado **en vivo** en Produbanco, actualiza la BD y responde:
+Consulta el estado **en vivo** en Produbanco, actualiza la BD y responde con
+el resumen persistido. **No** incluye el detalle crudo del banco
+(`orden`/`movimientos` SOAP): ese detalle solo está disponible en la consulta
+administrativa (`/admin/produbanco/transacciones/estado/:dato`).
 
 ```json
 {
@@ -299,16 +302,7 @@ Consulta el estado **en vivo** en Produbanco, actualiza la BD y responde:
       "codigoRespuesta": "0000",
       "mensajeBanco": "PAGO PROCESADO"
     }
-  ],
-  "banco": {
-    "consultado": true,
-    "sinDatos": false,
-    "consultaPor": "envioId",
-    "codigo": "0000",
-    "mensaje": "CONSULTA EXITOSA",
-    "orden": { "...": "sobre del banco" },
-    "movimientos": []
-  }
+  ]
 }
 ```
 
@@ -320,11 +314,10 @@ Consulta el estado **en vivo** en Produbanco, actualiza la BD y responde:
 | `statusServicio` | Resumen legible del estado local (`PENDIENTE` / `PROCESADO_BANCO` / `ERROR`) |
 | `estadoTransaccion` | **Estado verbatim de Produbanco** (ej: `ACTIVO`, `APROBADO`, `REVOCADO`) — no está mapeado; usa tal cual |
 | `estadoItem` (detalle) | Estado verbatim por pago dentro del lote |
-| `banco.consultaPor` | Cómo buscó el banco la orden: `envioId` o `referencia` |
-| `banco.sinDatos` | `true` = el banco aún no tiene la orden (`codigo` `0005`) |
+| `codigoBanco` / `mensajeBanco` | Último código/mensaje de la consulta al banco (`0005` = aún sin datos) |
 
-Un fallo de consulta **no** rompe la respuesta: se reporta en `banco.error` y
-los datos locales siguen siendo válidos.
+Un fallo de consulta **no** rompe la respuesta: se registra en los logs del
+microservicio y se devuelve el último estado persistido en BD.
 
 ---
 
