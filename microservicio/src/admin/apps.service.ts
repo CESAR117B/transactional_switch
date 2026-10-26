@@ -1,14 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { ApplicationService } from '../servicios/application.service';
 import { CrearAppDto } from '../dto/crear-app.dto';
 import { UpdateAppDto } from '../dto/update-app.dto';
+import { TransactionLogEvent } from '../events/transaction-log.event';
 
 /** Largo de la key de login generada (24 bytes → 32 chars base64url). */
 const KEY_LONGITUD_BYTES = 24;
+
+/**
+ * Valor del campo `servicio` en las auditorías de la sección admin.
+ * Debe empezar con ADMIN (convención para distinguir los registros
+ * administrativos del resto de servicios del microservicio).
+ */
+const SERVICIO_AUDITORIA_ADMIN = 'ADMIN_APPS';
+
+/** Campos de credenciales que NUNCA deben quedar en la auditoría. */
+const CAMPOS_SECRETOS_AUDITORIA = ['key', 'encryptionKey'];
 
 /**
  * Funciones administrativas sobre la tabla `app`.
@@ -31,9 +43,148 @@ export class AppsService {
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
     private readonly applicationService: ApplicationService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  /**
+   * Ejecuta una operación administrativa y registra su resultado en la
+   * auditoría (evento 'audit.record', fire-and-forget). Si la operación
+   * falla, se audita el error antes de relanzarlo.
+   *
+   * `idApp` es la app administradora que ejecuta la acción (actor) y
+   * `entidadId` la app afectada (si aplica). Las credenciales generadas se
+   * enmascaran en `responsePayload` antes de persistirse.
+   */
+  private async auditarOperacion<T>(
+    meta: {
+      /** App administradora que ejecuta la acción. */
+      idApp: number;
+      operation: string;
+      entidadName?: string;
+      /** Id fijo o calculado a partir del resultado exitoso. */
+      entidadId?: number | ((result: T) => number | undefined);
+      requestPayload?: unknown;
+      /** Resumen de la respuesta; por defecto el resultado completo. */
+      responsePayload?: (result: T) => unknown;
+      statusExito?: number;
+    },
+    ejecutar: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      const result = await ejecutar();
+      const entidadId =
+        typeof meta.entidadId === 'function'
+          ? meta.entidadId(result)
+          : meta.entidadId;
+      this.emitirAuditoria({
+        idApp: meta.idApp,
+        operation: meta.operation,
+        entidadName: meta.entidadName,
+        entidadId,
+        requestPayload: meta.requestPayload,
+        responsePayload: meta.responsePayload
+          ? meta.responsePayload(result)
+          : result,
+        status: meta.statusExito ?? 200,
+      });
+      return result;
+    } catch (error: unknown) {
+      const info = this.infoError(error);
+      this.emitirAuditoria({
+        idApp: meta.idApp,
+        operation: meta.operation,
+        entidadName: meta.entidadName,
+        entidadId:
+          typeof meta.entidadId === 'number' ? meta.entidadId : undefined,
+        requestPayload: meta.requestPayload,
+        responsePayload: { error: info.message },
+        status: info.status,
+        errorMessage: info.message,
+      });
+      throw error;
+    }
+  }
+
+  /** Emite el evento que persiste la auditoría en segundo plano. */
+  private emitirAuditoria(evento: {
+    idApp: number;
+    operation: string;
+    entidadId?: number;
+    entidadName?: string;
+    requestPayload?: unknown;
+    responsePayload?: unknown;
+    status: number;
+    errorMessage?: string;
+  }): void {
+    const payload: TransactionLogEvent = {
+      servicio: SERVICIO_AUDITORIA_ADMIN,
+      entidadId:
+        evento.entidadId !== undefined ? BigInt(evento.entidadId) : undefined,
+      entidadName: evento.entidadName,
+      idApp: evento.idApp,
+      operation: evento.operation,
+      reference: '',
+      requestPayload: evento.requestPayload ?? {},
+      responsePayload: this.respuestaSeguraAuditoria(evento.responsePayload),
+      status: evento.status,
+      errorMessage: evento.errorMessage,
+    };
+    this.eventEmitter.emit('audit.record', payload);
+  }
+
+  /** Copia superficial de la respuesta con las credenciales enmascaradas. */
+  private respuestaSeguraAuditoria(payload: unknown): Record<string, unknown> {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return {};
+    }
+    const limpio = { ...(payload as Record<string, unknown>) };
+    for (const campo of CAMPOS_SECRETOS_AUDITORIA) {
+      if (campo in limpio) {
+        limpio[campo] = '***';
+      }
+    }
+    return limpio;
+  }
+
+  /** Normaliza status/message de un error para la auditoría. */
+  private infoError(error: unknown): { status: number; message: string } {
+    const e = error as
+      | { status?: number; statusCode?: number; message?: unknown; code?: string }
+      | undefined;
+    return {
+      status: e?.status ?? e?.statusCode ?? (e?.code === 'P2002' ? 409 : 500),
+      message:
+        typeof e?.message === 'string' ? e.message : 'Error desconocido',
+    };
+  }
+
+  // ==========================================
+  // OPERACIONES ADMINISTRATIVAS (AUDITADAS)
+  // ==========================================
+
   async crearApp(idAppAdmin: number, dto: CrearAppDto) {
+    return this.auditarOperacion(
+      {
+        idApp: idAppAdmin,
+        operation: 'CREAR_APP',
+        entidadName: 'app',
+        entidadId: (creada) => creada.id_app,
+        requestPayload: dto,
+        statusExito: 201,
+        responsePayload: (creada) => ({
+          id_app: creada.id_app,
+          identificador_app: creada.identificador_app,
+          activo: creada.activo,
+          info_app: creada.info_app,
+          servicios: [] as number[],
+          mensaje: creada.mensaje,
+        }),
+      },
+      () => this.crearAppInterno(idAppAdmin, dto),
+    );
+  }
+
+  private async crearAppInterno(idAppAdmin: number, dto: CrearAppDto) {
     const identificador = dto.identificador_app;
 
     // 1. Unicidad del identificador (también cubierta por el índice único
@@ -129,6 +280,19 @@ export class AppsService {
    * El bloqueo NO revoca los JWT ya emitidos: impacta en el próximo login.
    */
   async bloquearApp(idApp: number, idAppAdmin: number) {
+    return this.auditarOperacion(
+      {
+        idApp: idAppAdmin,
+        operation: 'BLOQUEAR_APP',
+        entidadName: 'app',
+        entidadId: idApp,
+        requestPayload: { idApp, idAppAdmin },
+      },
+      () => this.bloquearAppInterno(idApp, idAppAdmin),
+    );
+  }
+
+  private async bloquearAppInterno(idApp: number, idAppAdmin: number) {
     if (idApp === idAppAdmin) {
       throw new RpcException({
         statusCode: 400,
@@ -187,7 +351,18 @@ export class AppsService {
   }
 
 
-  async listarApps() {
+  async listarApps(idAppAdmin: number) {
+    return this.auditarOperacion(
+      {
+        idApp: idAppAdmin,
+        operation: 'LISTAR_APPS',
+        entidadName: 'app',
+      },
+      () => this.listarAppsInterno(),
+    );
+  }
+
+  private async listarAppsInterno() {
     const apps = await this.prisma.app.findMany({
       include: { info_app: true, app_servicios: true },
     });
@@ -201,7 +376,20 @@ export class AppsService {
   }
 
 
-  async actualizarApp(idApp: number, dto:UpdateAppDto ) {
+  async actualizarApp(idApp: number, dto: UpdateAppDto) {
+    return this.auditarOperacion(
+      {
+        idApp,
+        operation: 'ACTUALIZAR_APP',
+        entidadName: 'app',
+        entidadId: idApp,
+        requestPayload: dto,
+      },
+      () => this.actualizarAppInterno(idApp, dto),
+    );
+  }
+
+  private async actualizarAppInterno(idApp: number, dto: UpdateAppDto) {
     const appExistente = await this.prisma.app.findUnique({
       where: { id_app: idApp },
       select: {
@@ -243,6 +431,19 @@ export class AppsService {
 
 
   async nuevokeyApp(idApp: number, idAppAdmin: number) {
+    return this.auditarOperacion(
+      {
+        idApp: idAppAdmin,
+        operation: 'NUEVA_KEY_APP',
+        entidadName: 'app',
+        entidadId: idApp,
+        requestPayload: { idApp, idAppAdmin },
+      },
+      () => this.nuevokeyAppInterno(idApp, idAppAdmin),
+    );
+  }
+
+  private async nuevokeyAppInterno(idApp: number, idAppAdmin: number) {
     if (idApp === idAppAdmin) {
       throw new RpcException({
         statusCode: 400,
@@ -290,6 +491,22 @@ export class AppsService {
 
 
   async nuevoencryptionKeyApp(idApp: number, idAppAdmin: number) {
+    return this.auditarOperacion(
+      {
+        idApp: idAppAdmin,
+        operation: 'NUEVA_ENCRYPTION_KEY_APP',
+        entidadName: 'app',
+        entidadId: idApp,
+        requestPayload: { idApp, idAppAdmin },
+      },
+      () => this.nuevoencryptionKeyAppInterno(idApp, idAppAdmin),
+    );
+  }
+
+  private async nuevoencryptionKeyAppInterno(
+    idApp: number,
+    idAppAdmin: number,
+  ) {
     if (idApp === idAppAdmin) {
       throw new RpcException({
         statusCode: 400,

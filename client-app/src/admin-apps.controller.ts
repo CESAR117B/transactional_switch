@@ -94,7 +94,7 @@ export class AdminAppsController {
         'No se pudo identificar la App desde el token',
       );
     }
-    return this.appService.listarApps();
+    return this.appService.listarApps(idAppAdmin);
   }
 
   @ApiOperation({

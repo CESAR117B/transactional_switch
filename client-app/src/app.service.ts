@@ -64,9 +64,11 @@ export class AppService {
     );
   }
 
-  async listarApps() {
+  async listarApps(idAppAdmin: number) {
+    // idApp viaja para la auditoría del microservicio (actor de la acción).
+    const payload = { idApp: Number(idAppAdmin) };
     return firstValueFrom(
-      this.mathClient.send({ cmd: 'listar_apps' }, {}),
+      this.mathClient.send({ cmd: 'listar_apps' }, payload),
     );
   }
 

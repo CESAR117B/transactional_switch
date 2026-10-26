@@ -587,9 +587,9 @@ export class TramasProdubancoService {
         const app = apps.get(tx.idApp);
         return {
           ...this.formatearListado(tx, app?.encryptionKey ?? null),
-          idApp: tx.idApp,
-          identificadorApp: app?.identificadorApp ?? null,
-          nombreApp: app?.nombreApp ?? null,
+          appId: tx.idApp,
+          appIdentificador: app?.identificadorApp ?? null,
+          appNombre: app?.nombreApp ?? null,
         };
       }),
     };
@@ -633,9 +633,9 @@ export class TramasProdubancoService {
 
     return {
       ...this.formatearDetalleTransaccion(tx, secretKey),
-      idApp: tx.idApp,
-      identificadorApp: app?.identificadorApp ?? null,
-      nombreApp: app?.nombreApp ?? null,
+      appId: tx.idApp,
+      appIdentificador: app?.identificadorApp ?? null,
+      appNombre: app?.nombreApp ?? null,
       banco,
     };
   }
