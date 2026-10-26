@@ -329,4 +329,9 @@ export class AppsController {
       });
     }
   }
+
+  @MessagePattern({ cmd: 'listar_servicios' })
+  async listarServicios() {
+    return this.appsService.listarServicios();
+  }
 }

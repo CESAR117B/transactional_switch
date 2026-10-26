@@ -9,7 +9,6 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { MessagePattern, Payload } from '@nestjs/microservices';
 import { RequireService } from './require-service.decorator';
 import { RequireCmd } from './require-cmd.decorator';
 import { AppService } from './app.service';
@@ -168,16 +167,52 @@ export class AdminAppsController {
   }
 
   /**
-   * Asigna uno o más servicios a una app usando sus códigos alfanuméricos.
+   * Asigna uno o más servicios a una app usando códigos alfanuméricos.
    * Valida que los códigos existan en la base de datos y actualiza la
    * relación de servicios de la app.
    *
    * Doble candado: la app debe tener el servicio ADMIN_APPS asignado Y el
    * comando 'asignar_servicios_app' en la jerarquía servicios → servicios_controladores → controladores.
    */
-  @MessagePattern({ cmd: 'asignar_servicios_app' })
-  async asignarServiciosApp(@Payload() payload: AsignarServiciosAppDto) {
-    return this.appService.asignarServiciosApp(payload.idApp, payload.codigos);
+  @ApiOperation({
+    summary:
+      'Asigna uno o más servicios a una app usando códigos alfanuméricos. ' +
+      'Valida que los códigos existan en la base de datos y actualiza la ' +
+      'relación de servicios de la app.',
+  })
+  @RequireCmd('asignar_servicios_app')
+  @HttpCode(HttpStatus.OK)
+  @Post('asignar-servicios-app')
+  async asignarServiciosApp(
+    @Req() req: ReqConAppAuth,
+    @Body() dto: AsignarServiciosAppDto,
+  ): Promise<unknown> {
+    const idApp = req.appAuth?.id_app;
+    if (!idApp) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    return this.appService.asignarServiciosApp(idApp, dto.codigos);
+  }
+
+  @ApiOperation({
+    summary:
+      'Lista de servicios disponibles en el microservicio. Devuelve código, nombre, descripción y activo.',
+  })
+  @RequireCmd('listar_servicios')
+  @HttpCode(HttpStatus.OK)
+  @Get('listar-servicios')
+  async listarServicios(
+    @Req() req: ReqConAppAuth,
+  ): Promise<unknown> {
+    const idApp = req.appAuth?.id_app;
+    if (!idApp) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    return this.appService.listarServicios();
   }
 }
 
