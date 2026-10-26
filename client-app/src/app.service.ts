@@ -227,4 +227,11 @@ export class AppService {
       this.mathClient.send<unknown>({ cmd: 'asignar_servicios_app' }, payload),
     );
   }
+
+
+  async listarServicios() {
+    return firstValueFrom(
+      this.mathClient.send<unknown>({ cmd: 'listar_servicios' }, {}),
+    );
+  }
 }

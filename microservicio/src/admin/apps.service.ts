@@ -566,6 +566,20 @@ export class AppsService {
     // Deduplicar entrada por si el caller envía repetidos
     const codigosUniq = [...new Set(codigos)];
 
+    // Validar que ningún código empiece por "ADMIN" (mayúsculas o minúsculas),
+    // ya que solo debe existir un administrador en el sistema.
+    const codigoAdmin = codigosUniq.find(
+      (c) => c.toUpperCase().startsWith('ADMIN'),
+    );
+    if (codigoAdmin) {
+      throw new RpcException({
+        statusCode: 400,
+        message: `No se pueden asignar servicios con código que empiece por "ADMIN": "${codigoAdmin}". ` +
+          'Sólo debe haber un administrador en el sistema.',
+        error: 'Bad Request',
+      });
+    }
+
     return this.auditarOperacion(
       {
         idApp,
@@ -588,12 +602,28 @@ export class AppsService {
         // 2. Buscar los servicios por su codigo alfanumérico
         if (codigosUniq && codigosUniq.length > 0) {
           const serviciosValidos = await this.prisma.servicios.findMany({
-            where: { codigo: { in: codigosUniq } },
-            select: { id_servicio: true, codigo: true },
+            where: { codigo: { in: codigosUniq }, activo: true },
+            select: { id_servicio: true, codigo: true, nombre: true, activo: true },
           });
           const mapaCodigos = new Map(
             serviciosValidos.map((s) => [s.codigo, s.id_servicio]),
           );
+
+          // Identificar cuáles códigos no fueron encontrados o no están activos
+          const codigosEncontrados = new Set(serviciosValidos.map((s) => s.codigo));
+          const codigosNoValidos = codigosUniq.filter(
+            (c) => !codigosEncontrados.has(c.toUpperCase()),
+          );
+
+          // Si hay códigos no válidos, lanzar error informando cuáles son
+          if (codigosNoValidos.length > 0) {
+            throw new RpcException({
+              statusCode: 400,
+              message: `Los siguientes códigos de servicio no existen o están inactivos: ${codigosNoValidos.join(', ')}. ` +
+                'Sólo se pueden asignar servicios con codigo activo.',
+              error: 'Bad Request',
+            });
+          }
 
           // Filtrar solo los códigos que existen y mapear a id_servicio
           const registros = codigosUniq
@@ -623,5 +653,12 @@ export class AppsService {
         }));
       },
     );
+  }
+
+  async listarServicios() {
+    return this.prisma.servicios.findMany({
+      select: { codigo: true, nombre: true, descripcion: true, activo: true },
+      where: { codigo: { not: { startsWith: 'ADMIN' } } }, // Excluir servicios que empiezan con "ADMIN"
+    });
   }
 }
