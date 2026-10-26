@@ -78,7 +78,7 @@ model logs {
 
 model controladores {
   id_controlador          Int                       @id(map: "controladores_pk") @default(autoincrement())
-  cmp                     String                    @db.VarChar(500)
+  cmp                     String                    @unique(map: "controladores_unique") @db.VarChar(500)
   descripcion             String?                   @db.VarChar(300)
   activo                  Boolean?                  @default(true)
   servicios_controladores servicios_controladores[]
