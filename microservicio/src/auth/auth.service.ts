@@ -68,9 +68,12 @@ export class AuthService {
         app_servicios: {
           include: {
             servicios: {
+              where: { activo: true },
               include: {
                 servicios_controladores: {
-                  include: { controladores: true }, // Aquí está el 'cmp'
+                  include: { controladores: {
+                     where: { activo: true }
+                  }}, // Aquí está el 'cmp'
                 },
               },
             },
