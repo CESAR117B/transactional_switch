@@ -110,10 +110,19 @@ export class AppsController {
 
 
   @MessagePattern({ cmd: 'listar_apps' })
-  async listarApps() {
-    this.logger.log(`listar_apps`);
+  async listarApps(@Payload() payload: { idApp?: number }) {
+    const idApp = payload?.idApp;
+    if (idApp === undefined || idApp === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idApp es requerido para listar_apps',
+        error: 'Bad Request',
+      });
+    }
+
+    this.logger.log(`listar_apps idAppAdmin=${idApp}`);
     try {
-      return await this.appsService.listarApps();
+      return await this.appsService.listarApps(idApp);
     } catch (error: unknown) {
       if (error instanceof RpcException) throw error;
       const err = error as {
