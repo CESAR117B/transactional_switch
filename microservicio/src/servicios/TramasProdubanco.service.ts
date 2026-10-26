@@ -422,13 +422,16 @@ export class TramasProdubancoService {
   }
 
   /**
-   * Detalle de estado de una transacción: estado local (BD) + consulta en vivo
+   * Detalle de estado de una transacción para la app cliente: consulta en vivo
    * a Produbanco (ConsultaOrdenes por Envio_Id y, opcionalmente,
-   * ConsultaMovimientos por Id_Sobre), sincronizando la BD con la respuesta.
+   * ConsultaMovimientos por Id_Sobre) y sincroniza la BD con la respuesta.
+   * El detalle crudo del banco (orden/movimientos SOAP) NO se devuelve: la
+   * respuesta se limita al resumen persistido (estado, código/mensaje del
+   * banco, envío, totales y detalles), para no exponer data innecesaria.
    * Si el Envio_Id no sirve (vacío/"0"/no numérico, p. ej. cuando la carga
-   * responde Envio_Id=0) se consulta por la Referencia del lote (§2.2.1);
-   * `banco.consultaPor` indica el modo usado. Un fallo del banco NO rompe la
-   * respuesta: se reporta en `banco.error`.
+   * responde Envio_Id=0) se consulta por la Referencia del lote (§2.2.1).
+   * Un fallo del banco NO rompe la respuesta: se registra en logs y se
+   * responde con el último estado persistido.
    */
   async consultarEstadoTransaccion(
     idApp: number,
@@ -448,9 +451,12 @@ export class TramasProdubancoService {
     // El filtro de operaciones (por defecto solo Produbanco) se aplica
     // dentro de resolverTransaccion, a nivel de consulta.
     const tx = await this.resolverTransaccion(idApp, params);
-    const banco = await this.consultarBanco(tx, secretKey);
+    // La consulta al banco se mantiene para sincronizar la BD (estado de la
+    // cabecera y de los ítems), pero su detalle crudo (orden/movimientos) NO
+    // se devuelve a la app cliente: la respuesta se limita al resumen local.
+    await this.consultarBanco(tx, secretKey);
 
-    return { ...this.formatearDetalleTransaccion(tx, secretKey), banco };
+    return this.formatearDetalleTransaccion(tx, secretKey);
   }
 
   // ==========================================
@@ -467,17 +473,19 @@ export class TramasProdubancoService {
    * requieren `idApp`: el hash de búsqueda es un HMAC con la llave de la app
    * y no puede calcularse de forma global.
    */
-  async transaccionesAdmin(params: {
-    page?: number;
-    pageSize?: number;
-    status?: number;
-    operation?: string;
-    fechaDesde?: string;
-    fechaHasta?: string;
-    cedula?: string;
-    cuenta?: string;
-    idApp?: number;
-  } = {}) {
+  async transaccionesAdmin(
+    params: {
+      page?: number;
+      pageSize?: number;
+      status?: number;
+      operation?: string;
+      fechaDesde?: string;
+      fechaHasta?: string;
+      cedula?: string;
+      cuenta?: string;
+      idApp?: number;
+    } = {},
+  ) {
     const page = Math.max(1, Math.trunc(Number(params.page) || 1));
     const pageSize = Math.min(
       50,
@@ -594,10 +602,12 @@ export class TramasProdubancoService {
    * descifra con la encryptionKey de la app dueña de la transacción.
    * `idApp` opcional acota la búsqueda (404 si la transacción es de otra app).
    */
-  async estadoTransaccionAdmin(params: {
-    dato?: string | number;
-    idApp?: number;
-  } = {}) {
+  async estadoTransaccionAdmin(
+    params: {
+      dato?: string | number;
+      idApp?: number;
+    } = {},
+  ) {
     const tx = await this.buscarTransaccionPorDato(params.dato);
 
     if (params.idApp !== undefined && params.idApp !== null) {
