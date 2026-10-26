@@ -207,4 +207,24 @@ export class AppService {
       ),
     );
   }
+
+  /**
+   * Solicita al microservicio que asigne uno o más servicios a una app
+   * usando sus códigos alfanuméricos (campo `codigo` de la tabla `servicios`).
+   * El microservicio validará que los códigos existan y actualizará la
+   * relación `app_servicios`, eliminando asignaciones previas.
+   *
+   * Emite auditoría con `operation: 'ADMIN_ASIGNAR_SERVICIOS_APP'`.
+   *
+   * @param idApp ID de la app administradora que ejecuta la acción.
+   * @param codigos Array de códigos de servicio (strings alfanuméricos),
+   *   ej: ['PAYMENT', 'REPORT']. Se deduplican internamente.
+   * @returns Lista de objetos `{ id_servicio, codigo, nombre }` asignados.
+   */
+  async asignarServiciosApp(idApp: number, codigos: string[]): Promise<unknown> {
+    const payload = { idApp: Number(idApp), codigos };
+    return firstValueFrom(
+      this.mathClient.send<unknown>({ cmd: 'asignar_servicios_app' }, payload),
+    );
+  }
 }

@@ -149,12 +149,16 @@ export class AppsService {
   /** Normaliza status/message de un error para la auditoría. */
   private infoError(error: unknown): { status: number; message: string } {
     const e = error as
-      | { status?: number; statusCode?: number; message?: unknown; code?: string }
+      | {
+          status?: number;
+          statusCode?: number;
+          message?: unknown;
+          code?: string;
+        }
       | undefined;
     return {
       status: e?.status ?? e?.statusCode ?? (e?.code === 'P2002' ? 409 : 500),
-      message:
-        typeof e?.message === 'string' ? e.message : 'Error desconocido',
+      message: typeof e?.message === 'string' ? e.message : 'Error desconocido',
     };
   }
 
@@ -166,7 +170,7 @@ export class AppsService {
     return this.auditarOperacion(
       {
         idApp: idAppAdmin,
-        operation: 'CREAR_APP',
+        operation: 'ADMIN_CREAR_APP',
         entidadName: 'app',
         entidadId: (creada) => creada.id_app,
         requestPayload: dto,
@@ -283,7 +287,7 @@ export class AppsService {
     return this.auditarOperacion(
       {
         idApp: idAppAdmin,
-        operation: 'BLOQUEAR_APP',
+        operation: 'ADMIN_BLOQUEAR_APP',
         entidadName: 'app',
         entidadId: idApp,
         requestPayload: { idApp, idAppAdmin },
@@ -350,12 +354,11 @@ export class AppsService {
     };
   }
 
-
   async listarApps(idAppAdmin: number) {
     return this.auditarOperacion(
       {
         idApp: idAppAdmin,
-        operation: 'LISTAR_APPS',
+        operation: 'ADMIN_LISTAR_APPS',
         entidadName: 'app',
       },
       () => this.listarAppsInterno(),
@@ -371,16 +374,15 @@ export class AppsService {
       id_app: app.id_app,
       identificador_app: app.identificador_app,
       activo: app.activo,
-      info_app: app.info_app
+      info_app: app.info_app,
     }));
   }
-
 
   async actualizarApp(idApp: number, dto: UpdateAppDto) {
     return this.auditarOperacion(
       {
         idApp,
-        operation: 'ACTUALIZAR_APP',
+        operation: 'ADMIN_ACTUALIZAR_APP',
         entidadName: 'app',
         entidadId: idApp,
         requestPayload: dto,
@@ -417,7 +419,8 @@ export class AppsService {
         info_app: {
           update: {
             nombre: dto.nombre ?? appExistente.info_app?.nombre,
-            desarrollador: dto.desarrollador ?? appExistente.info_app?.desarrollador,
+            desarrollador:
+              dto.desarrollador ?? appExistente.info_app?.desarrollador,
             ruc: dto.ruc ?? appExistente.info_app?.ruc,
             email: dto.email ?? appExistente.info_app?.email,
           },
@@ -429,12 +432,11 @@ export class AppsService {
     return updatedApp;
   }
 
-
   async nuevokeyApp(idApp: number, idAppAdmin: number) {
     return this.auditarOperacion(
       {
         idApp: idAppAdmin,
-        operation: 'NUEVA_KEY_APP',
+        operation: 'ADMIN_NUEVA_KEY_APP',
         entidadName: 'app',
         entidadId: idApp,
         requestPayload: { idApp, idAppAdmin },
@@ -489,12 +491,11 @@ export class AppsService {
     };
   }
 
-
   async nuevoencryptionKeyApp(idApp: number, idAppAdmin: number) {
     return this.auditarOperacion(
       {
         idApp: idAppAdmin,
-        operation: 'NUEVA_ENCRYPTION_KEY_APP',
+        operation: 'ADMIN_NUEVA_ENCRYPTION_KEY_APP',
         entidadName: 'app',
         entidadId: idApp,
         requestPayload: { idApp, idAppAdmin },
@@ -528,7 +529,6 @@ export class AppsService {
       });
     }
 
-    
     const encryptionKey = this.applicationService.generarLlaveEncriptacion();
 
     await this.prisma.app.update({
@@ -552,4 +552,76 @@ export class AppsService {
     };
   }
 
+  /**
+   * Asigna uno o más servicios a una app (por sus códigos numéricos).
+   * Sustituye cualquier asignación previa de servicios para esta app.
+   *
+   * Los servicios que no existan en la tabla `servicios` serán ignorados.
+   * Después de la asignación, la app dispondrá de exactamente los servicios
+   * indicados (los demás se eliminarán de `app_servicios`).
+   *
+   * Emite auditoría con `operation: 'ADMIN_ASIGNAR_SERVICIOS_APP'`.
+   */
+  async asignarServiciosApp(idApp: number, codigos: string[]) {
+    // Deduplicar entrada por si el caller envía repetidos
+    const codigosUniq = [...new Set(codigos)];
+
+    return this.auditarOperacion(
+      {
+        idApp,
+        operation: 'ADMIN_ASIGNAR_SERVICIOS_APP',
+        entidadName: 'app',
+        entidadId: idApp,
+        requestPayload: { idApp, codigos: codigosUniq },
+        responsePayload: (result) => ({
+          idApp,
+          codigosAsignados: result,
+        }),
+        statusExito: 200,
+      },
+      async () => {
+        // 1. Eliminar asignaciones previas de esta app
+        await this.prisma.app_servicios.deleteMany({
+          where: { id_app: idApp },
+        });
+
+        // 2. Buscar los servicios por su codigo alfanumérico
+        if (codigosUniq && codigosUniq.length > 0) {
+          const serviciosValidos = await this.prisma.servicios.findMany({
+            where: { codigo: { in: codigosUniq } },
+            select: { id_servicio: true, codigo: true },
+          });
+          const mapaCodigos = new Map(
+            serviciosValidos.map((s) => [s.codigo, s.id_servicio]),
+          );
+
+          // Filtrar solo los códigos que existen y mapear a id_servicio
+          const registros = codigosUniq
+            .filter((codigo) => mapaCodigos.has(codigo))
+            .map((codigo) => ({
+              id_app: idApp,
+              id_servicio: mapaCodigos.get(codigo)!,
+            }));
+
+          if (registros.length > 0) {
+            await this.prisma.app_servicios.createMany({
+              data: registros,
+              skipDuplicates: true,
+            });
+          }
+        }
+
+        // 3. Devolver el listado actual de servicios de la app (codigos + nombres)
+        const asignaciones = await this.prisma.app_servicios.findMany({
+          where: { id_app: idApp },
+          include: { servicios: { select: { codigo: true, nombre: true } } },
+        });
+
+        return asignaciones.map((a) => ({
+          id_servicio: a.id_servicio,
+          ...a.servicios,
+        }));
+      },
+    );
+  }
 }

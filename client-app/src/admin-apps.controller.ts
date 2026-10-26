@@ -9,12 +9,14 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { RequireService } from './require-service.decorator';
 import { RequireCmd } from './require-cmd.decorator';
 import { AppService } from './app.service';
 import { CrearAppDto } from './dto/crear-app.dto';
 import { BloquearAppDto } from './dto/bloquear-app.dto';
 import { UpdateAppDto } from './dto/update-app.dto';
+import { AsignarServiciosAppDto } from './dto/asignar-servicios-app.dto';
 
 /**
  * Funciones del App administrador.
@@ -27,7 +29,7 @@ import { UpdateAppDto } from './dto/update-app.dto';
  */
 @ApiTags('Admin')
 @ApiBearerAuth()
-@RequireService('ADMIN_REGISTER_APP')
+@RequireService('ADMIN_APPS')
 @Controller('admin')
 export class AdminAppsController {
   constructor(private readonly appService: AppService) {}
@@ -163,6 +165,19 @@ export class AdminAppsController {
     }
     // Se genera una nueva encryptionKey para la app administrador propia.
     return this.appService.nuevoencryptionkeyApp(idAppAdmin, idAppAdmin);
+  }
+
+  /**
+   * Asigna uno o más servicios a una app usando sus códigos alfanuméricos.
+   * Valida que los códigos existan en la base de datos y actualiza la
+   * relación de servicios de la app.
+   *
+   * Doble candado: la app debe tener el servicio ADMIN_APPS asignado Y el
+   * comando 'asignar_servicios_app' en la jerarquía servicios → servicios_controladores → controladores.
+   */
+  @MessagePattern({ cmd: 'asignar_servicios_app' })
+  async asignarServiciosApp(@Payload() payload: AsignarServiciosAppDto) {
+    return this.appService.asignarServiciosApp(payload.idApp, payload.codigos);
   }
 }
 
