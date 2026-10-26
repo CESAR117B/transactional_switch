@@ -209,6 +209,112 @@ export class TramasProdubancoController {
       });
     }
   }
+
+  /**
+   * Listado de transacciones Produbanco de TODAS las apps (solo admin).
+   * No requiere llave: el microservicio descifra con la encryptionKey de
+   * cada app leída de BD.
+   */
+  @MessagePattern({ cmd: 'transacciones_admin' })
+  async transaccionesAdmin(@Payload() payload: TransaccionesAdminCmd) {
+    const {
+      page,
+      pageSize,
+      status,
+      operation,
+      fechaDesde,
+      fechaHasta,
+      cedula,
+      cuenta,
+      idApp,
+    } = payload ?? {};
+
+    this.logger.log(
+      `transaccionesAdmin idApp=${idApp ?? '*'} page=${page ?? 1} ` +
+        `fechas=${fechaDesde ?? '*'}..${fechaHasta ?? '*'} ` +
+        `cedula=${cedula?.trim() ? 'si' : 'no'} ` +
+        `cuenta=${cuenta?.trim() ? 'si' : 'no'}`,
+    );
+    try {
+      return await this.tramasProdubancoService.transaccionesAdmin({
+        page,
+        pageSize,
+        status,
+        operation,
+        fechaDesde,
+        fechaHasta,
+        cedula,
+        cuenta,
+        idApp,
+      });
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const e = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        error?: string;
+        stack?: string;
+      };
+      const statusHttp = e?.status ?? e?.statusCode ?? 500;
+      const message = e?.message ?? 'Error interno en transaccionesAdmin';
+      this.logger.error(
+        `Error transaccionesAdmin idApp=${idApp ?? '*'}: ${message}`,
+        e?.stack,
+      );
+      throw new RpcException({
+        statusCode: statusHttp,
+        message,
+        error: e?.error,
+      });
+    }
+  }
+
+  /**
+   * Estado de una transacción Produbanco de CUALQUIER app (solo admin) por
+   * un único campo (idTransaccion o referenciaLote). Consulta el banco en
+   * vivo y sincroniza la BD, igual que la versión cliente.
+   */
+  @MessagePattern({ cmd: 'estado_transaccion_admin' })
+  async estadoTransaccionAdmin(@Payload() payload: EstadoTransaccionAdminCmd) {
+    const { dato, idApp } = payload ?? {};
+    if (dato === undefined || dato === null || String(dato).trim() === '') {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'Se requiere el campo dato (idTransaccion o referenciaLote).',
+      });
+    }
+
+    this.logger.log(
+      `estadoTransaccionAdmin idApp=${idApp ?? '*'} dato=${String(dato)}`,
+    );
+    try {
+      return await this.tramasProdubancoService.estadoTransaccionAdmin({
+        dato,
+        idApp,
+      });
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const e = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        error?: string;
+        stack?: string;
+      };
+      const status = e?.status ?? e?.statusCode ?? 500;
+      const message = e?.message ?? 'Error interno en estadoTransaccionAdmin';
+      this.logger.error(
+        `Error estadoTransaccionAdmin idApp=${idApp ?? '*'} dato=${String(dato)}: ${message}`,
+        e?.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: e?.error,
+      });
+    }
+  }
 }
 
 interface ConsultarTransaccionesCmd {
@@ -232,4 +338,26 @@ interface ConsultarEstadoCmd {
   /** EncryptionKey de la app (32 chars), obligatoria: llega vía header
    * X-Encryption-Key en el HTTP y se valida contra app.encryptionKey. */
   llaveDesencriptacion?: string;
+}
+
+/** Payload RPC del listado admin: todos los filtros son opcionales. */
+interface TransaccionesAdminCmd {
+  page?: number;
+  pageSize?: number;
+  status?: number;
+  operation?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
+  /** Requerido si se envía cedula y/o cuenta (hash por llave de la app). */
+  cedula?: string;
+  cuenta?: string;
+  /** Acota el listado a una app; sin valor = todas las apps. */
+  idApp?: number;
+}
+
+/** Payload RPC del estado admin: `dato` es obligatorio. */
+interface EstadoTransaccionAdminCmd {
+  dato?: string | number;
+  /** Opcional: 404 si la transacción pertenece a otra app. */
+  idApp?: number;
 }

@@ -448,95 +448,187 @@ export class TramasProdubancoService {
     // El filtro de operaciones (por defecto solo Produbanco) se aplica
     // dentro de resolverTransaccion, a nivel de consulta.
     const tx = await this.resolverTransaccion(idApp, params);
-
-    let banco: EstadoBanco = { consultado: false };
-    const response = this.comoObjeto(tx.responsePayload);
-    const envioId =
-      typeof response['envioId'] === 'string' ? response['envioId'] : null;
-    // Envio_Id usable como idBuzon: numérico y distinto de "0". Produbanco
-    // puede responder Envio_Id=0 en la carga (caso no documentado); en ese
-    // caso la consulta se hace por Referencia registrada en la carga.
-    const envioIdUtil =
-      envioId && /^\d+$/.test(envioId) && envioId !== '0' ? envioId : null;
-    const referenciaLote = this.desencriptarSeguro(tx.reference, secretKey);
-    const req = this.comoObjeto(tx.requestPayload);
-    // idServicio SÓLO viene en el request (varía por operación); idEmpresa
-    // se inyecta desde config al crear el lote y queda en requestPayload
-    // (fallback a config por si algún lote no lo guardó).
-    const idServicio = this.aTexto(req['idServicio']);
-    let idEmpresa = this.aTexto(req['idEmpresa']);
-    if (!idEmpresa) {
-      try {
-        const cfg = await this.configDb.getProdubancoConfig();
-        idEmpresa = cfg.idempresa;
-      } catch (error: unknown) {
-        this.logger.warn(
-          `Sin idEmpresa en requestPayload ni en config: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    }
-
-    if (!idEmpresa || !idServicio) {
-      banco.motivo =
-        'requestPayload sin idEmpresa/idServicio; se reporta solo el estado local.';
-    } else {
-      const consultaPor: NonNullable<EstadoBanco['consultaPor']> = envioIdUtil
-        ? 'envioId'
-        : 'referencia';
-      try {
-        const orden = await this.soapProdubanco.consultaOrdenes({
-          strIdEmpresa: idEmpresa,
-          strIdServicio: idServicio,
-          idBuzon: envioIdUtil ?? '0',
-          // Sin Envio_Id válido se filtra por la Referencia del lote
-          // (nuestra referenciaLote) para poder hallar la orden §2.2.1.
-          ...(envioIdUtil ? {} : { referencia: referenciaLote ?? undefined }),
-        });
-        const sobre = orden.sinDatos
-          ? null
-          : ((orden.registros[0] as SobreBanco | undefined) ?? null);
-        let movimientos: MovimientoBanco[] = [];
-        if (sobre?.Id_Sobre) {
-          const mov = await this.soapProdubanco.consultaMovimientos({
-            strIdEmpresa: idEmpresa,
-            strIdServicio: idServicio,
-            IdSobre: String(sobre.Id_Sobre),
-          });
-          movimientos = mov.registros as MovimientoBanco[];
-        }
-        await this.sincronizarEstadoBanco(tx, sobre, movimientos, orden);
-        banco = {
-          consultado: true,
-          sinDatos: orden.sinDatos,
-          codigo: orden.codigo ?? null,
-          mensaje: orden.mensaje ?? null,
-          consultaPor,
-          orden: sobre,
-          movimientos,
-        };
-      } catch (error: unknown) {
-        const info = this.infoError(error);
-        banco = {
-          consultado: false,
-          error: info.message,
-          consultaPor,
-        };
-        this.logger.warn(
-          `Consulta de estado en banco falló idTransaccion=${tx.idTransaccion}: ${info.message}`,
-        );
-      }
-    }
+    const banco = await this.consultarBanco(tx, secretKey);
 
     return { ...this.formatearDetalleTransaccion(tx, secretKey), banco };
   }
 
-  // listar todas las transaccciones produbanco de todas las apps registradas (solo admin)
-  async transaccionesAdmin(){}
+  // ==========================================
+  // CONSULTA ADMINISTRATIVA (TODAS LAS APPS)
+  // ==========================================
 
-  //mirar estado de una transaccion produbanco de todas las apps registradas (solo admin)
-  async estadoTransaccionAdmin(){}
+  /**
+   * Lista las transacciones de Produbanco de TODAS las apps registradas
+   * (solo admin). Mismos filtros y paginación que consultarTransacciones,
+   * más `idApp` opcional para acotar a una app.
+   *
+   * La data sensible se desencripta con la encryptionKey de CADA app leída
+   * de BD (no se exige X-Encryption-Key al admin). Por eso `cedula`/`cuenta`
+   * requieren `idApp`: el hash de búsqueda es un HMAC con la llave de la app
+   * y no puede calcularse de forma global.
+   */
+  async transaccionesAdmin(params: {
+    page?: number;
+    pageSize?: number;
+    status?: number;
+    operation?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    cedula?: string;
+    cuenta?: string;
+    idApp?: number;
+  } = {}) {
+    const page = Math.max(1, Math.trunc(Number(params.page) || 1));
+    const pageSize = Math.min(
+      50,
+      Math.max(1, Math.trunc(Number(params.pageSize) || 20)),
+    );
+    const where: Prisma.TransaccionesServiciosWhereInput = {
+      operation: { in: TramasProdubancoService.OPERACIONES_PRODUBANCO },
+    };
+    if (
+      params.status !== undefined &&
+      params.status !== null &&
+      [1, 2, 3].includes(Number(params.status))
+    ) {
+      where.status = Number(params.status);
+    }
+    const operation = this.operacionValida(params.operation);
+    if (operation) {
+      where.operation = operation;
+    }
+
+    const idApp =
+      params.idApp !== undefined && params.idApp !== null
+        ? Number(params.idApp)
+        : undefined;
+    if (idApp !== undefined) {
+      if (!Number.isInteger(idApp) || idApp <= 0) {
+        throw new RpcException({
+          statusCode: 400,
+          message: 'idApp debe ser un entero positivo.',
+        });
+      }
+      where.idApp = idApp;
+    }
+
+    // Fecha de creación (created_at en UTC; Ecuador = UTC-5 fijo)
+    const rango = this.rangoCreacion(params.fechaDesde, params.fechaHasta);
+    if (rango) {
+      where.createdAt = rango;
+    }
+
+    // Beneficiario: el hash depende de la encryptionKey de la app, por lo que
+    // la búsqueda global exige acotar a una app (idApp).
+    const cedula = params.cedula?.trim();
+    const cuenta = params.cuenta?.trim();
+    if (cedula || cuenta) {
+      if (idApp === undefined) {
+        throw new RpcException({
+          statusCode: 400,
+          message:
+            'Para buscar por cedula/cuenta en el listado admin se requiere idApp: ' +
+            'el hash de búsqueda se calcula con la encryptionKey de cada app.',
+        });
+      }
+      const secretKey = await this.getEncryptionKey(idApp);
+      const detalle: Prisma.TransaccionesBancariasDetalleWhereInput = {};
+      if (cedula) {
+        detalle.beneficiarioIdentificacionHash = hashBusqueda(
+          cedula,
+          secretKey,
+        );
+      }
+      if (cuenta) {
+        detalle.beneficiarioCuentaHash = hashBusqueda(cuenta, secretKey);
+      }
+      where.detalles = { some: detalle };
+    }
+
+    const [total, items] = await Promise.all([
+      this.prisma.transaccionesServicios.count({ where }),
+      this.prisma.transaccionesServicios.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          detalles: {
+            select: {
+              secuencia: true,
+              monto: true,
+              estadoItem: true,
+              beneficiarioIdentificacion: true,
+              beneficiarioCuenta: true,
+            },
+            orderBy: { secuencia: 'asc' },
+          },
+        },
+      }),
+    ]);
+
+    // Llaves y datos de presentación de las apps presentes en la página.
+    const apps = await this.datosApps(items.map((tx) => tx.idApp));
+
+    return {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      items: items.map((tx) => {
+        const app = apps.get(tx.idApp);
+        return {
+          ...this.formatearListado(tx, app?.encryptionKey ?? null),
+          idApp: tx.idApp,
+          identificadorApp: app?.identificadorApp ?? null,
+          nombreApp: app?.nombreApp ?? null,
+        };
+      }),
+    };
+  }
+
+  /**
+   * Estado de una transacción de Produbanco de CUALQUIER app (solo admin).
+   * Misma lógica en vivo que consultarEstadoTransaccion (consulta al banco +
+   * sincronización en BD), pero resuelve por `dato` sin exigir la app y
+   * descifra con la encryptionKey de la app dueña de la transacción.
+   * `idApp` opcional acota la búsqueda (404 si la transacción es de otra app).
+   */
+  async estadoTransaccionAdmin(params: {
+    dato?: string | number;
+    idApp?: number;
+  } = {}) {
+    const tx = await this.buscarTransaccionPorDato(params.dato);
+
+    if (params.idApp !== undefined && params.idApp !== null) {
+      const idApp = Number(params.idApp);
+      if (!Number.isInteger(idApp) || idApp <= 0) {
+        throw new RpcException({
+          statusCode: 400,
+          message: 'idApp debe ser un entero positivo.',
+        });
+      }
+      if (tx.idApp !== idApp) {
+        throw new RpcException({
+          statusCode: 404,
+          message: 'Transacción no encontrada.',
+        });
+      }
+    }
+
+    const secretKey = await this.getEncryptionKey(tx.idApp);
+    const banco = await this.consultarBanco(tx, secretKey);
+    const apps = await this.datosApps([tx.idApp]);
+    const app = apps.get(tx.idApp);
+
+    return {
+      ...this.formatearDetalleTransaccion(tx, secretKey),
+      idApp: tx.idApp,
+      identificadorApp: app?.identificadorApp ?? null,
+      nombreApp: app?.nombreApp ?? null,
+      banco,
+    };
+  }
 
   // ==========================================
   // MÉTODOS DE PERSISTENCIA EN BD (PRISMA)
@@ -1186,21 +1278,18 @@ export class TramasProdubancoService {
   }
 
   /**
-   * Resuelve la transacción con un único campo `dato`: si es numérico se
-   * intenta como idTransaccion y, si no existe, como referenciaLote (y
-   * viceversa). Verifica que pertenezca a la app (404 en caso contrario,
-   * sin filtrar existencia entre apps). Solo permite operaciones de
-   * Produbanco (PAGO o TRANSFERENCIA_EXTERIOR): otras (ej. FIRSTOKEN) → 404.
+   * Resuelve una transacción de Produbanco por un único campo `dato` SIN
+   * acotar a una app (uso administrativo): si es numérico se intenta como
+   * idTransaccion y, si no existe, como referenciaLote (y viceversa).
+   * Solo permite operaciones de Produbanco (PAGO o TRANSFERENCIA_EXTERIOR):
+   * otras (ej. FIRSTOKEN) → 404.
    */
-  private async resolverTransaccion(
-    idApp: number,
-    params: {
-      dato?: string | number;
-    },
+  private async buscarTransaccionPorDato(
+    datoEntrada?: string | number,
   ): Promise<TxConDetalles> {
     const dato =
-      params.dato !== undefined && params.dato !== null
-        ? String(params.dato).trim()
+      datoEntrada !== undefined && datoEntrada !== null
+        ? String(datoEntrada).trim()
         : '';
     if (!dato) {
       throw new RpcException({
@@ -1244,13 +1333,170 @@ export class TramasProdubancoService {
       tx = await buscarPorReferencia();
     }
 
-    if (!tx || tx.idApp !== idApp) {
+    if (!tx) {
       throw new RpcException({
         statusCode: 404,
         message: 'Transacción no encontrada.',
       });
     }
     return tx;
+  }
+
+  /**
+   * Resuelve la transacción con un único campo `dato` y verifica que
+   * pertenezca a la app (404 en caso contrario, sin filtrar existencia entre
+   * apps). Solo permite operaciones de Produbanco.
+   */
+  private async resolverTransaccion(
+    idApp: number,
+    params: {
+      dato?: string | number;
+    },
+  ): Promise<TxConDetalles> {
+    const tx = await this.buscarTransaccionPorDato(params.dato);
+    if (tx.idApp !== idApp) {
+      throw new RpcException({
+        statusCode: 404,
+        message: 'Transacción no encontrada.',
+      });
+    }
+    return tx;
+  }
+
+  /**
+   * Consulta el estado en vivo en Produbanco y sincroniza la BD local:
+   * ConsultaOrdenes por Envio_Id y, opcionalmente, ConsultaMovimientos por
+   * Id_Sobre. Si el Envio_Id no sirve (vacío/"0"/no numérico) se consulta
+   * por la Referencia del lote (§2.2.1); `banco.consultaPor` indica el modo
+   * usado. Un fallo del banco NO rompe la respuesta: se reporta en
+   * `banco.error`.
+   */
+  private async consultarBanco(
+    tx: TxConDetalles,
+    secretKey: string,
+  ): Promise<EstadoBanco> {
+    let banco: EstadoBanco = { consultado: false };
+    const response = this.comoObjeto(tx.responsePayload);
+    const envioId =
+      typeof response['envioId'] === 'string' ? response['envioId'] : null;
+    // Envio_Id usable como idBuzon: numérico y distinto de "0". Produbanco
+    // puede responder Envio_Id=0 en la carga (caso no documentado); en ese
+    // caso la consulta se hace por Referencia registrada en la carga.
+    const envioIdUtil =
+      envioId && /^\d+$/.test(envioId) && envioId !== '0' ? envioId : null;
+    const referenciaLote = this.desencriptarSeguro(tx.reference, secretKey);
+    const req = this.comoObjeto(tx.requestPayload);
+    // idServicio SÓLO viene en el request (varía por operación); idEmpresa
+    // se inyecta desde config al crear el lote y queda en requestPayload
+    // (fallback a config por si algún lote no lo guardó).
+    const idServicio = this.aTexto(req['idServicio']);
+    let idEmpresa = this.aTexto(req['idEmpresa']);
+    if (!idEmpresa) {
+      try {
+        const cfg = await this.configDb.getProdubancoConfig();
+        idEmpresa = cfg.idempresa;
+      } catch (error: unknown) {
+        this.logger.warn(
+          `Sin idEmpresa en requestPayload ni en config: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
+    if (!idEmpresa || !idServicio) {
+      banco.motivo =
+        'requestPayload sin idEmpresa/idServicio; se reporta solo el estado local.';
+      return banco;
+    }
+
+    const consultaPor: NonNullable<EstadoBanco['consultaPor']> = envioIdUtil
+      ? 'envioId'
+      : 'referencia';
+    try {
+      const orden = await this.soapProdubanco.consultaOrdenes({
+        strIdEmpresa: idEmpresa,
+        strIdServicio: idServicio,
+        idBuzon: envioIdUtil ?? '0',
+        // Sin Envio_Id válido se filtra por la Referencia del lote
+        // (nuestra referenciaLote) para poder hallar la orden §2.2.1.
+        ...(envioIdUtil ? {} : { referencia: referenciaLote ?? undefined }),
+      });
+      const sobre = orden.sinDatos
+        ? null
+        : ((orden.registros[0] as SobreBanco | undefined) ?? null);
+      let movimientos: MovimientoBanco[] = [];
+      if (sobre?.Id_Sobre) {
+        const mov = await this.soapProdubanco.consultaMovimientos({
+          strIdEmpresa: idEmpresa,
+          strIdServicio: idServicio,
+          IdSobre: String(sobre.Id_Sobre),
+        });
+        movimientos = mov.registros as MovimientoBanco[];
+      }
+      await this.sincronizarEstadoBanco(tx, sobre, movimientos, orden);
+      banco = {
+        consultado: true,
+        sinDatos: orden.sinDatos,
+        codigo: orden.codigo ?? null,
+        mensaje: orden.mensaje ?? null,
+        consultaPor,
+        orden: sobre,
+        movimientos,
+      };
+    } catch (error: unknown) {
+      const info = this.infoError(error);
+      banco = {
+        consultado: false,
+        error: info.message,
+        consultaPor,
+      };
+      this.logger.warn(
+        `Consulta de estado en banco falló idTransaccion=${tx.idTransaccion}: ${info.message}`,
+      );
+    }
+    return banco;
+  }
+
+  /**
+   * Datos de presentación y llave de descifrado de las apps indicadas,
+   * indexados por id_app. Pensado para las consultas administrativas: el
+   * admin descifra con la encryptionKey de la app dueña de cada transacción.
+   */
+  private async datosApps(idApps: number[]): Promise<
+    Map<
+      number,
+      {
+        identificadorApp: string | null;
+        nombreApp: string | null;
+        encryptionKey: string | null;
+      }
+    >
+  > {
+    const ids = [...new Set(idApps)];
+    const apps =
+      ids.length === 0
+        ? []
+        : await this.prisma.app.findMany({
+            where: { id_app: { in: ids } },
+            select: {
+              id_app: true,
+              identificador_app: true,
+              encryptionKey: true,
+              info_app: { select: { nombre: true } },
+            },
+          });
+
+    return new Map(
+      apps.map((app) => [
+        app.id_app,
+        {
+          identificadorApp: app.identificador_app,
+          nombreApp: app.info_app?.nombre ?? null,
+          encryptionKey: app.encryptionKey ?? null,
+        },
+      ]),
+    );
   }
 
   private textoEstado(status: EstadoTransaccion): string {
@@ -1266,12 +1512,13 @@ export class TramasProdubancoService {
     }
   }
 
-  /** Desencripta con la llave de la app; devuelve null si no es descifrable. */
+  /** Desencripta con la llave de la app; devuelve null si no es descifrable
+   * o si la app no tiene encryptionKey (listado admin con app incompleta). */
   private desencriptarSeguro(
     valor: string | null | undefined,
-    secretKey: string,
+    secretKey: string | null,
   ): string | null {
-    if (!valor) return null;
+    if (!valor || !secretKey) return null;
     try {
       return this.universalCryptoService.decrypt(valor, secretKey);
     } catch {
@@ -1303,7 +1550,7 @@ export class TramasProdubancoService {
     };
   }
 
-  private formatearListado(tx: TxListado, secretKey: string) {
+  private formatearListado(tx: TxListado, secretKey: string | null) {
     const response = this.comoObjeto(tx.responsePayload);
     const envioId =
       typeof response['envioId'] === 'string' ? response['envioId'] : null;
@@ -1332,10 +1579,7 @@ export class TramasProdubancoService {
       // beneficiario, desencriptadas con la llave de la app (null si no
       // hay detalles o si el valor no es descifrable).
       beneficiarioIdentificacion: primero
-        ? this.desencriptarSeguro(
-            primero.beneficiarioIdentificacion,
-            secretKey,
-          )
+        ? this.desencriptarSeguro(primero.beneficiarioIdentificacion, secretKey)
         : null,
       beneficiarioCuenta: primero
         ? this.desencriptarSeguro(primero.beneficiarioCuenta, secretKey)

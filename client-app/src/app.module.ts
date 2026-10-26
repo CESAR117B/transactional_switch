@@ -9,6 +9,7 @@ import { ServiciosController } from './servicios.controller';
 import { AuthController } from './auth.controller';
 import { TramasProdubancoController } from './TramasProdubanco.controller';
 import { AdminAppsController } from './admin-apps.controller';
+import { AdminProdubancoController } from './admin-produbanco.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApiKeyGuard } from './api-key.guard';
@@ -69,6 +70,7 @@ if (!jwtSecret) {
     AuthController,
     TramasProdubancoController,
     AdminAppsController,
+    AdminProdubancoController,
   ],
   providers: [
     AppService,

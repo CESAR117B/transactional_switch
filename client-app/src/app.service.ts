@@ -10,6 +10,7 @@ import { CrearTransferenciaLoteDto } from './dto/crear-transferencia-lote.dto';
 import { CrearAppDto } from './dto/crear-app.dto';
 import { BloquearAppDto } from './dto/bloquear-app.dto';
 import { UpdateAppDto } from './dto/update-app.dto';
+import { ListarTransaccionesAdminQueryDto } from './dto/listar-transacciones-admin-query.dto';
 
 @Injectable()
 export class AppService {
@@ -171,6 +172,35 @@ export class AppService {
     return firstValueFrom(
       this.mathClient.send<unknown>(
         { cmd: 'consultar_estado_transaccion' },
+        payload,
+      ),
+    );
+  }
+
+  /**
+   * Listado admin de transacciones Produbanco de todas las apps. No envía
+   * llave: el microservicio descifra con la encryptionKey de cada app.
+   */
+  async transaccionesAdmin(
+    query: ListarTransaccionesAdminQueryDto,
+  ): Promise<unknown> {
+    return firstValueFrom(
+      this.mathClient.send<unknown>({ cmd: 'transacciones_admin' }, query),
+    );
+  }
+
+  /**
+   * Estado admin de una transacción Produbanco. `idApp` es opcional y, si se
+   * envía, acota la búsqueda a esa app (404 si pertenece a otra).
+   */
+  async estadoTransaccionAdmin(dato: string, idApp?: number): Promise<unknown> {
+    const payload = {
+      dato,
+      ...(idApp !== undefined ? { idApp: Number(idApp) } : {}),
+    };
+    return firstValueFrom(
+      this.mathClient.send<unknown>(
+        { cmd: 'estado_transaccion_admin' },
         payload,
       ),
     );
