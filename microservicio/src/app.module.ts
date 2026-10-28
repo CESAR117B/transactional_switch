@@ -9,9 +9,11 @@ import { ConfigDbModule } from './config-db/config-db.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { IntegracionesModule } from './Integraciones/integraciones.module';
 import { AdminModule } from './admin/admin.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
     PrismaModule,
     AuthModule,
