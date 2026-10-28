@@ -117,7 +117,7 @@ export class TramasProdubancoService {
   private readonly logger = new Logger(TramasProdubancoService.name);
 
   /** Únicas operaciones de Produbanco: todo listado/consulta se limita a estas. */
-  private static readonly OPERACIONES_PRODUBANCO: string[] = [
+  public static readonly OPERACIONES_PRODUBANCO: string[] = [
     'SPR_PRODUBANCO-PAGO',
     'SPR_PRODUBANCO-TRANSFERENCIA_EXTERIOR',
   ];
@@ -638,6 +638,37 @@ export class TramasProdubancoService {
       appNombre: app?.nombreApp ?? null,
       banco,
     };
+  }
+
+  /**
+   * Sincroniza en BD el estado de una transacción de Produbanco consultando el
+   * banco en vivo (mismo flujo que estadoTransaccionAdmin), pero sin exigir la
+   * app ni la llave del cliente: descifra con la encryptionKey registrada de la
+   * app dueña. Pensado para el cron job de actualización de estados.
+   *
+   * Aplica exactamente las mismas reglas documentadas en
+   * PRODUBANCO_DOCUMENTACION.md / sincronizarEstadoBanco:
+   * - estado_servicio = Estado_Sobre verbatim (ACTIVO/APROBADO/PROCESADO/REVOCADO)
+   * - status interno: REVOCADO -> ERROR, APROBADO/PROCESADO -> PROCESADO_BANCO,
+   *   ACTIVO conserva el actual
+   * - estado_item = Estado_Proceso verbatim por detalle
+   *
+   * Devuelve null si la transacción no existe o no es operación de Produbanco.
+   * Los fallos del banco NO lanzan: consultarBanco los reporta en `error`.
+   */
+  async sincronizarEstadoProdubanco(
+    idTransaccion: bigint,
+  ): Promise<EstadoBanco | null> {
+    const tx = await this.prisma.transaccionesServicios.findFirst({
+      where: {
+        idTransaccion,
+        operation: { in: TramasProdubancoService.OPERACIONES_PRODUBANCO },
+      },
+      include: { detalles: { orderBy: { secuencia: 'asc' } } },
+    });
+    if (!tx) return null;
+    const secretKey = await this.getEncryptionKey(tx.idApp);
+    return this.consultarBanco(tx, secretKey);
   }
 
   // ==========================================

@@ -68,12 +68,13 @@ model integraciones {
   atributos_integraciones atributos_integraciones[]
 }
 
-model logs {
-  id_log  Int       @id(map: "logs_pk") @default(autoincrement())
+model cron_job_logs {
+  id_log  Int       @id(map: "cron_job_logs_pk") @default(autoincrement())
   funcion String?   @db.VarChar
   status  String?   @db.VarChar
+  reuqest String?   @db.Text
+  response String?  @db.Text
   fecha   DateTime? @db.Date
-  id_app  Int?
 }
 
 model controladores {
