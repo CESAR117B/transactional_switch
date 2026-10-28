@@ -14,8 +14,11 @@ import { RequireCmd } from './require-cmd.decorator';
 import { AppService } from './app.service';
 import { CrearAppDto } from './dto/crear-app.dto';
 import { BloquearAppDto } from './dto/bloquear-app.dto';
+import { ActualizarAppDto } from './dto/actualizar-app-payload.dto';
 import { UpdateAppDto } from './dto/update-app.dto';
 import { AsignarServiciosAppDto } from './dto/asignar-servicios-app.dto';
+import { NuevokeyAppDto } from './dto/nuevokey-app.dto';
+import { NuevoencryptionkeyAppDto } from './dto/nuevoencryptionkey-app.dto';
 
 /**
  * Funciones del App administrador.
@@ -108,7 +111,7 @@ export class AdminAppsController {
   @Post('actualizar_app')
   async actualizarApp(
     @Req() req: ReqConAppAuth,
-    @Body() dto: UpdateAppDto,
+    @Body() dto: ActualizarAppDto,
   ): Promise<unknown> {
     const idAppAdmin = req.appAuth?.id_app;
     if (!idAppAdmin) {
@@ -116,7 +119,13 @@ export class AdminAppsController {
         'No se pudo identificar la App desde el token',
       );
     }
-    return this.appService.actualizarApp(idAppAdmin, dto);
+    const { idApp } = dto;
+    if (!idApp) {
+      throw new BadRequestException(
+        'idApp es requerido para actualizar_app',
+      );
+    }
+    return this.appService.actualizarApp(idApp, dto.data);
   }
 
   @ApiOperation({
@@ -131,6 +140,7 @@ export class AdminAppsController {
   @Post('nuevokey_app')
   async nuevokeyApp(
     @Req() req: ReqConAppAuth,
+    @Body() dto: NuevokeyAppDto,
   ): Promise<unknown> {
     const idAppAdmin = req.appAuth?.id_app;
     if (!idAppAdmin) {
@@ -138,9 +148,15 @@ export class AdminAppsController {
         'No se pudo identificar la App desde el token',
       );
     }
-    // La app admin genera una nueva key para una de sus apps.
-    // Se usa el mismo idAppAdmin para validar que no se bloquea la app misma.
-    return this.appService.nuevokeyApp(idAppAdmin, idAppAdmin);
+    const { idApp } = dto;
+    if (!idApp) {
+      throw new BadRequestException(
+        'idApp es requerido para nuevokey_app',
+      );
+    }
+    // La app admin genera una nueva key para la app especificada (idApp).
+    // Se valida que la app objetivo sea diferente a la app administradora.
+    return this.appService.nuevokeyApp(idApp, idAppAdmin);
   }
 
   @ApiOperation({
@@ -155,6 +171,7 @@ export class AdminAppsController {
   @Post('nuevoencryptionkey_app')
   async nuevoencryptionkeyApp(
     @Req() req: ReqConAppAuth,
+    @Body() dto: NuevoencryptionkeyAppDto,
   ): Promise<unknown> {
     const idAppAdmin = req.appAuth?.id_app;
     if (!idAppAdmin) {
@@ -162,8 +179,14 @@ export class AdminAppsController {
         'No se pudo identificar la App desde el token',
       );
     }
-    // Se genera una nueva encryptionKey para la app administrador propia.
-    return this.appService.nuevoencryptionkeyApp(idAppAdmin, idAppAdmin);
+    const { idApp } = dto;
+    if (!idApp) {
+      throw new BadRequestException(
+        'idApp es requerido para nuevoencryptionkey_app',
+      );
+    }
+    // Se genera una nueva encryptionKey para la app especificada (idApp).
+    return this.appService.nuevoencryptionkeyApp(idApp, idAppAdmin);
   }
 
   /**

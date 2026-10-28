@@ -1,5 +1,6 @@
 import { IsArray, IsNotEmpty, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 
 /**
  * DTO para asignar uno o más servicios a una app usando códigos alfanuméricos.
@@ -10,9 +11,18 @@ import { Type } from 'class-transformer';
  * Se valida que el array no esté vacío y que cada elemento sea una cadena de texto.
  */
 export class AsignarServiciosAppDto {
+
+  @ApiProperty({
+    description: 'ID de la app a la que se asignarán los servicios',
+    example: 1,
+  })
   @IsNotEmpty({ message: 'El ID de la app es obligatorio' })
   idApp: number;
 
+  @ApiProperty({
+    description: 'Array de códigos de los servicios a asignar',
+    example: ['PAYMENT', 'REPORT'],
+  })
   @IsArray()
   @IsNotEmpty({ message: 'El array de códigos no puede estar vacío' })
   @IsString({ each: true, message: 'Cada código debe ser un texto' })

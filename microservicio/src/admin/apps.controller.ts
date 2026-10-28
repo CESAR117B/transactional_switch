@@ -4,6 +4,9 @@ import { Type } from 'class-transformer';
 import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { BloquearAppPayloadDto } from '../dto/bloquear-app.dto';
 import { CrearAppPayloadDto } from '../dto/crear-app.dto';
+import { ActualizarAppPayloadDto } from '../dto/actualizar-app-payload.dto';
+import { NuevokeyAppPayloadDto } from '../dto/nuevokey-app.dto';
+import { NuevoencryptionkeyAppPayloadDto } from '../dto/nuevoencryptionkey-app.dto';
 import { AppsService } from './apps.service';
 import { AsignarServiciosAppDto } from '../dto/asignar-servicios-app.dto';
 
@@ -146,8 +149,8 @@ export class AppsController {
   }
 
   @MessagePattern({ cmd: 'actualizar_app' })
-  async actualizarApp(@Payload() payload: any) {
-    const { idApp, data } = payload ?? ({} as any);
+  async actualizarApp(@Payload() payload: ActualizarAppPayloadDto) {
+    const { idApp, data } = payload;
 
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
@@ -192,8 +195,8 @@ export class AppsController {
   }
 
   @MessagePattern({ cmd: 'nuevokey_app' })
-  async nuevokeyApp(@Payload() payload: any) {
-    const { idApp, idAppAdmin } = payload ?? ({} as any);
+  async nuevokeyApp(@Payload() payload: NuevokeyAppPayloadDto) {
+    const { idApp, idAppAdmin } = payload;
 
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
@@ -283,8 +286,8 @@ export class AppsController {
   }
 
   @MessagePattern({ cmd: 'nuevoencryptionkey_app' })
-  async nuevoencryptionKeyApp(@Payload() payload: any) {
-    const { idApp, idAppAdmin } = payload ?? ({} as any);
+  async nuevoencryptionKeyApp(@Payload() payload: NuevoencryptionkeyAppPayloadDto) {
+    const { idApp, idAppAdmin } = payload;
 
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
