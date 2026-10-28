@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  EstadoTransaccion,
-  TramasProdubancoService,
-} from './TramasProdubanco.service';
+import { TramasProdubancoService } from './TramasProdubanco.service';
 
 /**
  * Estados verbatim de `estado_item` (columna estado_item de
@@ -62,16 +59,6 @@ export interface JobEjecucionMetadata {
 export class TransaccionesProdubancoJobService {
   private readonly logger = new Logger(TransaccionesProdubancoJobService.name);
 
-  /**
-   * Estados de `estado_servicio` que ya son finales: una vez alcanzados no
-   * hace falta seguir consultando al banco.
-   */
-  private static readonly ESTADOS_SOBRE_FINALES: string[] = [
-    JobEstadoServicio.APROBADO,
-    JobEstadoServicio.PROCESADO,
-    JobEstadoServicio.REVOCADO,
-  ];
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly tramas: TramasProdubancoService,
@@ -97,34 +84,20 @@ export class TransaccionesProdubancoJobService {
     try {
       // No tocar transacciones cuya carga normal aún puede estar en curso.
       const hace2Minutos = new Date(Date.now() - 2 * 60 * 1000);
-      // Acota el barrido a una ventana razonable para no escanear histórico.
-      const hace7Dias = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-      // Nota: una carga aceptada deja status=PROCESADO_BANCO(2) con
-      // estadoServicio=VALIDADO; el estado final lo da Estado_Sobre. Por eso
-      // se incluyen los status 1 y 2 que aún no tienen estado final.
+      // Criterio: transacciones de Produbanco con AL MENOS UN detalle en
+      // estado_item = 'PENDIENTE'. No se filtra por status de cabecera ni por
+      // antigüedad: una carga aceptada deja status=2 (VALIDADO) y un rechazo
+      // status=3, pero en ambos casos el detalle puede seguir PENDIENTE y es
+      // justamente lo que se debe sincronizar contra el banco.
       const pendientes = await this.prisma.transaccionesServicios.findMany({
         where: {
           operation: { in: TramasProdubancoService.OPERACIONES_PRODUBANCO },
-          createdAt: { gte: hace7Dias, lte: hace2Minutos },
-          OR: [
-            { status: EstadoTransaccion.PENDIENTE },
-            {
-              status: EstadoTransaccion.PROCESADO_BANCO,
-              OR: [
-                { estadoServicio: null },
-                {
-                  estadoServicio: {
-                    notIn:
-                      TransaccionesProdubancoJobService.ESTADOS_SOBRE_FINALES,
-                  },
-                },
-              ],
-            },
-          ],
+          createdAt: { lte: hace2Minutos },
+          detalles: { some: { estadoItem: JobEstadoItem.PENDIENTE } },
         },
         select: { idTransaccion: true },
-        take: 50,
+        take: 100,
         orderBy: { createdAt: 'asc' },
       });
 
@@ -155,8 +128,15 @@ export class TransaccionesProdubancoJobService {
             continue;
           }
           sincronizadas += 1;
+          // Se registran los valores verbatim que devolvió el SOAP:
+          // Estado_Sobre (cabecera) y Estado_Proceso de cada movimiento (ítems).
+          const estadosItem = (banco.movimientos ?? [])
+            .map((mov) => mov.Estado_Proceso?.trim())
+            .filter((estado): estado is string => Boolean(estado));
           this.logger.log(
-            `Transacción ${idTransaccion} sincronizada: estado_servicio=${banco.orden?.Estado_Sobre ?? 'sin dato'}`,
+            `Transacción ${idTransaccion} sincronizada desde SOAP: ` +
+              `Estado_Sobre=${banco.orden?.Estado_Sobre ?? banco.codigo ?? 'sin dato'}, ` +
+              `items=[${estadosItem.length > 0 ? estadosItem.join(', ') : 'sin movimientos'}]`,
           );
         } catch (error: unknown) {
           // Un error puntual (app sin llave, etc.) no debe detener el lote.
