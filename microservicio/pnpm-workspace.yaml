@@ -84,7 +84,7 @@ minimumReleaseAgeExclude:
   - pretty-format@30.5.0
   - '@eslint/plugin-kit@0.7.3'
   - soap@1.12.0 || 1.13.1 || 1.13.2 || 1.13.3 || 1.14.0
-  - '@nestjs/schematics@12.0.1 || 12.0.2 || 12.0.3 || 12.0.4 || 12.0.5 || 12.0.6 || 12.0.7 || 12.0.9 || 12.0.10'
+  - '@nestjs/schematics@12.0.1 || 12.0.2 || 12.0.3 || 12.0.4 || 12.0.5 || 12.0.6 || 12.0.7 || 12.0.9 || 12.0.10 || 12.0.12'
   - '@nestjs/axios@12.0.1'
   - '@nestjs/cli@12.0.1 || 12.0.3 || 12.0.6 || 12.0.7 || 12.0.8 || 12.0.9 || 12.0.10'
   - '@nestjs/event-emitter@12.0.1'
@@ -112,21 +112,22 @@ minimumReleaseAgeExclude:
   - pg-protocol@1.16.1
   - pg@8.23.1
   - supertest@7.3.1
-  - '@pnpm/exe.android-arm64@12.14.0'
-  - '@pnpm/exe.android-x64@12.14.0'
-  - '@pnpm/exe.darwin-arm64@12.14.0'
-  - '@pnpm/exe.darwin-x64@12.14.0'
-  - '@pnpm/exe.freebsd-x64@12.14.0'
-  - '@pnpm/exe.linux-arm64-musl@12.14.0'
-  - '@pnpm/exe.linux-arm64@12.14.0'
-  - '@pnpm/exe.linux-ppc64@12.14.0'
-  - '@pnpm/exe.linux-riscv64@12.14.0'
-  - '@pnpm/exe.linux-s390x@12.14.0'
-  - '@pnpm/exe.linux-x64-musl@12.14.0'
-  - '@pnpm/exe.linux-x64@12.14.0'
-  - '@pnpm/exe.win32-arm64@12.14.0'
-  - '@pnpm/exe.win32-x64@12.14.0'
-  - pnpm@12.14.0
+  - '@pnpm/exe.android-arm64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.android-x64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.darwin-arm64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.darwin-x64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.freebsd-x64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.linux-arm64-musl@12.14.0 || 12.16.1'
+  - '@pnpm/exe.linux-arm64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.linux-ppc64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.linux-riscv64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.linux-s390x@12.14.0 || 12.16.1'
+  - '@pnpm/exe.linux-x64-musl@12.14.0 || 12.16.1'
+  - '@pnpm/exe.linux-x64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.win32-arm64@12.14.0 || 12.16.1'
+  - '@pnpm/exe.win32-x64@12.14.0 || 12.16.1'
+  - pnpm@12.14.0 || 12.16.1
+  - '@swc/cli@0.8.2'
 
 overrides:
   brace-expansion: ">=5.0.12"
