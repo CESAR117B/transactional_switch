@@ -8,6 +8,7 @@ import { ApplicationService } from './application.service';
 import { UniversalCryptoService } from './universal-crypto.service';
 import { TramasProdubancoController } from './TramasProdubanco.controller';
 import { TramasProdubancoService } from './TramasProdubanco.service';
+import { TransaccionesProdubancoJobService } from './TransaccionesProdubanco.job.service';
 
 @Global()
 @Module({
@@ -23,6 +24,7 @@ import { TramasProdubancoService } from './TramasProdubanco.service';
     ApplicationService,
     UniversalCryptoService,
     TramasProdubancoService,
+    TransaccionesProdubancoJobService,
   ],
   exports: [
     Servicios,
