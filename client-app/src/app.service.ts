@@ -1,6 +1,5 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs'; // <-- Importación moderna de RxJS
+import { Injectable } from '@nestjs/common';
+import { MicroserviceRpcService } from './microservice-rpc.service';
 import { TokenizeCardDto } from './dto/tokenize-card.dto';
 import {
   CrearPagoLoteDto,
@@ -14,19 +13,16 @@ import { ListarTransaccionesAdminQueryDto } from './dto/listar-transacciones-adm
 
 @Injectable()
 export class AppService {
-  // Inyectamos mágicamente el cliente usando el nombre que le dimos en el AppModule
-  constructor(
-    @Inject('MATH_SERVICE') private readonly mathClient: ClientProxy,
-  ) {}
+  // Cliente RPC centralizado: aplica timeout y traduce la pérdida de
+  // conexión con el microservicio a una alerta 503.
+  constructor(private readonly rpc: MicroserviceRpcService) {}
 
   async get_data(app_id: number) {
     return 'app autenticada con id: ' + app_id;
   }
 
   async obtenerServiciosPorApp(appId: number) {
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'get_servicios' }, appId),
-    );
+    return this.rpc.enviar({ cmd: 'get_servicios' }, appId);
   }
 
   async guardarTarjeta(idApp: number, cardData: TokenizeCardDto) {
@@ -35,9 +31,7 @@ export class AppService {
       ...cardData, // Agrega card_number, card_holder, etc.
     };
 
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'save_card' }, payloadInterno),
-    );
+    return this.rpc.enviar({ cmd: 'save_card' }, payloadInterno);
   }
 
   /**
@@ -47,7 +41,7 @@ export class AppService {
    */
   async crearApp(idAppAdmin: number, data: CrearAppDto) {
     const payload = { idApp: Number(idAppAdmin), data };
-    return firstValueFrom(this.mathClient.send({ cmd: 'crear_app' }, payload));
+    return this.rpc.enviar({ cmd: 'crear_app' }, payload);
   }
 
   /**
@@ -59,24 +53,18 @@ export class AppService {
    */
   async bloquearApp(idAppAdmin: number, data: BloquearAppDto) {
     const payload = { idApp: Number(data.id_app), idAppAdmin: Number(idAppAdmin) };
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'bloquear_app' }, payload),
-    );
+    return this.rpc.enviar({ cmd: 'bloquear_app' }, payload);
   }
 
   async listarApps(idAppAdmin: number) {
     // idApp viaja para la auditoría del microservicio (actor de la acción).
     const payload = { idApp: Number(idAppAdmin) };
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'listar_apps' }, payload),
-    );
+    return this.rpc.enviar({ cmd: 'listar_apps' }, payload);
   }
 
   async actualizarApp(idAppAdmin: number, data: UpdateAppDto) {
     const payload = { idApp: Number(idAppAdmin), data };
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'actualizar_app' }, payload),
-    );
+    return this.rpc.enviar({ cmd: 'actualizar_app' }, payload);
   }
 
   /**
@@ -92,9 +80,7 @@ export class AppService {
    */
   async nuevokeyApp(idAppAdmin: number, idApp: number) {
     const payload = { idAppAdmin: Number(idAppAdmin), idApp: Number(idApp) };
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'nuevokey_app' }, payload),
-    );
+    return this.rpc.enviar({ cmd: 'nuevokey_app' }, payload);
   }
 
   /**
@@ -110,24 +96,18 @@ export class AppService {
    */
   async nuevoencryptionkeyApp(idAppAdmin: number, idApp: number) {
     const payload = { idAppAdmin: Number(idAppAdmin), idApp: Number(idApp) };
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'nuevoencryptionkey_app' }, payload),
-    );
+    return this.rpc.enviar({ cmd: 'nuevoencryptionkey_app' }, payload);
   }
 
 
   async generarPago(idApp: number, data: CrearPagoLoteDto) {
     const payload = { idApp: Number(idApp), data };
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'generar_pago' }, payload),
-    );
+    return this.rpc.enviar({ cmd: 'generar_pago' }, payload);
   }
 
   async generarTransferencia(idApp: number, data: CrearTransferenciaLoteDto) {
     const payload = { idApp: Number(idApp), data };
-    return firstValueFrom(
-      this.mathClient.send({ cmd: 'generar_transferencia' }, payload),
-    );
+    return this.rpc.enviar({ cmd: 'generar_transferencia' }, payload);
   }
 
   async consultarTransacciones(
@@ -151,12 +131,7 @@ export class AppService {
       // usa para desencriptar la respuesta (llega del header X-Encryption-Key).
       llaveDesencriptacion: llave,
     };
-    return firstValueFrom(
-      this.mathClient.send<unknown>(
-        { cmd: 'consultar_transacciones' },
-        payload,
-      ),
-    );
+    return this.rpc.enviar<unknown>({ cmd: 'consultar_transacciones' }, payload);
   }
 
   async consultarEstadoTransaccion(
@@ -171,11 +146,9 @@ export class AppService {
       // usa para desencriptar la respuesta (llega del header X-Encryption-Key).
       llaveDesencriptacion: llave,
     };
-    return firstValueFrom(
-      this.mathClient.send<unknown>(
-        { cmd: 'consultar_estado_transaccion' },
-        payload,
-      ),
+    return this.rpc.enviar<unknown>(
+      { cmd: 'consultar_estado_transaccion' },
+      payload,
     );
   }
 
@@ -186,9 +159,7 @@ export class AppService {
   async transaccionesAdmin(
     query: ListarTransaccionesAdminQueryDto,
   ): Promise<unknown> {
-    return firstValueFrom(
-      this.mathClient.send<unknown>({ cmd: 'transacciones_admin' }, query),
-    );
+    return this.rpc.enviar<unknown>({ cmd: 'transacciones_admin' }, query);
   }
 
   /**
@@ -200,11 +171,9 @@ export class AppService {
       dato,
       ...(idApp !== undefined ? { idApp: Number(idApp) } : {}),
     };
-    return firstValueFrom(
-      this.mathClient.send<unknown>(
-        { cmd: 'estado_transaccion_admin' },
-        payload,
-      ),
+    return this.rpc.enviar<unknown>(
+      { cmd: 'estado_transaccion_admin' },
+      payload,
     );
   }
 
@@ -223,15 +192,11 @@ export class AppService {
    */
   async asignarServiciosApp(idApp: number, codigos: string[]): Promise<unknown> {
     const payload = { idApp: Number(idApp), codigos };
-    return firstValueFrom(
-      this.mathClient.send<unknown>({ cmd: 'asignar_servicios_app' }, payload),
-    );
+    return this.rpc.enviar<unknown>({ cmd: 'asignar_servicios_app' }, payload);
   }
 
 
   async listarServicios() {
-    return firstValueFrom(
-      this.mathClient.send<unknown>({ cmd: 'listar_servicios' }, {}),
-    );
+    return this.rpc.enviar<unknown>({ cmd: 'listar_servicios' }, {});
   }
 }

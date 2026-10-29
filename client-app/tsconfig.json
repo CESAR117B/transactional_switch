@@ -25,7 +25,7 @@
     "noFallthroughCasesInSwitch": false,
     "strictPropertyInitialization": false,
     "useUnknownInCatchVariables": false,
-    "types": ["multer", "node"]
+    "types": ["multer", "node", "jest"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test"]
