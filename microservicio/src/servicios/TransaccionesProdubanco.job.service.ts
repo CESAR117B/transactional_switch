@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { TramasProdubancoService } from './TramasProdubanco.service';
+import { LogProceso } from '../logs/log-proceso.decorator';
+
 
 /**
  * Estados verbatim de `estado_item` (columna estado_item de
@@ -76,6 +78,7 @@ export class TransaccionesProdubancoJobService {
    * - estado_item = Estado_Proceso verbatim por detalle
    */
   @Cron('*/5 * * * *') // Cada 5 minutos
+  @LogProceso('Cron-Job-Produbanco')
   async manejarCronActualizacionEstado(): Promise<void> {
     this.logger.log(
       'Iniciando job de actualización de estados de transacciones Produbanco',
