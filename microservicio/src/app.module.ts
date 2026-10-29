@@ -10,6 +10,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { IntegracionesModule } from './Integraciones/integraciones.module';
 import { AdminModule } from './admin/admin.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { LogsModule } from './logs/log.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     IntegracionesModule,
     ConfigDbModule,
     AdminModule,
+    LogsModule
   ],
   controllers: [AppController],
   providers: [AppService],
