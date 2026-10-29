@@ -69,12 +69,17 @@ model integraciones {
 }
 
 model cron_job_logs {
-  id_log  Int       @id(map: "cron_job_logs_pk") @default(autoincrement())
-  cron_job String?  @db.VarChar(400)
-  status  String?   @db.VarChar
-  request String?   @db.Text
-  response String?  @db.Text
-  fecha   DateTime? @db.Date
+  id_log       Int       @id(map: "cron_job_logs_pk") @default(autoincrement())
+  cron_job     String?   @db.VarChar(400)
+  status       String?   @db.VarChar
+  mensaje      String?   @db.Text
+  request      String?   @db.Text
+  response     String?   @db.Text
+  fecha_inicio DateTime  @default(now()) @db.Timestamp(0)
+  fecha_fin    DateTime? @db.Timestamp(0)
+  duracion     Int?
+
+  @@index([cron_job, fecha_inicio])
 }
 
 model controladores {

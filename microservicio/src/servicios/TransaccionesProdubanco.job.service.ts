@@ -3,7 +3,8 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { TramasProdubancoService } from './TramasProdubanco.service';
 import { LogProceso } from '../logs/log-proceso.decorator';
-
+import { CronLogResult, CronLogService } from '../logs/cron-log.service';
+import { TramaSoap } from '../Integraciones/ProdubancoSoap.service';
 
 /**
  * Estados verbatim de `estado_item` (columna estado_item de
@@ -64,6 +65,7 @@ export class TransaccionesProdubancoJobService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tramas: TramasProdubancoService,
+    private readonly cronLogService: CronLogService,
   ) {}
 
   /**
@@ -79,10 +81,14 @@ export class TransaccionesProdubancoJobService {
    */
   @Cron('*/5 * * * *') // Cada 5 minutos
   @LogProceso('Cron-Job-Produbanco')
-  async manejarCronActualizacionEstado(): Promise<void> {
+  async manejarCronActualizacionEstado(): Promise<CronLogResult> {
     this.logger.log(
       'Iniciando job de actualización de estados de transacciones Produbanco',
     );
+
+    // Tramas SOAP de todas las transacciones del lote, para auditoría del cron.
+    const tramasSoap: TramaSoap[] = [];
+    let errores = 0;
 
     try {
       // No tocar transacciones cuya carga normal aún puede estar en curso.
@@ -110,7 +116,10 @@ export class TransaccionesProdubancoJobService {
 
       if (pendientes.length === 0) {
         this.logger.log('No hay transacciones pendientes para actualizar');
-        return;
+        return {
+          exito: true,
+          mensaje: 'No hay transacciones pendientes para actualizar',
+        };
       }
 
       let sincronizadas = 0;
@@ -118,13 +127,16 @@ export class TransaccionesProdubancoJobService {
         try {
           const banco =
             await this.tramas.sincronizarEstadoProdubanco(idTransaccion);
+          tramasSoap.push(...(banco?.tramas ?? []));
           if (!banco) {
+            errores += 1;
             this.logger.warn(
               `Transacción ${idTransaccion} no es de Produbanco o no existe`,
             );
             continue;
           }
           if (!banco.consultado) {
+            errores += 1;
             this.logger.warn(
               `Transacción ${idTransaccion}: consulta al banco falló (${banco.error ?? 'sin detalle'})`,
             );
@@ -143,6 +155,7 @@ export class TransaccionesProdubancoJobService {
           );
         } catch (error: unknown) {
           // Un error puntual (app sin llave, etc.) no debe detener el lote.
+          errores += 1;
           this.logger.error(
             `Error sincronizando transacción ${idTransaccion}: ${
               error instanceof Error ? error.message : String(error)
@@ -154,13 +167,45 @@ export class TransaccionesProdubancoJobService {
       this.logger.log(
         `Finalizó job de actualización de estados. Sincronizadas ${sincronizadas}/${pendientes.length}`,
       );
+
+      const mensaje = `Sincronizadas ${sincronizadas}/${pendientes.length}${
+        errores > 0 ? ` (${errores} con error)` : ''
+      }`;
+
+      return {
+        exito: errores === 0,
+        mensaje,
+        ...this.serializarTramas(tramasSoap),
+      };
     } catch (error: unknown) {
+      const mensaje = error instanceof Error ? error.message : String(error);
       this.logger.error(
         'Error en job de actualización de estados de transacciones Produbanco',
         error instanceof Error ? error.stack : String(error),
       );
       // No se relanza: un fallo del job no debe tumbar el proceso.
+      return {
+        exito: false,
+        mensaje,
+        ...this.serializarTramas(tramasSoap),
+      };
     }
+  }
+
+  /** Separa las tramas acumuladas en request/response para el log del cron. */
+  private serializarTramas(tramasSoap: TramaSoap[]): {
+    request?: string;
+    response?: string;
+  } {
+    if (tramasSoap.length === 0) return {};
+    return {
+      request: JSON.stringify(
+        tramasSoap.map(({ metodo, request }) => ({ metodo, request })),
+      ),
+      response: JSON.stringify(
+        tramasSoap.map(({ metodo, response }) => ({ metodo, response })),
+      ),
+    };
   }
 
   /**
