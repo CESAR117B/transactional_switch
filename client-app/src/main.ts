@@ -19,9 +19,9 @@ async function bootstrap() {
   // Swagger sólo fuera de producción (en prod la API no publica su doc).
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
-      .setTitle('API Gateway')
+      .setTitle('API GETWAY')
       .setDescription('Documentación de la API con Swagger')
-      .setVersion('1.7')
+      .setVersion('2.0')
       .addBearerAuth()
       .build();
 
