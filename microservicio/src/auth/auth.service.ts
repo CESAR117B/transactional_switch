@@ -71,9 +71,7 @@ export class AuthService {
               where: { activo: true },
               include: {
                 servicios_controladores: {
-                  include: { controladores: {
-                     where: { activo: true }
-                  }}, // Aquí está el 'cmp'
+                  include: {controladores: true}
                 },
               },
             },
