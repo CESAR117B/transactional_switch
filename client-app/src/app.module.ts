@@ -14,6 +14,11 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApiKeyGuard } from './api-key.guard';
 import { AppThrottlerGuard } from './app-throttler.guard';
+import { HealthController } from './health.controller';
+import {
+  MicroserviceRpcService,
+  timeoutMicroservicioMs,
+} from './microservice-rpc.service';
 import {
   rateLimitIpMax,
   rateLimitIpVentanaMs,
@@ -42,6 +47,10 @@ if (!jwtSecret) {
         options: {
           host: process.env.MICROSERVICE_HOST || '127.0.0.1',
           port: parseInt(process.env.MICROSERVICE_PORT ?? '3001', 10),
+          // Evita que una petición quede colgada si el microservicio deja de
+          // responder (default interno de Nest: 5 minutos).
+          messageReceiveTimeout: timeoutMicroservicioMs(),
+          incompleteMessageTimeout: timeoutMicroservicioMs(),
         },
       },
     ]),
@@ -71,9 +80,11 @@ if (!jwtSecret) {
     TramasProdubancoController,
     AdminAppsController,
     AdminProdubancoController,
+    HealthController,
   ],
   providers: [
     AppService,
+    MicroserviceRpcService,
     // Orden importa:
     // 1) ThrottlerGuard   → rate limit por IP (100 req/min; login 5/min).
     // 2) ApiKeyGuard      → autenticación JWT (inyecta request.appAuth).
