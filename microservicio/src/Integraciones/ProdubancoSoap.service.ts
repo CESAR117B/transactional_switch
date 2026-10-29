@@ -531,6 +531,7 @@ export class ProdubancoSoapService {
    */
   async consultaOrdenes(
     params: ConsultaOrdenesParams,
+    tramas?: TramaSoap[],
   ): Promise<ResultadoConsulta> {
     try {
       const config = await this.configDb.getProdubancoConfig();
@@ -554,17 +555,22 @@ export class ProdubancoSoapService {
       this.logger.debug(
         `Invocando ConsultaOrdenes idBuzon=${payload.idBuzon} empresa=${payload.strIdEmpresa} servicio=${payload.strIdServicio}`,
       );
-      const raw = await this.invocarConsultaSoap(
+      const { raw, trama } = await this.invocarConsultaSoap(
         client,
         'ConsultaOrdenesAsync',
         payload,
         'ConsultaOrdenesResult',
       );
-      return this.parsearResultadoConsulta(
-        'ConsultaOrdenes',
-        raw,
-        'Consulta_Sobres_VIEW',
-      );
+      // Se conserva la trama incluso si el parseo posterior falla.
+      tramas?.push(trama);
+      return {
+        ...this.parsearResultadoConsulta(
+          'ConsultaOrdenes',
+          raw,
+          'Consulta_Sobres_VIEW',
+        ),
+        trama,
+      };
     } catch (error: unknown) {
       return this.lanzarErrorSoap('ConsultaOrdenes', error);
     }
@@ -576,6 +582,7 @@ export class ProdubancoSoapService {
    */
   async consultaMovimientos(
     params: ConsultaMovimientosParams,
+    tramas?: TramaSoap[],
   ): Promise<ResultadoConsulta> {
     try {
       const config = await this.configDb.getProdubancoConfig();
@@ -601,17 +608,22 @@ export class ProdubancoSoapService {
       this.logger.debug(
         `Invocando ConsultaMovimientos IdSobre=${payload.IdSobre} empresa=${payload.strIdEmpresa} servicio=${payload.strIdServicio}`,
       );
-      const raw = await this.invocarConsultaSoap(
+      const { raw, trama } = await this.invocarConsultaSoap(
         client,
         'ConsultaMovimientosAsync',
         payload,
         'ConsultaMovimientosResult',
       );
-      return this.parsearResultadoConsulta(
-        'ConsultaMovimientos',
-        raw,
-        'Movimientos_Out',
-      );
+      // Se conserva la trama incluso si el parseo posterior falla.
+      tramas?.push(trama);
+      return {
+        ...this.parsearResultadoConsulta(
+          'ConsultaMovimientos',
+          raw,
+          'Movimientos_Out',
+        ),
+        trama,
+      };
     } catch (error: unknown) {
       return this.lanzarErrorSoap('ConsultaMovimientos', error);
     }
@@ -626,7 +638,7 @@ export class ProdubancoSoapService {
     metodo: string,
     args: Record<string, unknown>,
     claveResultado: string,
-  ): Promise<string> {
+  ): Promise<{ raw: string; trama: TramaSoap }> {
     const registro = client as unknown as Record<string, unknown>;
     const fn = registro[metodo] as
       | ((
@@ -643,9 +655,20 @@ export class ProdubancoSoapService {
     const respuesta = (await fn.call(client, args)) as Array<
       Record<string, unknown>
     >;
+    const clienteSoap = client as unknown as {
+      lastRequest?: string;
+      lastResponse?: string;
+    };
     const result = respuesta?.[0];
     const valor = result?.[claveResultado];
-    return typeof valor === 'string' ? valor : '';
+    return {
+      raw: typeof valor === 'string' ? valor : '',
+      trama: {
+        metodo,
+        request: clienteSoap.lastRequest ?? '',
+        response: clienteSoap.lastResponse ?? '',
+      },
+    };
   }
 }
 
@@ -692,4 +715,13 @@ export interface ResultadoConsulta {
   codigo?: string;
   /** MsjRetorno acompañante del código (verbatim del banco). */
   mensaje?: string;
+  /** Trama SOAP cruda enviada/recibida en esta consulta. */
+  trama?: TramaSoap;
+}
+
+/** XML crudo intercambiado con el SOAP de Produbanco en una invocación. */
+export interface TramaSoap {
+  metodo: string;
+  request: string;
+  response: string;
 }

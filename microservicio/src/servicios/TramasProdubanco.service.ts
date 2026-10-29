@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../prisma/prisma.service'; // Ajusta la ruta a tu PrismaService
-import { ProdubancoSoapService } from '../Integraciones/ProdubancoSoap.service';
+import {
+  ProdubancoSoapService,
+  TramaSoap,
+} from '../Integraciones/ProdubancoSoap.service';
 import {
   CrearPagoLoteDto,
   PagoDetalleItemDto,
@@ -110,6 +113,8 @@ export interface EstadoBanco {
   error?: string;
   orden?: SobreBanco | null;
   movimientos?: MovimientoBanco[];
+  /** Tramas SOAP crudas intercambiadas en esta consulta (para auditoría). */
+  tramas?: TramaSoap[];
 }
 
 @Injectable()
@@ -1454,25 +1459,32 @@ export class TramasProdubancoService {
     const consultaPor: NonNullable<EstadoBanco['consultaPor']> = envioIdUtil
       ? 'envioId'
       : 'referencia';
+    const tramas: TramaSoap[] = [];
     try {
-      const orden = await this.soapProdubanco.consultaOrdenes({
-        strIdEmpresa: idEmpresa,
-        strIdServicio: idServicio,
-        idBuzon: envioIdUtil ?? '0',
-        // Sin Envio_Id válido se filtra por la Referencia del lote
-        // (nuestra referenciaLote) para poder hallar la orden §2.2.1.
-        ...(envioIdUtil ? {} : { referencia: referenciaLote ?? undefined }),
-      });
+      const orden = await this.soapProdubanco.consultaOrdenes(
+        {
+          strIdEmpresa: idEmpresa,
+          strIdServicio: idServicio,
+          idBuzon: envioIdUtil ?? '0',
+          // Sin Envio_Id válido se filtra por la Referencia del lote
+          // (nuestra referenciaLote) para poder hallar la orden §2.2.1.
+          ...(envioIdUtil ? {} : { referencia: referenciaLote ?? undefined }),
+        },
+        tramas,
+      );
       const sobre = orden.sinDatos
         ? null
         : ((orden.registros[0] as SobreBanco | undefined) ?? null);
       let movimientos: MovimientoBanco[] = [];
       if (sobre?.Id_Sobre) {
-        const mov = await this.soapProdubanco.consultaMovimientos({
-          strIdEmpresa: idEmpresa,
-          strIdServicio: idServicio,
-          IdSobre: String(sobre.Id_Sobre),
-        });
+        const mov = await this.soapProdubanco.consultaMovimientos(
+          {
+            strIdEmpresa: idEmpresa,
+            strIdServicio: idServicio,
+            IdSobre: String(sobre.Id_Sobre),
+          },
+          tramas,
+        );
         movimientos = mov.registros as MovimientoBanco[];
       }
       await this.sincronizarEstadoBanco(tx, sobre, movimientos, orden);
@@ -1484,6 +1496,7 @@ export class TramasProdubancoService {
         consultaPor,
         orden: sobre,
         movimientos,
+        tramas,
       };
     } catch (error: unknown) {
       const info = this.infoError(error);
@@ -1491,6 +1504,7 @@ export class TramasProdubancoService {
         consultado: false,
         error: info.message,
         consultaPor,
+        tramas,
       };
       this.logger.warn(
         `Consulta de estado en banco falló idTransaccion=${tx.idTransaccion}: ${info.message}`,
