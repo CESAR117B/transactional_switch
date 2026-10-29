@@ -11,9 +11,16 @@ COPY package.json pnpm-lock.yaml* ./
 # Instalar dependencias con pnpm
 RUN pnpm install
 
-# Copiar el resto del código fuente
+# Copiar el resto del código fuente (incluye el archivo .env)
 COPY . .
 
+# El puerto del servidor se toma de PORT en /app/.env.
+# dotenv (ya es dependencia) carga el .env al iniciar Node y no sobrescribe
+# variables que ya vengan definidas en el entorno del contenedor.
+ENV NODE_OPTIONS="-r dotenv/config"
+
+# EXPOSE es solo metadata y no puede leer .env en tiempo de build.
+# El puerto real que abre NestJS lo define PORT en el .env (3001 por defecto).
 EXPOSE 3001
 
 # Ejecutar NestJS en modo desarrollo
