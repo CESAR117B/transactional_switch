@@ -2,13 +2,23 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
   ForbiddenException,
-  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { MicroserviceRpcService } from './microservice-rpc.service';
+
+/** Respuesta de `validar_permisos_app` (microservicio). */
+interface PermisosVigentes {
+  id_app: number;
+  identificador: string;
+  servicios?: string[];
+  permisos?: string[];
+}
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -17,6 +27,7 @@ export class ApiKeyGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly reflector: Reflector,
+    private readonly rpc: MicroserviceRpcService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -55,11 +66,18 @@ export class ApiKeyGuard implements CanActivate {
         algorithms: ['HS256'],
       });
 
+      // Revalidación en CADA request: el JWT sólo prueba la identidad, pero
+      // los servicios/permisos se leen de nuevo desde la BD. Así un cambio de
+      // `servicios.activo` (global) o `app_servicios.activo` (por app) bloquea
+      // la sesión en curso de inmediato. Si el microservicio no responde se
+      // falla cerrado con 503 (no se usan los claims del token viejos).
+      const vigentes = await this.obtenerPermisosVigentes(payload.id_app);
+
       const appInfo = {
-        id_app: payload.id_app,
-        identificador: payload.sub,
-        servicios: payload.servicios || [],
-        permisos: payload.permisos || [],
+        id_app: vigentes.id_app,
+        identificador: vigentes.identificador,
+        servicios: vigentes.servicios ?? [],
+        permisos: vigentes.permisos ?? [],
       };
 
       request.appAuth = appInfo;
@@ -106,8 +124,28 @@ export class ApiKeyGuard implements CanActivate {
 
       return true;
     } catch (error: unknown) {
+      // Caída del microservicio: se propaga 503 (fail-closed, sin claims viejos).
+      if (error instanceof ServiceUnavailableException) throw error;
+
       if (error instanceof ForbiddenException) throw error;
       if (error instanceof UnauthorizedException) throw error;
+
+      // RpcException del microservicio: llega como objeto plano con status.
+      const errorRpc = error as
+        | { status?: number; statusCode?: number; message?: unknown }
+        | null;
+      const statusRpc = errorRpc?.status ?? errorRpc?.statusCode;
+      if (statusRpc === 401 || statusRpc === 403) {
+        this.logger.warn(
+          `Sesión rechazada por el microservicio: ${
+            errorRpc?.message ?? 'sin detalle'
+          }`,
+        );
+        throw new UnauthorizedException(
+          'La sesión ya no es válida: la app o sus servicios fueron desactivados. ' +
+            'Solicita un nuevo token en /auth/login.',
+        );
+      }
 
       const nombre = error instanceof Error ? error.name : '';
       if (nombre === 'TokenExpiredError') {
@@ -126,5 +164,25 @@ export class ApiKeyGuard implements CanActivate {
       );
       throw new UnauthorizedException('Error de autenticación');
     }
+  }
+
+  /**
+   * Pide al microservicio los servicios/permisos VIGENTES de la app.
+   *
+   * No se cachea a propósito: el requisito es que cualquier cambio de estado
+   * en `servicios` o `app_servicios` bloquee la sesión actual de inmediato.
+   */
+  private async obtenerPermisosVigentes(
+    idApp: unknown,
+  ): Promise<PermisosVigentes> {
+    const id = Number(idApp);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new UnauthorizedException('Token inválido o corrupto.');
+    }
+
+    return this.rpc.enviar<PermisosVigentes>(
+      { cmd: 'validar_permisos_app' },
+      { idApp: id },
+    );
   }
 }

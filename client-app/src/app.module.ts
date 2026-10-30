@@ -87,7 +87,9 @@ if (!jwtSecret) {
     MicroserviceRpcService,
     // Orden importa:
     // 1) ThrottlerGuard   → rate limit por IP (100 req/min; login 5/min).
-    // 2) ApiKeyGuard      → autenticación JWT (inyecta request.appAuth).
+    // 2) ApiKeyGuard      → autenticación JWT + revalidación de servicios
+    //                       vigentes contra el microservicio (sin caché:
+    //                       un apagado global o por app aplica al instante).
     // 3) AppThrottlerGuard→ rate limit por App autenticada (10/min por
     //                       defecto, bucket global compartido por todos los
     //                       endpoints; ver .env → throttler.config.ts).

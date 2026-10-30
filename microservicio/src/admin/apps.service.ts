@@ -661,4 +661,68 @@ export class AppsService {
       where: { codigo: { not: { startsWith: 'ADMIN' } } }, // Excluir servicios que empiezan con "ADMIN"
     });
   }
+
+
+  /**
+   * Activa o desactiva un servicio de forma global (afecta a todas las apps).
+   *
+   * El campo `servicios.activo` es el interruptor global: cuando se pone a false,
+   * ninguna app podrá usar ese servicio aún teniendo asignado `app_servicios.activo=true`.
+   * NULL en `servicios.activo` se considera ACTIVO (mismo criterio que `app.activo`).
+   *
+   * Emite auditoría con `operation: 'ADMIN_TOGLEAR_SERVICIO'`.
+   *
+   * @param idServicio ID numérico del servicio (campo `id_servicio` de la tabla `servicios`).
+   * @returns objeto con el código del servicio y el nuevo estado.
+   */
+  async activarDesactivarServicio(idServicio: number) {
+    return this.auditarOperacion(
+      {
+        idApp: 0, // 0 indica acción sobre el servicio global, no sobre una app específica
+        operation: 'ADMIN_TOGLEAR_SERVICIO',
+        entidadName: 'servicio',
+        entidadId: idServicio,
+        requestPayload: { idServicio },
+        statusExito: 200,
+        responsePayload: (result) => ({
+          idServicio: result.id_servicio,
+          codigo: result.codigo,
+          activo: result.activo,
+        }),
+      },
+      () => this.activarDesactivarServicioInterno(idServicio),
+    );
+  }
+
+  private async activarDesactivarServicioInterno(idServicio: number) {
+    const servicio = await this.prisma.servicios.findUnique({
+      where: { id_servicio: idServicio },
+    });
+
+    if (!servicio) {
+      throw new RpcException({
+        statusCode: 404,
+        message: `No se encontró el servicio con id_servicio=${idServicio}`,
+        error: 'Not Found',
+      });
+    }
+
+    const nuevoEstado = !servicio.activo;
+
+    await this.prisma.servicios.update({
+      where: { id_servicio: idServicio },
+      data: { activo: nuevoEstado, fecha_actualizacion: new Date() },
+    });
+
+    this.logger.log(
+      `Servicio ${servicio.codigo} ${nuevoEstado ? 'activado' : 'desactivado'} ` +
+        `id_servicio=${idServicio} (afecta a todas las apps)`,
+    );
+
+    return {
+      id_servicio: servicio.id_servicio,
+      codigo: servicio.codigo,
+      activo: nuevoEstado,
+    };
+  }
 }

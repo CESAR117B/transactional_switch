@@ -199,4 +199,8 @@ export class AppService {
   async listarServicios() {
     return this.rpc.enviar<unknown>({ cmd: 'listar_servicios' }, {});
   }
+
+  async activarDesactivarServicioGlobal(idServicio: number) {
+    return this.rpc.enviar<unknown>({ cmd: 'activar_desactivar_servicio' }, { idServicio });
+  }
 }
