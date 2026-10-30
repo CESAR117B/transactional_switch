@@ -19,6 +19,7 @@ import { UpdateAppDto } from './dto/update-app.dto';
 import { AsignarServiciosAppDto } from './dto/asignar-servicios-app.dto';
 import { NuevokeyAppDto } from './dto/nuevokey-app.dto';
 import { NuevoencryptionkeyAppDto } from './dto/nuevoencryptionkey-app.dto';
+import { ActivarDesactivarServicioDto } from './dto/activar-desactivar-servicio.dto';
 
 /**
  * Funciones del App administrador.
@@ -236,6 +237,27 @@ export class AdminAppsController {
       );
     }
     return this.appService.listarServicios();
+  }
+
+  @ApiOperation({
+    summary:
+      'Activa o desactiva un servicio de forma global (afecta a todas las apps).' +
+      ' El servicio debe estar asignado a la app admin para que el comando sea válido.',
+  })
+  @RequireCmd('activar_desactivar_servicio')
+  @HttpCode(HttpStatus.OK)
+  @Post('activar-desactivar-servicio')
+  async activarDesactivarServicio(
+    @Req() req: ReqConAppAuth,
+    @Body() dto: ActivarDesactivarServicioDto,
+  ): Promise<unknown> {
+    const idApp = req.appAuth?.id_app;
+    if (!idApp) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    return this.appService.activarDesactivarServicioGlobal(dto.idServicio);
   }
 }
 

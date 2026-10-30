@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
@@ -9,6 +10,34 @@ const scryptAsync = promisify(scrypt);
 /** Formato de hash de app.key: scrypt$<salt hex>$<hash hex>. */
 const SCRYPT_PREFIJO = 'scrypt';
 const SCRYPT_LONGITUD = 64; // bytes derivados (512 bits)
+
+/**
+ * Include que resuelve la jerarquía de permisos de una app aplicando la
+ * activación en DOS niveles (ambos deben estar vigentes):
+ *  - Global: `servicios.activo` apaga el servicio para todas las apps.
+ *  - Por app: `app_servicios.activo` apaga el servicio sólo para esa app.
+ *
+ * `activo` es nullable en la BD: NULL se considera ACTIVO (mismo criterio que
+ * `app.activo`), por eso se usa OR en vez de `activo: true` a secas.
+ */
+const INCLUDE_PERMISOS_APP = {
+  app_servicios: {
+    where: { OR: [{ activo: true }, { activo: null }] },
+    include: {
+      servicios: {
+        where: { OR: [{ activo: true }, { activo: null }] },
+        include: {
+          servicios_controladores: { include: { controladores: true } },
+        },
+      },
+    },
+  },
+} satisfies Prisma.appInclude;
+
+/** App con la jerarquía de permisos ya resuelta por INCLUDE_PERMISOS_APP. */
+type AppConPermisos = Prisma.appGetPayload<{
+  include: typeof INCLUDE_PERMISOS_APP;
+}>;
 
 @Injectable()
 export class AuthService {
@@ -61,23 +90,11 @@ export class AuthService {
   }
 
   async validarCredencialesApp(identificador: string, key: string) {
-    // 1. Buscamos la App y viajamos por todas las relaciones hasta llegar al controlador
+    // 1. Buscamos la App y viajamos por todas las relaciones hasta llegar al
+    //    controlador, aplicando la activación global y por app.
     const app = await this.prisma.app.findUnique({
       where: { identificador_app: identificador },
-      include: {
-        app_servicios: {
-          include: {
-            servicios: {
-              where: { activo: true },
-              include: {
-                servicios_controladores: {
-                  include: {controladores: true}
-                },
-              },
-            },
-          },
-        },
-      },
+      include: INCLUDE_PERMISOS_APP,
     });
 
     // Un SOLO mensaje para no revelar si el identificador existe, si está
@@ -113,8 +130,48 @@ export class AuthService {
       }
     }
 
-    // 2. Extraemos los comandos ('cmp') asignados a la App.
-    // Usamos un 'Set' de JavaScript para evitar duplicados si dos servicios comparten el mismo controlador.
+    return {
+      id_app: app.id_app,
+      identificador: app.identificador_app,
+      ...this.construirPermisos(app),
+    };
+  }
+
+  /**
+   * Recalcula los servicios y permisos VIGENTES de una app directamente desde
+   * la BD. Lo usa el gateway en cada request autenticado para que un cambio de
+   * `servicios.activo` o `app_servicios.activo` bloquee la sesión en curso de
+   * inmediato, sin esperar a que expire el JWT.
+   *
+   * También rechaza la sesión si la app fue bloqueada o eliminada después de
+   * emitido el token.
+   */
+  async obtenerPermisosVigentes(idApp: number) {
+    const app = await this.prisma.app.findUnique({
+      where: { id_app: idApp },
+      include: INCLUDE_PERMISOS_APP,
+    });
+
+    if (!app || app.activo === false) {
+      throw new RpcException({
+        status: 401,
+        message: 'La app no existe o está bloqueada',
+      });
+    }
+
+    return {
+      id_app: app.id_app,
+      identificador: app.identificador_app,
+      ...this.construirPermisos(app),
+    };
+  }
+
+  /**
+   * Aplana la jerarquía app → servicios → controladores en listas únicas.
+   * Sólo llegan servicios vigentes en ambos niveles (global y por app).
+   * El `Set` evita duplicados si dos servicios comparten un controlador.
+   */
+  private construirPermisos(app: AppConPermisos) {
     const comandosPermitidos = new Set<string>();
     const serviciosPermitidos = new Set<string>();
 
@@ -133,8 +190,6 @@ export class AuthService {
     });
 
     return {
-      id_app: app.id_app,
-      identificador: app.identificador_app,
       permisos: Array.from(comandosPermitidos),
       servicios: Array.from(serviciosPermitidos),
     };

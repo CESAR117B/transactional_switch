@@ -8,6 +8,7 @@ import { ActualizarAppPayloadDto } from '../dto/actualizar-app-payload.dto';
 import { NuevokeyAppPayloadDto } from '../dto/nuevokey-app.dto';
 import { NuevoencryptionkeyAppPayloadDto } from '../dto/nuevoencryptionkey-app.dto';
 import { AppsService } from './apps.service';
+import { ActivarDesactivarServicioDto } from './dto/activar-desactivar-servicio.dto';
 import { AsignarServiciosAppDto } from '../dto/asignar-servicios-app.dto';
 
 @Controller('admin')
@@ -336,5 +337,43 @@ export class AppsController {
   @MessagePattern({ cmd: 'listar_servicios' })
   async listarServicios() {
     return this.appsService.listarServicios();
+  }
+
+  @MessagePattern({ cmd: 'activar_desactivar_servicio' })
+  async activar_desactivarServicio(@Payload() payload: ActivarDesactivarServicioDto) {
+    const { idServicio } = payload;
+
+    if (idServicio === undefined || idServicio === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idServicio es requerido para activar_desactivar_servicio',
+        error: 'Bad Request',
+      });
+    }
+
+    this.logger.log(`activar_desactivar_servicio idServicio=${idServicio}`);
+    try {
+      return await this.appsService.activarDesactivarServicio(idServicio);
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const err = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        stack?: string;
+        error?: unknown;
+      };
+      const status = err.status ?? err.statusCode ?? 500;
+      const message = err.message ?? 'Error interno en activar_desactivar_servicio';
+      this.logger.error(
+        `Error activar_desactivar_servicio idServicio=${idServicio}: ${message}`,
+        err.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: err.error,
+      });
+    }
   }
 }
