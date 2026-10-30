@@ -45,6 +45,9 @@ export enum JobEstadoServicio {
   REVOCADO = 'REVOCADO',
 }
 
+/** Nombre con el que se registran las ejecuciones de este cron en `cron_job_logs`. */
+const NOMBRE_LOG_CRON = 'Cron-Job-Produbanco';
+
 /** Resultado de una sincronización manual de una transacción. */
 export interface JobEjecucionMetadata {
   transaccionId: bigint;
@@ -80,7 +83,7 @@ export class TransaccionesProdubancoJobService {
    * - estado_item = Estado_Proceso verbatim por detalle
    */
   @Cron('*/5 * * * *') // Cada 5 minutos
-  @LogProceso('Cron-Job-Produbanco')
+  @LogProceso(NOMBRE_LOG_CRON)
   async manejarCronActualizacionEstado(): Promise<CronLogResult> {
     this.logger.log(
       'Iniciando job de actualización de estados de transacciones Produbanco',
@@ -88,6 +91,13 @@ export class TransaccionesProdubancoJobService {
 
     // Tramas SOAP de todas las transacciones del lote, para auditoría del cron.
     const tramasSoap: TramaSoap[] = [];
+    // Los éxitos se agregan en un único registro (el del decorador); los fallos
+    // se persisten uno por uno para poder rastrearlos individualmente.
+    const exitosas: {
+      idTransaccion: bigint;
+      estadoSobre: string;
+      estadosItem: string[];
+    }[] = [];
     let errores = 0;
 
     try {
@@ -130,15 +140,19 @@ export class TransaccionesProdubancoJobService {
           tramasSoap.push(...(banco?.tramas ?? []));
           if (!banco) {
             errores += 1;
-            this.logger.warn(
-              `Transacción ${idTransaccion} no es de Produbanco o no existe`,
-            );
+            const motivo = 'no es de Produbanco o no existe';
+            this.logger.warn(`Transacción ${idTransaccion} ${motivo}`);
+            await this.registrarFalloTransaccion(idTransaccion, motivo, []);
             continue;
           }
           if (!banco.consultado) {
             errores += 1;
-            this.logger.warn(
-              `Transacción ${idTransaccion}: consulta al banco falló (${banco.error ?? 'sin detalle'})`,
+            const motivo = `consulta al banco falló (${banco.error ?? 'sin detalle'})`;
+            this.logger.warn(`Transacción ${idTransaccion}: ${motivo}`);
+            await this.registrarFalloTransaccion(
+              idTransaccion,
+              motivo,
+              banco.tramas ?? [],
             );
             continue;
           }
@@ -148,21 +162,34 @@ export class TransaccionesProdubancoJobService {
           const estadosItem = (banco.movimientos ?? [])
             .map((mov) => mov.Estado_Proceso?.trim())
             .filter((estado): estado is string => Boolean(estado));
-          this.logger.log(
-            `Transacción ${idTransaccion} sincronizada desde SOAP: ` +
-              `Estado_Sobre=${banco.orden?.Estado_Sobre ?? banco.codigo ?? 'sin dato'}, ` +
-              `items=[${estadosItem.length > 0 ? estadosItem.join(', ') : 'sin movimientos'}]`,
-          );
+          exitosas.push({
+            idTransaccion,
+            estadoSobre: String(
+              banco.orden?.Estado_Sobre ?? banco.codigo ?? 'sin dato',
+            ),
+            estadosItem,
+          });
         } catch (error: unknown) {
           // Un error puntual (app sin llave, etc.) no debe detener el lote.
           errores += 1;
+          const motivo = error instanceof Error ? error.message : String(error);
           this.logger.error(
-            `Error sincronizando transacción ${idTransaccion}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+            `Error sincronizando transacción ${idTransaccion}: ${motivo}`,
           );
+          await this.registrarFalloTransaccion(idTransaccion, motivo, []);
         }
       }
+
+      const detalleExitosas = exitosas
+        .map(
+          ({ idTransaccion, estadoSobre, estadosItem }) =>
+            `${idTransaccion} (${estadoSobre}; items=[${
+              estadosItem.length > 0
+                ? estadosItem.join(', ')
+                : 'sin movimientos'
+            }])`,
+        )
+        .join(', ');
 
       this.logger.log(
         `Finalizó job de actualización de estados. Sincronizadas ${sincronizadas}/${pendientes.length}`,
@@ -170,7 +197,7 @@ export class TransaccionesProdubancoJobService {
 
       const mensaje = `Sincronizadas ${sincronizadas}/${pendientes.length}${
         errores > 0 ? ` (${errores} con error)` : ''
-      }`;
+      }${detalleExitosas ? ` | Exitosas: ${detalleExitosas}` : ''}`;
 
       return {
         exito: errores === 0,
@@ -190,6 +217,26 @@ export class TransaccionesProdubancoJobService {
         ...this.serializarTramas(tramasSoap),
       };
     }
+  }
+
+  /**
+   * Persiste un registro de fallo independiente para una transacción.
+   * Comparte el nombre del cron con el registro resumen y se distingue por
+   * `status = 'FALLIDO'` y el prefijo `Transacción <id>` del mensaje; incluye
+   * las tramas SOAP de esa transacción cuando están disponibles.
+   */
+  private async registrarFalloTransaccion(
+    idTransaccion: bigint,
+    motivo: string,
+    tramas: TramaSoap[],
+  ): Promise<void> {
+    const { request, response } = this.serializarTramas(tramas);
+    await this.cronLogService.registrarEjecucion(
+      NOMBRE_LOG_CRON,
+      false,
+      `Transacción ${idTransaccion}: ${motivo}`,
+      { request, response },
+    );
   }
 
   /** Separa las tramas acumuladas en request/response para el log del cron. */
