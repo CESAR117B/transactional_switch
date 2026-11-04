@@ -17,10 +17,6 @@ export class AppService {
   // conexión con el microservicio a una alerta 503.
   constructor(private readonly rpc: MicroserviceRpcService) {}
 
-  async get_data(app_id: number) {
-    return 'app autenticada con id: ' + app_id;
-  }
-
   async obtenerServiciosPorApp(appId: number) {
     return this.rpc.enviar({ cmd: 'get_servicios' }, appId);
   }
