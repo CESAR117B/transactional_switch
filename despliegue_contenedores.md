@@ -141,3 +141,6 @@ Posteriormente, reinicia la base de datos limpiando volúmenes:
 ```bash
 docker compose down -v && docker compose up -d
 ```
+
+## nota 
+- ajustar las variables de entorno en cada proecto con las comentadas en la seccion #Docker configuration de los archivos .env de cada proyecto, para que se conecten correctamente a la base de datos y entre ellos.
