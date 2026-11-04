@@ -10,6 +10,7 @@ import { NuevoencryptionkeyAppPayloadDto } from '../dto/nuevoencryptionkey-app.d
 import { AppsService } from './apps.service';
 import { ActivarDesactivarServicioDto } from './dto/activar-desactivar-servicio.dto';
 import { AsignarServiciosAppDto } from '../dto/asignar-servicios-app.dto';
+import { DesasignarServiciosAppDto } from './dto/desasignar-servicios-app.dto';
 
 @Controller('admin')
 export class AppsController {
@@ -337,6 +338,117 @@ export class AppsController {
   @MessagePattern({ cmd: 'listar_servicios' })
   async listarServicios() {
     return this.appsService.listarServicios();
+  }
+
+  @MessagePattern({ cmd: 'desasignar_servicios_app' })
+  async desasignarServiciosApp(@Payload() payload: DesasignarServiciosAppDto) {
+    const { idApp, codigos } = payload;
+
+    if (idApp === undefined || idApp === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idApp es requerido para desasignar_servicios_app',
+        error: 'Bad Request',
+      });
+    }
+    if (codigos === undefined || codigos === null || !Array.isArray(codigos) || codigos.length === 0) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'codigos es requerido y debe ser un array no vacío',
+        error: 'Bad Request',
+      });
+    }
+
+    this.logger.log(`desasignar_servicios_app idApp=${idApp} codigos=${JSON.stringify(codigos)}`);
+    try {
+      return await this.appsService.desasignarServiciosApp(idApp, codigos);
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const err = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        error?: string;
+        stack?: string;
+      };
+      const status = err.status ?? err.statusCode ?? 500;
+      const message = err.message ?? 'Error interno en desasignar_servicios_app';
+      this.logger.error(
+        `Error desasignar_servicios_app idApp=${idApp}: ${message}`,
+        err.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: err.error,
+      });
+    }
+  }
+
+  @MessagePattern({ cmd: 'activar_desactivar_servicio_app' })
+  async activarDesactivarServicioApp(
+    @Payload() payload: { idApp: number; codigo: string; activo: boolean },
+  ) {
+    const { idApp, codigo, activo } = payload ?? ({} as {
+      idApp: number;
+      codigo: string;
+      activo: boolean;
+    });
+
+    if (idApp === undefined || idApp === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idApp es requerido para activar_desactivar_servicio_app',
+        error: 'Bad Request',
+      });
+    }
+    if (codigo === undefined || codigo === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'codigo es requerido para activar_desactivar_servicio_app',
+        error: 'Bad Request',
+      });
+    }
+    if (typeof activo !== 'boolean') {
+      throw new RpcException({
+        statusCode: 400,
+        message:
+          'activo es requerido y debe ser boolean para activar_desactivar_servicio_app',
+        error: 'Bad Request',
+      });
+    }
+
+    this.logger.log(
+      `activar_desactivar_servicio_app idApp=${idApp} codigo=${codigo} activo=${activo}`,
+    );
+    try {
+      return await this.appsService.cambiarEstadoServicioApp(
+        idApp,
+        codigo,
+        activo,
+      );
+    } catch (error: unknown) {
+      if (error instanceof RpcException) throw error;
+      const err = error as {
+        status?: number;
+        statusCode?: number;
+        message?: string;
+        error?: string;
+        stack?: string;
+      };
+      const status = err.status ?? err.statusCode ?? 500;
+      const message =
+        err.message ?? 'Error interno en activar_desactivar_servicio_app';
+      this.logger.error(
+        `Error activar_desactivar_servicio_app idApp=${idApp}: ${message}`,
+        err.stack,
+      );
+      throw new RpcException({
+        statusCode: status,
+        message,
+        error: err.error,
+      });
+    }
   }
 
   @MessagePattern({ cmd: 'activar_desactivar_servicio' })

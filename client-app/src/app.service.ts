@@ -195,6 +195,46 @@ export class AppService {
     return this.rpc.enviar<unknown>({ cmd: 'asignar_servicios_app' }, payload);
   }
 
+  /**
+   * Solicita al microservicio que desasigne uno o más servicios de una app
+   * usando sus códigos alfanuméricos. Elimina solo las filas indicadas de
+   * `app_servicios`, dejando intactas las demás asignaciones.
+   *
+   * Emite auditoría con `operation: 'ADMIN_DESASIGNAR_SERVICIOS_APP'`.
+   */
+  async desasignarServiciosApp(
+    idApp: number,
+    codigos: string[],
+  ): Promise<unknown> {
+    const payload = { idApp: Number(idApp), codigos };
+    return this.rpc.enviar<unknown>(
+      { cmd: 'desasignar_servicios_app' },
+      payload,
+    );
+  }
+
+  /**
+   * Solicita al microservicio activar o desactivar (sin eliminar) la
+   * asignación de un servicio para una app. Escribe el campo `activo`
+   * del modelo `app_servicios` (relación de la tabla intermedia).
+   *
+   * `activo = true` activa la asignación; `activo = false` la desactiva.
+   * No afecta el interruptor global `servicios.activo`.
+   *
+   * Emite auditoría con `operation: 'ADMIN_CAMBIAR_ESTADO_SERVICIO_APP'`.
+   */
+  async cambiarEstadoServicioApp(
+    idApp: number,
+    codigo: string,
+    activo: boolean,
+  ): Promise<unknown> {
+    const payload = { idApp: Number(idApp), codigo, activo };
+    return this.rpc.enviar<unknown>(
+      { cmd: 'activar_desactivar_servicio_app' },
+      payload,
+    );
+  }
+
 
   async listarServicios() {
     return this.rpc.enviar<unknown>({ cmd: 'listar_servicios' }, {});

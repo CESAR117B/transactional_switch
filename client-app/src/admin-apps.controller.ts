@@ -20,6 +20,8 @@ import { AsignarServiciosAppDto } from './dto/asignar-servicios-app.dto';
 import { NuevokeyAppDto } from './dto/nuevokey-app.dto';
 import { NuevoencryptionkeyAppDto } from './dto/nuevoencryptionkey-app.dto';
 import { ActivarDesactivarServicioDto } from './dto/activar-desactivar-servicio.dto';
+import { DesasignarServiciosAppDto } from './dto/desasignar-servicios-app.dto';
+import { CambiarEstadoServicioAppDto } from './dto/cambiar-estado-servicio-app.dto';
 
 /**
  * Funciones del App administrador.
@@ -200,9 +202,9 @@ export class AdminAppsController {
    */
   @ApiOperation({
     summary:
-      'Asigna uno o más servicios a una app usando códigos alfanuméricos. ' +
+      'Asigna uno o más servicios a una app objetivo usando códigos alfanuméricos. ' +
       'Valida que los códigos existan en la base de datos y actualiza la ' +
-      'relación de servicios de la app.',
+      'relación de servicios de la app indicada en `idApp`.',
   })
   @RequireCmd('asignar_servicios_app')
   @HttpCode(HttpStatus.OK)
@@ -211,13 +213,14 @@ export class AdminAppsController {
     @Req() req: ReqConAppAuth,
     @Body() dto: AsignarServiciosAppDto,
   ): Promise<unknown> {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
+    // El token identifica a la app administradora (actor). La app objetivo
+    // sobre la que se opera viene en el body (`dto.idApp`).
+    if (!req.appAuth?.id_app) {
       throw new BadRequestException(
         'No se pudo identificar la App desde el token',
       );
     }
-    return this.appService.asignarServiciosApp(idApp, dto.codigos);
+    return this.appService.asignarServiciosApp(dto.idApp, dto.codigos);
   }
 
   @ApiOperation({
@@ -258,6 +261,56 @@ export class AdminAppsController {
       );
     }
     return this.appService.activarDesactivarServicioGlobal(dto.idServicio);
+  }
+
+  @ApiOperation({
+    summary:
+      'Desasigna uno o más servicios de una app objetivo usando códigos alfanuméricos. ' +
+      'Elimina solo las asignaciones especificadas de la app indicada en `idApp`, ' +
+      'dejando intactas las demás.',
+  })
+  @RequireCmd('desasignar_servicios_app')
+  @HttpCode(HttpStatus.OK)
+  @Post('desasignar-servicios-app')
+  async desasignarServiciosApp(
+    @Req() req: ReqConAppAuth,
+    @Body() dto: DesasignarServiciosAppDto,
+  ): Promise<unknown> {
+    // El token identifica a la app administradora (actor). La app objetivo
+    // sobre la que se opera viene en el body (`dto.idApp`).
+    if (!req.appAuth?.id_app) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    return this.appService.desasignarServiciosApp(dto.idApp, dto.codigos);
+  }
+
+  @ApiOperation({
+    summary:
+      'Activa o desactiva (sin eliminar) la asignación de un servicio para una ' +
+      'app objetivo. Escribe el campo activo de app_servicios: true la activa, ' +
+      'false la desactiva. No afecta la disponibilidad global del servicio.',
+  })
+  @RequireCmd('activar_desactivar_servicio_app')
+  @HttpCode(HttpStatus.OK)
+  @Post('activar-desactivar-servicio-app')
+  async activarDesactivarServicioApp(
+    @Req() req: ReqConAppAuth,
+    @Body() dto: CambiarEstadoServicioAppDto,
+  ): Promise<unknown> {
+    // El token identifica a la app administradora (actor). La app objetivo
+    // sobre la que se opera viene en el body (`dto.idApp`).
+    if (!req.appAuth?.id_app) {
+      throw new BadRequestException(
+        'No se pudo identificar la App desde el token',
+      );
+    }
+    return this.appService.cambiarEstadoServicioApp(
+      dto.idApp,
+      dto.codigo,
+      dto.activo,
+    );
   }
 }
 

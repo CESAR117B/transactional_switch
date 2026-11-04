@@ -707,7 +707,7 @@ export class AppsService {
       });
     }
 
-    const nuevoEstado = !servicio.activo;
+    const nuevoEstado = servicio.activo === false;
 
     await this.prisma.servicios.update({
       where: { id_servicio: idServicio },
@@ -723,6 +723,236 @@ export class AppsService {
       id_servicio: servicio.id_servicio,
       codigo: servicio.codigo,
       activo: nuevoEstado,
+    };
+  }
+
+
+  /**
+   * Desasigna uno o más servicios de una app usando sus códigos alfanuméricos.
+   * Elimina solo las asignaciones especificadas en `app_servicios`, dejando
+   * intactas las demás.
+   *
+   * El servicio puede estar globalmente inactivo: igual se permite quitar la
+   * asignación. Si algún código no existe, se lanza un 400 indicando cuáles.
+   *
+   * Emite auditoría con `operation: 'ADMIN_DESASIGNAR_SERVICIOS_APP'`.
+   */
+  async desasignarServiciosApp(idApp: number, codigos: string[]) {
+    // Deduplicar entrada
+    const codigosUniq = [...new Set(codigos)];
+
+    // Validar que ningún código empiece por "ADMIN"
+    const codigoAdmin = codigosUniq.find(
+      (c) => c.toUpperCase().startsWith('ADMIN'),
+    );
+    if (codigoAdmin) {
+      throw new RpcException({
+        statusCode: 400,
+        message: `No se pueden desasignar servicios con código que empiece por "ADMIN": "${codigoAdmin}". ` +
+          'Sólo debe haber un administrador en el sistema.',
+        error: 'Bad Request',
+      });
+    }
+
+    return this.auditarOperacion(
+      {
+        idApp,
+        operation: 'ADMIN_DESASIGNAR_SERVICIOS_APP',
+        entidadName: 'app',
+        entidadId: idApp,
+        requestPayload: { idApp, codigos: codigosUniq },
+        responsePayload: (result) => ({
+          idApp,
+          codigosDesasignados: result.codigosDesasignados,
+          serviciosRestantes: result.serviciosRestantes,
+        }),
+        statusExito: 200,
+      },
+      async () => {
+        // 1. Resolver los servicios por su código (existan o no estén activos
+        //    globalmente: igual se debe poder quitar la asignación a la app).
+        const codigosMayus = codigosUniq.map((c) => c.trim().toUpperCase());
+        const serviciosValidos = await this.prisma.servicios.findMany({
+          where: { codigo: { in: codigosMayus } },
+          select: { id_servicio: true, codigo: true },
+        });
+        const mapaCodigos = new Map(
+          serviciosValidos.map((s) => [s.codigo, s.id_servicio]),
+        );
+
+        // 2. Si hay códigos que no existen, lanzar error informando cuáles son.
+        const soloInvalidos = codigosUniq.filter(
+          (c) => !mapaCodigos.has(c.trim().toUpperCase()),
+        );
+        if (soloInvalidos.length > 0) {
+          throw new RpcException({
+            statusCode: 400,
+            message: `Los siguientes códigos de servicio no existen: ${soloInvalidos.join(', ')}.`,
+            error: 'Bad Request',
+          });
+        }
+
+        // 3. Eliminar las asignaciones específicas de esta app en `app_servicios`.
+        const registrosBorrar = codigosUniq
+          .filter((codigo) => mapaCodigos.has(codigo.trim().toUpperCase()))
+          .map((codigo) => mapaCodigos.get(codigo.trim().toUpperCase())!);
+
+        if (registrosBorrar.length > 0) {
+          await this.prisma.app_servicios.deleteMany({
+            where: {
+              id_app: idApp,
+              id_servicio: { in: registrosBorrar },
+            },
+          });
+        }
+
+        // 4. Devolver el listado actual de servicios restantes de la app,
+        //    incluyendo el estado de cada asignación.
+        const asignaciones = await this.prisma.app_servicios.findMany({
+          where: { id_app: idApp },
+          include: { servicios: { select: { codigo: true, nombre: true } } },
+        });
+
+        const codigosDesasignados = codigosUniq.filter((c) =>
+          mapaCodigos.has(c.trim().toUpperCase()),
+        );
+
+        return {
+          codigosDesasignados,
+          serviciosRestantes: asignaciones.map((a) => ({
+            id_servicio: a.id_servicio,
+            codigo: a.servicios?.codigo ?? null,
+            nombre: a.servicios?.nombre ?? null,
+            activo: a.activo,
+          })),
+        };
+      },
+    );
+  }
+
+  /**
+   * Activa o desactiva (sin eliminar) la asignación de un servicio a una app.
+   *
+   * Escribe el campo nullable `activo` del modelo `app_servicios`, es decir,
+   * la relación de la tabla intermedia SE MANTIENE; solo cambia su estado.
+   * Es la alternativa "reversible" a `desasignarServiciosApp` (que borra la
+   * fila de `app_servicios` de forma permanente).
+   *
+   * `activo` es explícito (no toggle):
+   *  - `true`  → activa la asignación para esa app.
+   *  - `false` → desactiva la asignación para esa app.
+   *
+   * No afecta el interruptor global `servicios.activo`. La app debe tener el
+   * servicio asignado previamente (fila existente en `app_servicios`); si no,
+   * devuelve 404. Para crear/quitar la asignación usá `asignarServiciosApp`
+   * o `desasignarServiciosApp`.
+   *
+   * Emite auditoría con `operation: 'ADMIN_CAMBIAR_ESTADO_SERVICIO_APP'`.
+   *
+   * @param idApp ID de la app.
+   * @param codigo Código alfanumérico del servicio (`servicios.codigo`).
+   * @param activo Estado deseado de la asignación.
+   */
+  async cambiarEstadoServicioApp(
+    idApp: number,
+    codigo: string,
+    activo: boolean,
+  ) {
+    return this.auditarOperacion(
+      {
+        idApp,
+        operation: 'ADMIN_CAMBIAR_ESTADO_SERVICIO_APP',
+        entidadName: 'app',
+        entidadId: idApp,
+        requestPayload: { idApp, codigo, activo },
+        responsePayload: (result) => ({
+          idApp,
+          codigo: result.codigo,
+          activo: result.activo,
+        }),
+        statusExito: 200,
+      },
+      () => this.cambiarEstadoServicioAppInterno(idApp, codigo, activo),
+    );
+  }
+
+  private async cambiarEstadoServicioAppInterno(
+    idApp: number,
+    codigo: string,
+    activo: boolean,
+  ) {
+    const codigoNormalizado = codigo.trim().toUpperCase();
+
+    // 1. Resolver el servicio por su código (unique) en la tabla `servicios`.
+    const servicio = await this.prisma.servicios.findUnique({
+      where: { codigo: codigoNormalizado },
+      select: { id_servicio: true, codigo: true },
+    });
+
+    if (!servicio) {
+      throw new RpcException({
+        statusCode: 404,
+        message: `No se encontró el servicio con código "${codigoNormalizado}"`,
+        error: 'Not Found',
+      });
+    }
+
+    // 2. Verificar que la relación exista en `app_servicios` (no se crea acá:
+    //    para eso está `asignarServiciosApp`).
+    const asignacion = await this.prisma.app_servicios.findUnique({
+      where: {
+        id_app_id_servicio: {
+          id_app: idApp,
+          id_servicio: servicio.id_servicio,
+        },
+      },
+      select: { activo: true },
+    });
+
+    if (!asignacion) {
+      throw new RpcException({
+        statusCode: 404,
+        message:
+          `El servicio "${servicio.codigo}" no está asignado a la app id_app=${idApp}. ` +
+          'Asignelo primero con asignar_servicios_app.',
+        error: 'Not Found',
+      });
+    }
+
+    // 3. Escribir el estado explícito en el campo `activo` de `app_servicios`.
+    //    `updateMany` permite verificar que efectivamente se actualizó la fila.
+    const { count } = await this.prisma.app_servicios.updateMany({
+      where: {
+        id_app: idApp,
+        id_servicio: servicio.id_servicio,
+      },
+      data: {
+        activo,
+        fecha_actualizacion: new Date(),
+      },
+    });
+
+    if (count === 0) {
+      throw new RpcException({
+        statusCode: 404,
+        message: `No se pudo actualizar la asignación del servicio "${servicio.codigo}" para la app id_app=${idApp}`,
+        error: 'Not Found',
+      });
+    }
+
+    this.logger.log(
+      `Asignación de servicio ${servicio.codigo} a app id_app=${idApp} ` +
+        `${activo ? 'activada' : 'desactivada'} (app_servicios.activo=${activo})`,
+    );
+
+    return {
+      id_app: idApp,
+      id_servicio: servicio.id_servicio,
+      codigo: servicio.codigo,
+      activo,
+      mensaje:
+        `La asignación del servicio ${servicio.codigo} a la app id_app=${idApp} ` +
+        `ha sido ${activo ? 'activada' : 'desactivada'}.`,
     };
   }
 }
