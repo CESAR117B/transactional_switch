@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsNotEmpty,
@@ -77,6 +78,9 @@ export class CrearAppDto {
     default: true,
   })
   @IsOptional()
+  @Transform(({ obj, key }) =>
+    obj[key] === 'true' ? true : obj[key] === 'false' ? false : obj[key],
+  )
   @IsBoolean({ message: 'activo debe ser booleano' })
   activo?: boolean;
 }

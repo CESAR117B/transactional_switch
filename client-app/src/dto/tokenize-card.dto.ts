@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { 
   IsString, 
   IsNotEmpty, 
@@ -85,6 +86,9 @@ export class TokenizeCardDto {
     example: false,
     type: Boolean
   })
+  @Transform(({ obj, key }) =>
+    obj[key] === 'true' ? true : obj[key] === 'false' ? false : obj[key],
+  )
   @IsBoolean()
   @IsNotEmpty()
   temporal: boolean

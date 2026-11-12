@@ -22,8 +22,7 @@ export class SaveCardsController {
   })
   @Post('guardar-tarjeta')
   async guardarTarjeta(@Req() req: any, @Body() cardData: TokenizeCardDto) {
-    // 1. Extraemos el ID de la app que inyectó tu ApiKeyGuard
-    // (Asegúrate de que 'req.app.id' coincida con cómo tu Guard guarda la info)
+    // El ApiKeyGuard inyecta req.appAuth con el id de la app autenticada.
     const idApp = req.appAuth.id_app;
 
     if (!idApp) {
@@ -32,7 +31,6 @@ export class SaveCardsController {
       );
     }
 
-    // 2. Le pasamos AMBOS parámetros a tu servicio
     return this.appService.guardarTarjeta(idApp, cardData);
   }
 }

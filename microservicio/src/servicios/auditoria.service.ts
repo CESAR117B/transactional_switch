@@ -15,10 +15,6 @@ export class AuditoriaService {
   // cada vez que alguien emita el evento 'audit.record'
   @OnEvent('audit.record', { async: true }) // async: true es clave para no bloquear el hilo principal
   async handleAuditLogEvent(payload: TransactionLogEvent) {
-    console.log(
-      '🚨 ¡EL EVENTO SE DISPARÓ EN SEGUNDO PLANO!',
-      payload.reference,
-    );
     const transactionReference = crypto.randomUUID();
     const referenceHash = crypto
       .createHash('sha256')

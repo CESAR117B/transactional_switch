@@ -1,3 +1,4 @@
+import { config as loadEnv } from 'dotenv';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import {
@@ -5,18 +6,25 @@ import {
   RpcException,
   Transport,
 } from '@nestjs/microservices';
-import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Logger, ValidationPipe } from '@nestjs/common';
+import { RpcAuthPipe } from './common/rpc-auth.pipe';
+
+loadEnv();
 
 async function bootstrap() {
+  const host = process.env.HOST;
+  const port = parseInt(process.env.PORT ?? '3001', 10);
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(
     AppModule,
     {
       transport: Transport.TCP,
-      options: { host: process.env.HOST, port: parseInt(process.env.PORT ?? '3001', 10) },
+      options: { host, port },
     },
   );
-  // Modificamos el pipe para que lance excepciones TCP
+  // El orden importa: primero se valida el sobre con el secreto compartido y
+  // se extrae el payload; luego corre la validación de DTOs.
   app.useGlobalPipes(
+    new RpcAuthPipe(),
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
@@ -50,7 +58,6 @@ async function bootstrap() {
     }),
   );
   await app.listen();
-  console.log('Math Service is running on port 3001');
-
+  new Logger('Bootstrap').log(`Microservicio escuchando en ${host}:${port}`);
 }
 bootstrap();

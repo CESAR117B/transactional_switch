@@ -1,2 +1,9 @@
 # compiled output
 /produbanco
+
+/Issues
+
+# secretos locales (nunca versionar)
+**/.env
+**/.env.*
+!**/.env.example

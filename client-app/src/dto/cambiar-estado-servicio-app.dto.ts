@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
 
 /**
@@ -47,6 +47,9 @@ export class CambiarEstadoServicioAppDto {
       'Estado deseado de la asignación: true = activar, false = desactivar.',
     example: false,
   })
+  @Transform(({ obj, key }) =>
+    obj[key] === 'true' ? true : obj[key] === 'false' ? false : obj[key],
+  )
   @IsBoolean({ message: 'activo debe ser boolean (true o false)' })
   activo: boolean;
 }

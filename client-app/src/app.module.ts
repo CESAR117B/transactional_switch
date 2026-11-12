@@ -38,6 +38,16 @@ if (!jwtSecret) {
   );
 }
 
+// Secreto compartido con el microservicio (autenticación de las llamadas TCP).
+// Debe coincidir con MICROSERVICE_SECRET del microservicio.
+const microserviceSecret = process.env.MICROSERVICE_SECRET;
+if (!microserviceSecret) {
+  throw new Error(
+    'Falta MICROSERVICE_SECRET. Debe coincidir con el del microservicio ' +
+      '(genera uno con: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))")',
+  );
+}
+
 @Module({
   imports: [
     ClientsModule.register([

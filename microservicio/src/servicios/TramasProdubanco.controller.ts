@@ -49,11 +49,6 @@ export class TramasProdubancoController {
     }
   }
 
-  @MessagePattern({ cmd: 'pago' })
-  async generarPagoAlias(@Payload() payload: GenerarPagoPayloadDto) {
-    return this.generarPago(payload);
-  }
-
   @MessagePattern({ cmd: 'generar_transferencia' })
   async generarTransferencia(
     @Payload() payload: GenerarTransferenciaPayloadDto,
@@ -93,13 +88,6 @@ export class TramasProdubancoController {
         error: error?.error,
       });
     }
-  }
-
-  @MessagePattern({ cmd: 'transferencia' })
-  async generarTransferenciaAlias(
-    @Payload() payload: GenerarTransferenciaPayloadDto,
-  ) {
-    return this.generarTransferencia(payload);
   }
 
   @MessagePattern({ cmd: 'consultar_transacciones' })

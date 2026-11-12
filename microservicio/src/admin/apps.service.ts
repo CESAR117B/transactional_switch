@@ -349,8 +349,8 @@ export class AppsService {
       identificador_app: bloqueada?.identificador_app ?? null,
       activo: false,
       mensaje:
-        `App ${identificador} bloqueada. No podrá autenticarse en /auth/login; ` +
-        'los tokens ya emitidos siguen vigentes hasta su expiración.',
+        `App ${identificador} bloqueada. No podrá autenticarse en /auth/login ` +
+        'y sus requests en curso serán rechazados de inmediato.',
     };
   }
 
@@ -367,7 +367,7 @@ export class AppsService {
 
   private async listarAppsInterno() {
     const apps = await this.prisma.app.findMany({
-      include: { info_app: true, app_servicios: true },
+      include: { info_app: true },
     });
 
     return apps.map((app) => ({

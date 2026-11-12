@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, Min } from 'class-validator';
+import { IsInt, Min, ValidateNested } from 'class-validator';
 import { UpdateAppDto } from './update-app.dto';
 
 /**
@@ -56,6 +56,7 @@ export class ActualizarAppDto {
       },
     },
   })
+  @ValidateNested()
   @Type(() => UpdateAppDto)
   data: UpdateAppDto;
 }

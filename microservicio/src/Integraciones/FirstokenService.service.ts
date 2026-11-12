@@ -24,7 +24,21 @@ export class FirsTokenService {
     private readonly universalCryptoService: UniversalCryptoService,
   ) {}
 
-  // ... asegúrate de tener las demás importaciones necesarias
+  /**
+   * Copia de la respuesta de Firstoken apta para auditoría: el token de la
+   * tarjeta se guarda cifrado en `tokenized_cards` y nunca debe quedar en
+   * claro en la tabla de auditoría.
+   */
+  private respuestaAuditable(data: unknown): Record<string, unknown> {
+    if (!data || typeof data !== 'object') return {};
+
+    const copia = JSON.parse(JSON.stringify(data)) as Record<string, any>;
+    const card = copia?.custom_field_details?.card;
+    if (card && typeof card === 'object' && 'token' in card) {
+      card.token = '[REDACTED]';
+    }
+    return copia;
+  }
 
   async permanent_token_card(
     idApp: number,
@@ -56,7 +70,7 @@ export class FirsTokenService {
 
       // 4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
       const appRecord = await this.prisma.app.findUnique({
-        where: { id_app: idApp }, // Verifica si necesitas BigInt(idApp) dependiendo de tu esquema
+        where: { id_app: idApp },
         select: { encryptionKey: true },
       });
 
@@ -75,7 +89,7 @@ export class FirsTokenService {
       const savedCard = await this.prisma.tokenizedCard.create({
         data: {
           idApp: idApp, // Lo convertimos a BigInt como exige tu BD si es necesario
-          firstToken: tokenEncriptado, // 👈 AQUÍ GUARDAMOS LA CADENA ENCRIPTADA
+          firstToken: tokenEncriptado, // GUARDAMOS LA CADENA ENCRIPTADA
           cardTruncated: cardDetails.card_truncated,
           franchise: cardDetails.brand.toUpperCase(), // Ej: DINERS -> UPPERCASE
           holderName: responseData.card_holder,
@@ -101,7 +115,7 @@ export class FirsTokenService {
         idApp: idApp,
         operation: 'PERMANENT_TOKEN_CARD',
         requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
-        responsePayload: response.data,
+        responsePayload: this.respuestaAuditable(response.data),
         status: response.status,
       });
 
@@ -115,8 +129,7 @@ export class FirsTokenService {
         token: tokenEncriptado, // Guardamos el token encriptado en el datamap para auditoría, pero el listener se encargará de no loguearlo
         typeCard: 'PERMANENT',
       };
-      // Devolvemos la respuesta original de FirsToken, pero le agregamos el ID de la BD
-      // convertido a String para que no rompa el JSON en el Gateway
+      // Devolvemos la respuesta de FirsToken con el token ya cifrado.
       return {
         ...datamap,
       };
@@ -128,7 +141,7 @@ export class FirsTokenService {
         operation: 'PERMANENT_TOKEN_CARD',
         reference: '',
         requestPayload: datosTarjeta,
-        responsePayload: error.response?.data || {},
+        responsePayload: this.respuestaAuditable(error.response?.data),
         status: error.response?.status || 500,
         errorMessage: mensajeError,
       });
@@ -167,7 +180,7 @@ export class FirsTokenService {
 
       //  4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
       const appRecord = await this.prisma.app.findUnique({
-        where: { id_app: idApp }, // Verifica si necesitas BigInt(idApp) dependiendo de tu esquema
+        where: { id_app: idApp },
         select: { encryptionKey: true },
       });
 
@@ -211,7 +224,7 @@ export class FirsTokenService {
         idApp: idApp,
         operation: 'TEMPORAL_TOKEN_CARD',
         requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
-        responsePayload: response.data,
+        responsePayload: this.respuestaAuditable(response.data),
         status: response.status,
       });
 
@@ -239,7 +252,7 @@ export class FirsTokenService {
         operation: 'TEMPORAL_TOKEN_CARD',
         reference: '',
         requestPayload: datosTarjeta,
-        responsePayload: error.response?.data || {},
+        responsePayload: this.respuestaAuditable(error.response?.data),
         status: error.response?.status || 500,
         errorMessage: mensajeError,
       });

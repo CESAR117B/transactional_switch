@@ -5,11 +5,14 @@ services:
       dockerfile: Dockerfile
     container_name: nest_microservicio
     restart: unless-stopped
-    ports:
-      - "3001:3001"
-    volumes:
-      - ../microservicio:/app
-      - /app/node_modules
+    # Sólo red interna: NO se publica en el host. El gateway lo alcanza por
+    # el nombre de servicio `microservicio:3001`.
+    expose:
+      - "3001"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3001"
+      NODE_ENV: production
     env_file:
       - ../microservicio/.env
     networks:
@@ -21,11 +24,14 @@ services:
       dockerfile: Dockerfile
     container_name: nest_client_app
     restart: unless-stopped
+    # Único servicio publicado: es la puerta de entrada del sistema.
     ports:
       - "3000:3000"
-    volumes:
-      - ../client-app:/app
-      - /app/node_modules
+    environment:
+      PORT: "3000"
+      MICROSERVICE_HOST: microservicio
+      MICROSERVICE_PORT: "3001"
+      NODE_ENV: production
     env_file:
       - ../client-app/.env
     depends_on:

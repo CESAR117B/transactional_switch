@@ -44,8 +44,9 @@ export class AppService {
    * Bloquea una app consumidora (activo = false).
    *
    * `idAppAdmin` viaja para auditoría y para que el microservicio impida que
-   * una app se bloquee a sí misma. El bloqueo impacta en el próximo login:
-   * los JWT ya emitidos siguen vigentes hasta su expiración (1 h).
+   * una app se bloquee a sí misma. El bloqueo aplica de inmediato: el
+   * ApiKeyGuard revalida el estado de la app en cada request, además de
+   * impedir nuevos logins.
    */
   async bloquearApp(idAppAdmin: number, data: BloquearAppDto) {
     const payload = { idApp: Number(data.id_app), idAppAdmin: Number(idAppAdmin) };

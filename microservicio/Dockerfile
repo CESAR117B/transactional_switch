@@ -1,27 +1,47 @@
-FROM node:24-alpine
+# syntax=docker/dockerfile:1
 
-# Instalar pnpm de forma global
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# --- Etapa de build ---
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
-# Copiar archivos de definición de dependencias
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Dependencias (capa cacheable)
 COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile
 
-# Instalar dependencias con pnpm
-RUN pnpm install
+# Código, schema Prisma y configuración de build
+COPY tsconfig.json tsconfig.build.json nest-cli.json prisma.config.ts ./
+COPY prisma ./prisma
+COPY src ./src
 
-# Copiar el resto del código fuente (incluye el archivo .env)
-COPY . .
+# Cliente Prisma generado + compilación a dist/.
+# DATABASE_URL ficticia: `generate` no se conecta, pero prisma.config.ts la
+# exige y el .env real queda fuera de la imagen (.dockerignore).
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" pnpm exec prisma generate
+RUN pnpm run build
 
-# El puerto del servidor se toma de PORT en /app/.env.
-# dotenv (ya es dependencia) carga el .env al iniciar Node y no sobrescribe
-# variables que ya vengan definidas en el entorno del contenedor.
-ENV NODE_OPTIONS="-r dotenv/config"
+# --- Etapa de runtime ---
+FROM node:24-alpine AS runner
 
-# EXPOSE es solo metadata y no puede leer .env en tiempo de build.
-# El puerto real que abre NestJS lo define PORT en el .env (3001 por defecto).
+WORKDIR /app
+
+# Producción: sin start:dev ni recarga en caliente.
+ENV NODE_ENV=production
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Se copia node_modules completo desde el build para conservar el cliente
+# Prisma generado. El .env NUNCA entra a la imagen.
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+
 EXPOSE 3001
 
-# Ejecutar NestJS en modo desarrollo
-CMD ["pnpm", "run", "start:dev"]
+USER node
+
+CMD ["node", "dist/main.js"]

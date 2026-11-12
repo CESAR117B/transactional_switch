@@ -8,7 +8,7 @@ import {
   Matches,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 /**
  * Alta de una nueva App consumidora del microservicio.
@@ -49,6 +49,9 @@ export class CrearAppDto {
   ruc?: string;
 
   @IsOptional()
+  @Transform(({ obj, key }) =>
+    obj[key] === 'true' ? true : obj[key] === 'false' ? false : obj[key],
+  )
   @IsBoolean({ message: 'activo debe ser booleano' })
   activo?: boolean;
 }

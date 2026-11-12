@@ -1,11 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsInt, Min } from 'class-validator';
+import { IsInt, Min, ValidateNested } from 'class-validator';
+import { UpdateAppDto } from './update-app.dto';
 
 /**
  * Payload para actualizar los datos de una app consumidora.
  *
  * - `idApp`: la app consumidora a actualizar.
- * - `data`: los datos a actualizar (identificador, nombre, desarrollador, ruc, activo).
+ * - `data`: los datos a actualizar (identificador, nombre, desarrollador, ruc, email).
  */
 export class ActualizarAppPayloadDto {
   @Type(() => Number)
@@ -13,6 +14,7 @@ export class ActualizarAppPayloadDto {
   @Min(1, { message: 'idApp debe ser mayor a 0' })
   idApp: number;
 
-  @Type(() => Object)
-  data: any;
+  @ValidateNested()
+  @Type(() => UpdateAppDto)
+  data: UpdateAppDto;
 }

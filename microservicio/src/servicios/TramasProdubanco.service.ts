@@ -1859,6 +1859,10 @@ export class TramasProdubancoService {
 
   private escapeXml(valor: string): string {
     return valor
+      // El tabulador es el separador de columnas de la trama: nunca puede
+      // venir dentro de un campo (inyectaría columnas). Los saltos de línea
+      // romperían el XML.
+      .replace(/[\t\r\n]/g, ' ')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -2162,14 +2166,14 @@ ${itemsXml}
 
       if (duplicado) {
         throw new RpcException({
-          statusCode: 429,
+          statusCode: 409,
           message:
-            `Límite anti-duplicado: ya existe una transacción de esta app con el mismo monto ` +
+            `Duplicado: ya existe una transacción de esta app con el mismo monto ` +
             `(${item.monto}) a la misma cuenta beneficiario en los últimos ` +
             `${TramasProdubancoService.VENTANA_DUPLICADO_MINUTOS} minutos ` +
             `(idTransaccion=${duplicado.idTransaccion}, creada=${duplicado.createdAt.toISOString()}). ` +
             `Intente con otro monto/cuenta o espere a que venza la ventana.`,
-          error: 'Too Many Requests',
+          error: 'Conflict',
         });
       }
     }

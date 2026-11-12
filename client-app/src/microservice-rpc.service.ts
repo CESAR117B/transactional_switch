@@ -146,8 +146,15 @@ export class MicroserviceRpcService {
   ): Promise<TResult> {
     const timeoutMs = timeoutMicroservicioMs();
 
+    // Sobre autenticado: el microservicio valida `__rpcAuth` con
+    // MICROSERVICE_SECRET (RpcAuthPipe) y extrae el payload original.
+    const sobre = {
+      __rpcAuth: process.env.MICROSERVICE_SECRET ?? '',
+      payload,
+    };
+
     return firstValueFrom(
-      this.client.send<TResult, TInput>(pattern, payload).pipe(
+      this.client.send<TResult, typeof sobre>(pattern, sobre).pipe(
         timeout(timeoutMs),
         catchError((error: unknown) => {
           if (!esErrorDeConexion(error)) {

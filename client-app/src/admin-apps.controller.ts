@@ -29,8 +29,8 @@ import { CambiarEstadoServicioAppDto } from './dto/cambiar-estado-servicio-app.d
  * Doble candado: la app debe tener el servicio ADMIN_REGISTER_APP asignado
  * Y el comando (cmp) 'registrar_app' en la jerarquía
  * servicios → servicios_controladores → controladores.
- * El JWT se firma con esos permisos al hacer login, así que la app admin
- * debe re-autenticarse después de asignarlos en BD.
+ * `ApiKeyGuard` revalida servicios y permisos contra la BD en cada request,
+ * así que los cambios aplican de inmediato sin re-autenticarse.
  */
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -65,9 +65,9 @@ export class AdminAppsController {
   @ApiOperation({
     summary:
       'Bloquear una app consumidora (activo = false). La app no podrá ' +
-      'volver a autenticarse en /auth/login. Los JWT ya emitidos siguen ' +
-      'vigentes hasta su expiración (1 h). Una app no puede bloquearse a sí ' +
-      'misma.',
+      'volver a autenticarse en /auth/login y sus requests en curso se ' +
+      'rechazan de inmediato: ApiKeyGuard revalida el estado en cada request. ' +
+      'Una app no puede bloquearse a sí misma.',
   })
   @RequireCmd('bloquear_app')
   @HttpCode(HttpStatus.OK)

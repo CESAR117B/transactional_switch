@@ -11,14 +11,26 @@ function crearServicio(client: Partial<ClientProxy>): MicroserviceRpcService {
   return new MicroserviceRpcService(client as ClientProxy);
 }
 
+const SECRETO_RPC = 'secreto-de-prueba';
+
 describe('MicroserviceRpcService', () => {
   const envOriginal = process.env.MICROSERVICE_TIMEOUT_MS;
+  const secretoOriginal = process.env.MICROSERVICE_SECRET;
+
+  beforeEach(() => {
+    process.env.MICROSERVICE_SECRET = SECRETO_RPC;
+  });
 
   afterEach(() => {
     if (envOriginal === undefined) {
       delete process.env.MICROSERVICE_TIMEOUT_MS;
     } else {
       process.env.MICROSERVICE_TIMEOUT_MS = envOriginal;
+    }
+    if (secretoOriginal === undefined) {
+      delete process.env.MICROSERVICE_SECRET;
+    } else {
+      process.env.MICROSERVICE_SECRET = secretoOriginal;
     }
     jest.restoreAllMocks();
   });
@@ -30,7 +42,10 @@ describe('MicroserviceRpcService', () => {
     await expect(
       servicio.enviar({ cmd: 'get_servicios' }, 1),
     ).resolves.toEqual({ ok: true });
-    expect(send).toHaveBeenCalledWith({ cmd: 'get_servicios' }, 1);
+    expect(send).toHaveBeenCalledWith(
+      { cmd: 'get_servicios' },
+      { __rpcAuth: SECRETO_RPC, payload: 1 },
+    );
   });
 
   it('traduce ECONNREFUSED a una alerta 503 estandarizada', async () => {

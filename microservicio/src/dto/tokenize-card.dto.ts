@@ -1,4 +1,5 @@
 // tokenize-card.dto.ts (Dentro del Microservicio)
+import { Transform } from 'class-transformer';
 import {
   IsString,
   IsNotEmpty,
@@ -32,6 +33,9 @@ export class TokenizeCardDto {
   @Length(3, 3)
   card_cvv?: string;
 
+  @Transform(({ obj, key }) =>
+    obj[key] === 'true' ? true : obj[key] === 'false' ? false : obj[key],
+  )
   @IsBoolean()
   @IsNotEmpty()
   temporal: boolean;
