@@ -164,6 +164,7 @@ enum TipeCard {
 model TokenizedCard {
   idCard BigInt @id @default(autoincrement()) @map("id_card")
   idApp  Int    @map("id_app")
+  idempotencyKey String? @map("idempotency_key") @db.VarChar(100)
 
   // Credenciales y Token
   firstToken    String @map("first_token") @db.Text
@@ -188,6 +189,7 @@ model TokenizedCard {
   deletedAt DateTime? @map("deleted_at")
   app       app?      @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
 
+  @@unique([idApp, idempotencyKey])
   @@map("tokenized_cards") // <-- Mapeo explícito a la tabla de la DB
 }
 
@@ -202,7 +204,8 @@ model TransaccionesServicios {
   operation     String  @db.VarChar(50)
   reference     String  @db.Text // Cifrado con UniversalCryptoService (iv:authTag:cipher)
   referenceHash String? @unique @map("reference_hash") @db.VarChar(64) // sha256(referenciaLote) para unicidad/busqueda deterministica - nullable para migracion, luego NOT NULL tras backfill
-  requestHash   String? @map("request_hash") @db.VarChar(64) // sha256 del contenido del lote SIN referenciaLote — llave de idempotencia
+  requestHash   String? @map("request_hash") @db.VarChar(64) // sha256 del contenido del lote SIN referenciaLote (dedup por contenido)
+  idempotencyKey String? @map("idempotency_key") @db.VarChar(100) // header Idempotency-Key: reintentos devuelven la respuesta original
 
   // Datos
   requestPayload  Json @map("request_payload")
@@ -217,6 +220,7 @@ model TransaccionesServicios {
   app       app?                            @relation(fields: [idApp], references: [id_app], onDelete: Cascade, onUpdate: NoAction, map: "tokenized_cards_app_fk")
   detalles  TransaccionesBancariasDetalle[]
 
+  @@unique([idApp, idempotencyKey])
   @@index([servicio, entidadId])
   @@index([referenceHash])
   @@index([idApp, requestHash])

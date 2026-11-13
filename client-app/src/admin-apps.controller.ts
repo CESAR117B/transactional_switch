@@ -6,16 +6,15 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequireService } from './require-service.decorator';
 import { RequireCmd } from './require-cmd.decorator';
+import { AppAuth, AppAuthConId } from './app-auth.decorator';
 import { AppService } from './app.service';
 import { CrearAppDto } from './dto/crear-app.dto';
 import { BloquearAppDto } from './dto/bloquear-app.dto';
 import { ActualizarAppDto } from './dto/actualizar-app-payload.dto';
-import { UpdateAppDto } from './dto/update-app.dto';
 import { AsignarServiciosAppDto } from './dto/asignar-servicios-app.dto';
 import { NuevokeyAppDto } from './dto/nuevokey-app.dto';
 import { NuevoencryptionkeyAppDto } from './dto/nuevoencryptionkey-app.dto';
@@ -31,6 +30,9 @@ import { CambiarEstadoServicioAppDto } from './dto/cambiar-estado-servicio-app.d
  * servicios → servicios_controladores → controladores.
  * `ApiKeyGuard` revalida servicios y permisos contra la BD en cada request,
  * así que los cambios aplican de inmediato sin re-autenticarse.
+ *
+ * La identidad se obtiene con `@AppAuth()`, que inyecta `request.appAuth`
+ * (con `id_app` garantizado) y evita repetir el chequeo en cada handler.
  */
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -50,16 +52,10 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.CREATED)
   @Post('registrar_app')
   async crearApp(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: CrearAppDto,
   ): Promise<unknown> {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
-    return this.appService.crearApp(idApp, dto);
+    return this.appService.crearApp(auth.id_app, dto);
   }
 
   @ApiOperation({
@@ -73,16 +69,10 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.OK)
   @Post('bloquear_app')
   async bloquearApp(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: BloquearAppDto,
   ): Promise<unknown> {
-    const idAppAdmin = req.appAuth?.id_app;
-    if (!idAppAdmin) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
-    return this.appService.bloquearApp(idAppAdmin, dto);
+    return this.appService.bloquearApp(auth.id_app, dto);
   }
 
   @ApiOperation({
@@ -92,16 +82,8 @@ export class AdminAppsController {
   @RequireCmd('listar_apps')
   @HttpCode(HttpStatus.OK)
   @Get('listar_apps')
-  async listarApps(
-    @Req() req: ReqConAppAuth,
-  ): Promise<unknown> {
-    const idAppAdmin = req.appAuth?.id_app;
-    if (!idAppAdmin) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
-    return this.appService.listarApps(idAppAdmin);
+  async listarApps(@AppAuth() auth: AppAuthConId): Promise<unknown> {
+    return this.appService.listarApps(auth.id_app);
   }
 
   @ApiOperation({
@@ -113,22 +95,14 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.OK)
   @Post('actualizar_app')
   async actualizarApp(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: ActualizarAppDto,
   ): Promise<unknown> {
-    const idAppAdmin = req.appAuth?.id_app;
-    if (!idAppAdmin) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
     const { idApp } = dto;
     if (!idApp) {
-      throw new BadRequestException(
-        'idApp es requerido para actualizar_app',
-      );
+      throw new BadRequestException('idApp es requerido para actualizar_app');
     }
-    return this.appService.actualizarApp(idApp, dto.data);
+    return this.appService.actualizarApp(auth.id_app, idApp, dto.data);
   }
 
   @ApiOperation({
@@ -142,24 +116,16 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.OK)
   @Post('nuevokey_app')
   async nuevokeyApp(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: NuevokeyAppDto,
   ): Promise<unknown> {
-    const idAppAdmin = req.appAuth?.id_app;
-    if (!idAppAdmin) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
     const { idApp } = dto;
     if (!idApp) {
-      throw new BadRequestException(
-        'idApp es requerido para nuevokey_app',
-      );
+      throw new BadRequestException('idApp es requerido para nuevokey_app');
     }
     // La app admin genera una nueva key para la app especificada (idApp).
     // Se valida que la app objetivo sea diferente a la app administradora.
-    return this.appService.nuevokeyApp(idApp, idAppAdmin);
+    return this.appService.nuevokeyApp(idApp, auth.id_app);
   }
 
   @ApiOperation({
@@ -173,15 +139,9 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.OK)
   @Post('nuevoencryptionkey_app')
   async nuevoencryptionkeyApp(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: NuevoencryptionkeyAppDto,
   ): Promise<unknown> {
-    const idAppAdmin = req.appAuth?.id_app;
-    if (!idAppAdmin) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
     const { idApp } = dto;
     if (!idApp) {
       throw new BadRequestException(
@@ -189,7 +149,7 @@ export class AdminAppsController {
       );
     }
     // Se genera una nueva encryptionKey para la app especificada (idApp).
-    return this.appService.nuevoencryptionkeyApp(idApp, idAppAdmin);
+    return this.appService.nuevoencryptionkeyApp(idApp, auth.id_app);
   }
 
   /**
@@ -210,17 +170,16 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.OK)
   @Post('asignar-servicios-app')
   async asignarServiciosApp(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: AsignarServiciosAppDto,
   ): Promise<unknown> {
     // El token identifica a la app administradora (actor). La app objetivo
     // sobre la que se opera viene en el body (`dto.idApp`).
-    if (!req.appAuth?.id_app) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
-    return this.appService.asignarServiciosApp(dto.idApp, dto.codigos);
+    return this.appService.asignarServiciosApp(
+      auth.id_app,
+      dto.idApp,
+      dto.codigos,
+    );
   }
 
   @ApiOperation({
@@ -230,15 +189,8 @@ export class AdminAppsController {
   @RequireCmd('listar_servicios')
   @HttpCode(HttpStatus.OK)
   @Get('listar-servicios')
-  async listarServicios(
-    @Req() req: ReqConAppAuth,
-  ): Promise<unknown> {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
+  async listarServicios(@AppAuth() auth: AppAuthConId): Promise<unknown> {
+    void auth;
     return this.appService.listarServicios();
   }
 
@@ -251,16 +203,13 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.OK)
   @Post('activar-desactivar-servicio')
   async activarDesactivarServicio(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: ActivarDesactivarServicioDto,
   ): Promise<unknown> {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
-    return this.appService.activarDesactivarServicioGlobal(dto.idServicio);
+    return this.appService.activarDesactivarServicioGlobal(
+      auth.id_app,
+      dto.idServicio,
+    );
   }
 
   @ApiOperation({
@@ -273,17 +222,16 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.OK)
   @Post('desasignar-servicios-app')
   async desasignarServiciosApp(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: DesasignarServiciosAppDto,
   ): Promise<unknown> {
     // El token identifica a la app administradora (actor). La app objetivo
     // sobre la que se opera viene en el body (`dto.idApp`).
-    if (!req.appAuth?.id_app) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
-    return this.appService.desasignarServiciosApp(dto.idApp, dto.codigos);
+    return this.appService.desasignarServiciosApp(
+      auth.id_app,
+      dto.idApp,
+      dto.codigos,
+    );
   }
 
   @ApiOperation({
@@ -296,25 +244,16 @@ export class AdminAppsController {
   @HttpCode(HttpStatus.OK)
   @Post('activar-desactivar-servicio-app')
   async activarDesactivarServicioApp(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Body() dto: CambiarEstadoServicioAppDto,
   ): Promise<unknown> {
     // El token identifica a la app administradora (actor). La app objetivo
     // sobre la que se opera viene en el body (`dto.idApp`).
-    if (!req.appAuth?.id_app) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
     return this.appService.cambiarEstadoServicioApp(
+      auth.id_app,
       dto.idApp,
       dto.codigo,
       dto.activo,
     );
   }
-}
-
-/** Request con el appAuth inyectado por el ApiKeyGuard global (JWT). */
-interface ReqConAppAuth {
-  appAuth?: { id_app?: number };
 }

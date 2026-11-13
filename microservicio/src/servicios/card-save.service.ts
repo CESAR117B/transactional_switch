@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FirsTokenService } from '../Integraciones/FirstokenService.service';
+import {
+  FirstokenService,
+  TokenizacionResult,
+} from '../integraciones/firstoken.service';
 import { TokenizeCardDto } from '../dto/tokenize-card.dto';
 
 @Injectable()
 export class CardSaveService {
   private readonly logger = new Logger(CardSaveService.name);
 
-  constructor(private readonly firstoken: FirsTokenService) {}
+  constructor(private readonly firstoken: FirstokenService) {}
 
   async saveCard(idApp: number, cardData: TokenizeCardDto) {
     // Solo se loguea la tarjeta enmascarada; nunca el PAN completo ni el CVV.
@@ -15,12 +18,12 @@ export class CardSaveService {
       `Iniciando tokenización para la tarjeta: ${tarjetaEnmascarada}`,
     );
 
-    let tokenResponse = null;
+    let tokenResponse: TokenizacionResult;
 
     if (cardData.temporal) {
-      tokenResponse = await this.firstoken.temporal_token_card(idApp, cardData);
+      tokenResponse = await this.firstoken.temporalTokenCard(idApp, cardData);
     } else {
-      tokenResponse = await this.firstoken.permanent_token_card(
+      tokenResponse = await this.firstoken.permanentTokenCard(
         idApp,
         cardData,
       );

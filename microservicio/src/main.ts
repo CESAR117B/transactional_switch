@@ -8,6 +8,7 @@ import {
 } from '@nestjs/microservices';
 import { BadRequestException, Logger, ValidationPipe } from '@nestjs/common';
 import { RpcAuthPipe } from './common/rpc-auth.pipe';
+import { RpcExceptionFilter } from './common/rpc-exception.filter';
 
 loadEnv();
 
@@ -57,6 +58,9 @@ async function bootstrap() {
       },
     }),
   );
+  // Normaliza cualquier excepción a { statusCode, message, error } antes de
+  // serializarla por TCP: los controladores ya no repiten try/catch.
+  app.useGlobalFilters(new RpcExceptionFilter());
   await app.listen();
   new Logger('Bootstrap').log(`Microservicio escuchando en ${host}:${port}`);
 }

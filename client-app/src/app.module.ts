@@ -4,10 +4,10 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { SaveCardsController } from './savecards.controller';
+import { SaveCardsController } from './save-cards.controller';
 import { ServiciosController } from './servicios.controller';
 import { AuthController } from './auth.controller';
-import { TramasProdubancoController } from './TramasProdubanco.controller';
+import { TramasProdubancoController } from './tramas-produbanco.controller';
 import { AdminAppsController } from './admin-apps.controller';
 import { AdminProdubancoController } from './admin-produbanco.controller';
 import { JwtModule } from '@nestjs/jwt';
@@ -52,7 +52,7 @@ if (!microserviceSecret) {
   imports: [
     ClientsModule.register([
       {
-        name: 'MATH_SERVICE',
+        name: 'SWITCH_SERVICE',
         transport: Transport.TCP,
         options: {
           host: process.env.MICROSERVICE_HOST || '127.0.0.1',

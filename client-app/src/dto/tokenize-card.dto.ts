@@ -3,6 +3,7 @@ import { Transform } from 'class-transformer';
 import { 
   IsString, 
   IsNotEmpty, 
+  IsOptional,
   Length, 
   Matches, 
   MaxLength, 
@@ -92,4 +93,10 @@ export class TokenizeCardDto {
   @IsBoolean()
   @IsNotEmpty()
   temporal: boolean
+
+  /** Lo inyecta el controlador desde el header Idempotency-Key. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  idempotencyKey?: string
 }

@@ -131,7 +131,7 @@ export class MicroserviceRpcService {
   private readonly logger = new Logger(MicroserviceRpcService.name);
 
   constructor(
-    @Inject('MATH_SERVICE') private readonly client: ClientProxy,
+    @Inject('SWITCH_SERVICE') private readonly client: ClientProxy,
   ) {}
 
   /**

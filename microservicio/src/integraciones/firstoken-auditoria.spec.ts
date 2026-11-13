@@ -1,7 +1,7 @@
-import { FirsTokenService } from './FirstokenService.service';
+import { FirstokenService } from './firstoken.service';
 
-function crearServicio(): FirsTokenService {
-  return new FirsTokenService(
+function crearServicio(): FirstokenService {
+  return new FirstokenService(
     {} as any,
     {} as any,
     {} as any,
@@ -10,7 +10,7 @@ function crearServicio(): FirsTokenService {
   );
 }
 
-describe('FirsTokenService.respuestaAuditable', () => {
+describe('FirstokenService.respuestaAuditable', () => {
   const auditable = (data: unknown) =>
     (crearServicio() as any).respuestaAuditable(data) as Record<string, any>;
 

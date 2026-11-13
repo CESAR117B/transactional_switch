@@ -1,10 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { TramasProdubancoService } from './TramasProdubanco.service';
+import { TramasProdubancoService } from './tramas-produbanco.service';
 import { LogProceso } from '../logs/log-proceso.decorator';
 import { CronLogResult, CronLogService } from '../logs/cron-log.service';
-import { TramaSoap } from '../Integraciones/ProdubancoSoap.service';
+import { TramaSoap } from '../integraciones/produbanco-soap.service';
+import {
+  CRON_LOCK_PRODUBANCO,
+  CronLockService,
+} from '../common/cron-lock.service';
 
 /**
  * Estados verbatim de `estado_item` (columna estado_item de
@@ -65,10 +69,14 @@ export interface JobEjecucionMetadata {
 export class TransaccionesProdubancoJobService {
   private readonly logger = new Logger(TransaccionesProdubancoJobService.name);
 
+  /** Evita solapar dos ejecuciones del cron en el mismo proceso. */
+  private ejecutando = false;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tramas: TramasProdubancoService,
     private readonly cronLogService: CronLogService,
+    private readonly cronLock: CronLockService,
   ) {}
 
   /**
@@ -85,6 +93,47 @@ export class TransaccionesProdubancoJobService {
   @Cron('*/5 * * * *') // Cada 5 minutos
   @LogProceso(NOMBRE_LOG_CRON)
   async manejarCronActualizacionEstado(): Promise<CronLogResult> {
+    // Candado en proceso: si una ejecución anterior sigue viva (SOAP lento),
+    // esta se omite para no solapar consultas ni duplicar registros.
+    if (this.ejecutando) {
+      this.logger.warn(
+        'Ejecución anterior del cron aún en curso; se omite esta corrida',
+      );
+      return {
+        exito: true,
+        mensaje: 'Ejecución anterior aún en curso; corrida omitida',
+      };
+    }
+    this.ejecutando = true;
+    try {
+      // Lock multi-instancia: sólo una réplica ejecuta el lote a la vez.
+      // El advisory lock se libera al terminar (o al caerse la conexión).
+      const { adquirido, resultado } = await this.cronLock.conLock(
+        CRON_LOCK_PRODUBANCO,
+        () => this.ejecutarActualizacionEstados(),
+      );
+      if (!adquirido) {
+        this.logger.warn(
+          'Otra instancia está ejecutando el cron de Produbanco; se omite esta corrida',
+        );
+        return {
+          exito: true,
+          mensaje:
+            'Otra instancia está ejecutando el cron; corrida omitida',
+        };
+      }
+      return (
+        resultado ?? {
+          exito: true,
+          mensaje: 'Corrida finalizada sin resultado',
+        }
+      );
+    } finally {
+      this.ejecutando = false;
+    }
+  }
+
+  private async ejecutarActualizacionEstados(): Promise<CronLogResult> {
     this.logger.log(
       'Iniciando job de actualización de estados de transacciones Produbanco',
     );

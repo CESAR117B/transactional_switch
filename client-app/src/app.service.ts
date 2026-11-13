@@ -59,8 +59,16 @@ export class AppService {
     return this.rpc.enviar({ cmd: 'listar_apps' }, payload);
   }
 
-  async actualizarApp(idAppAdmin: number, data: UpdateAppDto) {
-    const payload = { idApp: Number(idAppAdmin), data };
+  async actualizarApp(
+    idAppAdmin: number,
+    idApp: number,
+    data: UpdateAppDto,
+  ) {
+    const payload = {
+      idApp: Number(idApp),
+      idAppAdmin: Number(idAppAdmin),
+      data,
+    };
     return this.rpc.enviar({ cmd: 'actualizar_app' }, payload);
   }
 
@@ -97,13 +105,21 @@ export class AppService {
   }
 
 
-  async generarPago(idApp: number, data: CrearPagoLoteDto) {
-    const payload = { idApp: Number(idApp), data };
+  async generarPago(
+    idApp: number,
+    data: CrearPagoLoteDto,
+    idempotencyKey: string,
+  ) {
+    const payload = { idApp: Number(idApp), idempotencyKey, data };
     return this.rpc.enviar({ cmd: 'generar_pago' }, payload);
   }
 
-  async generarTransferencia(idApp: number, data: CrearTransferenciaLoteDto) {
-    const payload = { idApp: Number(idApp), data };
+  async generarTransferencia(
+    idApp: number,
+    data: CrearTransferenciaLoteDto,
+    idempotencyKey: string,
+  ) {
+    const payload = { idApp: Number(idApp), idempotencyKey, data };
     return this.rpc.enviar({ cmd: 'generar_transferencia' }, payload);
   }
 
@@ -187,8 +203,16 @@ export class AppService {
    *   ej: ['PAYMENT', 'REPORT']. Se deduplican internamente.
    * @returns Lista de objetos `{ id_servicio, codigo, nombre }` asignados.
    */
-  async asignarServiciosApp(idApp: number, codigos: string[]): Promise<unknown> {
-    const payload = { idApp: Number(idApp), codigos };
+  async asignarServiciosApp(
+    idAppAdmin: number,
+    idApp: number,
+    codigos: string[],
+  ): Promise<unknown> {
+    const payload = {
+      idApp: Number(idApp),
+      idAppAdmin: Number(idAppAdmin),
+      codigos,
+    };
     return this.rpc.enviar<unknown>({ cmd: 'asignar_servicios_app' }, payload);
   }
 
@@ -200,10 +224,15 @@ export class AppService {
    * Emite auditoría con `operation: 'ADMIN_DESASIGNAR_SERVICIOS_APP'`.
    */
   async desasignarServiciosApp(
+    idAppAdmin: number,
     idApp: number,
     codigos: string[],
   ): Promise<unknown> {
-    const payload = { idApp: Number(idApp), codigos };
+    const payload = {
+      idApp: Number(idApp),
+      idAppAdmin: Number(idAppAdmin),
+      codigos,
+    };
     return this.rpc.enviar<unknown>(
       { cmd: 'desasignar_servicios_app' },
       payload,
@@ -221,11 +250,17 @@ export class AppService {
    * Emite auditoría con `operation: 'ADMIN_CAMBIAR_ESTADO_SERVICIO_APP'`.
    */
   async cambiarEstadoServicioApp(
+    idAppAdmin: number,
     idApp: number,
     codigo: string,
     activo: boolean,
   ): Promise<unknown> {
-    const payload = { idApp: Number(idApp), codigo, activo };
+    const payload = {
+      idApp: Number(idApp),
+      idAppAdmin: Number(idAppAdmin),
+      codigo,
+      activo,
+    };
     return this.rpc.enviar<unknown>(
       { cmd: 'activar_desactivar_servicio_app' },
       payload,
@@ -237,7 +272,13 @@ export class AppService {
     return this.rpc.enviar<unknown>({ cmd: 'listar_servicios' }, {});
   }
 
-  async activarDesactivarServicioGlobal(idServicio: number) {
-    return this.rpc.enviar<unknown>({ cmd: 'activar_desactivar_servicio' }, { idServicio });
+  async activarDesactivarServicioGlobal(
+    idAppAdmin: number,
+    idServicio: number,
+  ) {
+    return this.rpc.enviar<unknown>(
+      { cmd: 'activar_desactivar_servicio' },
+      { idServicio, idAppAdmin: Number(idAppAdmin) },
+    );
   }
 }

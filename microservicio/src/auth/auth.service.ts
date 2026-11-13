@@ -101,12 +101,20 @@ export class AuthService {
     // inactiva o si la key está mal (evita enumeración de apps).
     const CREDENCIALES_INVALIDAS = 'Credenciales inválidas';
     if (!app || app.activo === false) {
-      throw new RpcException({ status: 401, message: CREDENCIALES_INVALIDAS });
+      throw new RpcException({
+        statusCode: 401,
+        message: CREDENCIALES_INVALIDAS,
+        error: 'Unauthorized',
+      });
     }
 
     const keyOk = await this.verificarKey(key, app.key);
     if (!keyOk) {
-      throw new RpcException({ status: 401, message: CREDENCIALES_INVALIDAS });
+      throw new RpcException({
+        statusCode: 401,
+        message: CREDENCIALES_INVALIDAS,
+        error: 'Unauthorized',
+      });
     }
 
     // Migración on-the-fly: la key en claro (legacy) se reemplaza por su
@@ -154,8 +162,9 @@ export class AuthService {
 
     if (!app || app.activo === false) {
       throw new RpcException({
-        status: 401,
+        statusCode: 401,
         message: 'La app no existe o está bloqueada',
+        error: 'Unauthorized',
       });
     }
 

@@ -1,6 +1,7 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AppAuth, AppAuthConId } from './app-auth.decorator';
 
 @ApiTags('Servicios')
 @ApiBearerAuth()
@@ -15,10 +16,7 @@ export class ServiciosController {
       'servicios ni permisos adicionales asignados (igual que GET /app).',
   })
   @Get('mis-servicios')
-  async obtenerMisServicios(@Req() request: any) {
-    // 1. Extraemos el ID de la app que el Guard inyectó
-    const appId = request.appAuth.id_app;
-
-    return this.appService.obtenerServiciosPorApp(appId);
+  async obtenerMisServicios(@AppAuth() auth: AppAuthConId) {
+    return this.appService.obtenerServiciosPorApp(auth.id_app);
   }
 }

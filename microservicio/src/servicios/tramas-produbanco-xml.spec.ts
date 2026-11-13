@@ -1,14 +1,7 @@
-import { TramasProdubancoService } from './TramasProdubanco.service';
+import { TramaBuilderService } from '../produbanco/trama-builder.service';
 
-/** Instancia sin dependencias reales: sólo se prueba el armado de la trama. */
-function crearServicio(): TramasProdubancoService {
-  return new TramasProdubancoService(
-    {} as any,
-    {} as any,
-    {} as any,
-    {} as any,
-  );
-}
+/** Instancia sin estado: sólo se prueba el armado de la trama. */
+const service = new TramaBuilderService();
 
 function crearPago(detalle: Record<string, unknown> = {}) {
   return {
@@ -46,10 +39,9 @@ function obtenerLineaItem(xml: string): string {
   return match[1];
 }
 
-describe('TramasProdubancoService.construirXmlPago', () => {
-  const service = crearServicio();
+describe('TramaBuilderService.construirXmlPago', () => {
   const construir = (data: unknown) =>
-    (service as any).construirXmlPago(data) as string;
+    service.construirXmlPago(data as any) as string;
 
   it('arma un ítem con las 20 columnas del formato (19 tabuladores)', () => {
     const linea = obtenerLineaItem(construir(crearPago()));
@@ -58,9 +50,7 @@ describe('TramasProdubancoService.construirXmlPago', () => {
   });
 
   it('escapa caracteres especiales de XML', () => {
-    const xml = construir(
-      crearPago({ referencia: 'A&B <C> "D" \'E\'' }),
-    );
+    const xml = construir(crearPago({ referencia: 'A&B <C> "D" \'E\'' }));
     const linea = obtenerLineaItem(xml);
 
     expect(linea).toContain('A&amp;B &lt;C&gt; &quot;D&quot; &apos;E&apos;');
@@ -111,5 +101,21 @@ describe('TramasProdubancoService.construirXmlPago', () => {
     expect(xml).toContain('<Id_Servicio>75</Id_Servicio>');
     expect(xml).toContain('<NumRecs>1</NumRecs>');
     expect(xml).not.toContain('<?xml');
+  });
+});
+
+describe('TramaBuilderService.validarLotePago', () => {
+  it('rechaza un tipoId R con identificación que no tiene 13 dígitos', () => {
+    expect(() =>
+      service.validarLotePago(
+        crearPago({ tipoId: 'R', identificacion: '1712345678' }) as any,
+      ),
+    ).toThrow();
+  });
+
+  it('exige cuenta y tipoCuenta para formaPago CTA', () => {
+    expect(() =>
+      service.validarLotePago(crearPago({ cuenta: '' }) as any),
+    ).toThrow();
   });
 });

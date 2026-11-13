@@ -1,10 +1,10 @@
 import { Controller } from '@nestjs/common';
-import { Servicios } from './servicios';
+import { ServiciosService } from './servicios.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 
 @Controller()
 export class ServicioController {
-  constructor(private servicios: Servicios) {}
+  constructor(private servicios: ServiciosService) {}
 
   @MessagePattern({ cmd: 'get_servicios' })
   getServicios(@Payload() appID: number) {

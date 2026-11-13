@@ -5,6 +5,9 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { ApplicationService } from '../servicios/application.service';
+import { UniversalCryptoService } from '../servicios/universal-crypto.service';
+import { hashBusqueda } from '../servicios/hash-busqueda';
+import { Prisma } from '@prisma/client';
 import { CrearAppDto } from '../dto/crear-app.dto';
 import { UpdateAppDto } from '../dto/update-app.dto';
 import { TransactionLogEvent } from '../events/transaction-log.event';
@@ -43,6 +46,7 @@ export class AppsService {
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
     private readonly applicationService: ApplicationService,
+    private readonly universalCryptoService: UniversalCryptoService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -378,14 +382,18 @@ export class AppsService {
     }));
   }
 
-  async actualizarApp(idApp: number, dto: UpdateAppDto) {
+  async actualizarApp(
+    idApp: number,
+    dto: UpdateAppDto,
+    idAppAdmin?: number,
+  ) {
     return this.auditarOperacion(
       {
-        idApp,
+        idApp: idAppAdmin ?? idApp,
         operation: 'ADMIN_ACTUALIZAR_APP',
         entidadName: 'app',
         entidadId: idApp,
-        requestPayload: dto,
+        requestPayload: { idApp, idAppAdmin: idAppAdmin ?? idApp, data: dto },
       },
       () => this.actualizarAppInterno(idApp, dto),
     );
@@ -530,15 +538,109 @@ export class AppsService {
     }
 
     const encryptionKey = this.applicationService.generarLlaveEncriptacion();
+    const llaveAnterior = appExistente.encryptionKey;
 
-    await this.prisma.app.update({
-      where: { id_app: idApp },
-      data: { encryptionKey, fecha_actualizacion: new Date() },
-    });
+    if (!llaveAnterior) {
+      // Sin llave previa no hay data cifrada que migrar.
+      await this.prisma.app.update({
+        where: { id_app: idApp },
+        data: { encryptionKey, fecha_actualizacion: new Date() },
+      });
+      this.logger.warn(
+        `App id_app=${idApp} no tenía encryptionKey; se asignó una nueva sin re-cifrar historial`,
+      );
+    } else {
+      // Re-cifra el historial y cambia la llave en UNA transacción: si algún
+      // registro no se puede descifrar, se aborta y la llave anterior queda.
+      await this.prisma.$transaction(
+        async (tx) => {
+          const tarjetas = await tx.tokenizedCard.findMany({
+            where: { idApp },
+            select: { idCard: true, firstToken: true },
+          });
+          for (const tarjeta of tarjetas) {
+            const token = this.reCifrarTexto(
+              tarjeta.firstToken,
+              llaveAnterior,
+              encryptionKey,
+            );
+            if (token !== null && token !== tarjeta.firstToken) {
+              await tx.tokenizedCard.update({
+                where: { idCard: tarjeta.idCard },
+                data: { firstToken: token },
+              });
+            }
+          }
+
+          const transacciones = await tx.transaccionesServicios.findMany({
+            where: { idApp },
+            include: { detalles: true },
+          });
+          for (const transaccion of transacciones) {
+            const reference = this.reCifrarTexto(
+              transaccion.reference,
+              llaveAnterior,
+              encryptionKey,
+            );
+            const requestPayload = this.reCifrarPayload(
+              transaccion.requestPayload,
+              llaveAnterior,
+              encryptionKey,
+            );
+            await tx.transaccionesServicios.update({
+              where: { idTransaccion: transaccion.idTransaccion },
+              data: { reference: reference ?? '', requestPayload },
+            });
+
+            for (const detalle of transaccion.detalles) {
+              const identificacion = this.reCifrarTexto(
+                detalle.beneficiarioIdentificacion,
+                llaveAnterior,
+                encryptionKey,
+              );
+              const cuenta = this.reCifrarTexto(
+                detalle.beneficiarioCuenta,
+                llaveAnterior,
+                encryptionKey,
+              );
+              const codigoSwift = this.reCifrarTexto(
+                detalle.codigoSwiftAba,
+                llaveAnterior,
+                encryptionKey,
+              );
+              await tx.transaccionesBancariasDetalle.update({
+                where: { id_detalle: detalle.id_detalle },
+                data: {
+                  beneficiarioIdentificacion: identificacion ?? '',
+                  beneficiarioIdentificacionHash: this.hashDe(
+                    identificacion,
+                    encryptionKey,
+                    detalle.beneficiarioIdentificacionHash,
+                  ),
+                  beneficiarioCuenta: cuenta,
+                  beneficiarioCuentaHash: this.hashDe(
+                    cuenta,
+                    encryptionKey,
+                    detalle.beneficiarioCuentaHash,
+                  ),
+                  codigoSwiftAba: codigoSwift,
+                },
+              });
+            }
+          }
+
+          await tx.app.update({
+            where: { id_app: idApp },
+            data: { encryptionKey, fecha_actualizacion: new Date() },
+          });
+        },
+        { timeout: 120000 },
+      );
+    }
 
     this.logger.log(
       `Nueva encryptionKey generada para app id_app=${idApp} identificador=${appExistente.identificador_app} ` +
-        `por idAppAdmin=${idAppAdmin}`,
+        `por idAppAdmin=${idAppAdmin} (historial re-cifrado)`,
     );
 
     return {
@@ -546,10 +648,96 @@ export class AppsService {
       identificador_app: appExistente.identificador_app,
       encryptionKey,
       mensaje:
-        'Se generó una nueva encryptionKey para la app. Esta key se entrega en claro UNA sola vez ' +
-        'igual que en el registro inicial; la encryptionKey almacenada en BD no puede recuperarse. ' +
-        'Los servicios de la app deberán actualizar su configuración con la nueva encryptionKey.',
+        'Se generó una nueva encryptionKey para la app y se re-cifró su historial ' +
+        '(tarjetas, referencias y detalles bancarios). La key se entrega en claro UNA sola vez; ' +
+        'los servicios de la app deberán actualizar su configuración con la nueva key.',
     };
+  }
+
+  /** true si el string tiene el formato IV:AuthTag:Texto de UniversalCryptoService. */
+  private esPaqueteCifrado(valor: string | null | undefined): valor is string {
+    return (
+      typeof valor === 'string' &&
+      valor.length > 0 &&
+      valor.split(':').length === 3
+    );
+  }
+
+  /**
+   * Re-cifra un texto con la llave nueva. Si no es un paquete cifrado
+   * (vacío/null/legacy en claro) se deja igual: no hay nada que descifrar.
+   */
+  private reCifrarTexto(
+    valor: string | null | undefined,
+    llaveAnterior: string,
+    llaveNueva: string,
+  ): string | null {
+    if (valor === null || valor === undefined) return null;
+    if (!this.esPaqueteCifrado(valor)) return valor;
+    const plano = this.universalCryptoService.decrypt(valor, llaveAnterior);
+    return this.universalCryptoService.encrypt(plano, llaveNueva);
+  }
+
+  /** Recalcula el HMAC de búsqueda con la llave nueva a partir del valor re-cifrado. */
+  private hashDe(
+    valorReCifrado: string | null,
+    llaveNueva: string,
+    hashPrevio: string | null,
+  ): string | null {
+    if (!valorReCifrado) return hashPrevio;
+    const plano = this.esPaqueteCifrado(valorReCifrado)
+      ? this.universalCryptoService.decrypt(valorReCifrado, llaveNueva)
+      : valorReCifrado;
+    return hashBusqueda(plano, llaveNueva);
+  }
+
+  /** Copia el JSON de requestPayload re-cifrando sólo los campos sensibles. */
+  private reCifrarPayload(
+    payload: unknown,
+    llaveAnterior: string,
+    llaveNueva: string,
+  ): Prisma.InputJsonValue {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return payload as Prisma.InputJsonValue;
+    }
+    const copia = JSON.parse(JSON.stringify(payload)) as Record<
+      string,
+      unknown
+    >;
+
+    for (const campo of ['cuentaEmpresa', 'referenciaLote']) {
+      const valor = copia[campo];
+      if (typeof valor === 'string') {
+        copia[campo] = this.reCifrarTexto(valor, llaveAnterior, llaveNueva);
+      }
+    }
+
+    if (Array.isArray(copia['detalles'])) {
+      copia['detalles'] = (copia['detalles'] as unknown[]).map((detalle) => {
+        if (!detalle || typeof detalle !== 'object' || Array.isArray(detalle)) {
+          return detalle;
+        }
+        const item = { ...(detalle as Record<string, unknown>) };
+        for (const campo of [
+          'identificacion',
+          'cuenta',
+          'beneficiarioCuenta',
+          'codigoSwiftAba',
+        ]) {
+          const valor = item[campo];
+          if (typeof valor === 'string') {
+            item[campo] = this.reCifrarTexto(
+              valor,
+              llaveAnterior,
+              llaveNueva,
+            );
+          }
+        }
+        return item;
+      });
+    }
+
+    return copia as Prisma.InputJsonValue;
   }
 
   /**
@@ -562,15 +750,20 @@ export class AppsService {
    *
    * Emite auditoría con `operation: 'ADMIN_ASIGNAR_SERVICIOS_APP'`.
    */
-  async asignarServiciosApp(idApp: number, codigos: string[]) {
-    // Deduplicar entrada por si el caller envía repetidos
-    const codigosUniq = [...new Set(codigos)];
+  async asignarServiciosApp(
+    idApp: number,
+    codigos: string[],
+    idAppAdmin?: number,
+  ) {
+    // Normalizar ANTES de validar y de borrar: `catalogo_srv` y
+    // `CATALOGO_SRV` deben resolver al mismo servicio.
+    const codigosUniq = [
+      ...new Set(codigos.map((c) => c.trim().toUpperCase())),
+    ];
 
     // Validar que ningún código empiece por "ADMIN" (mayúsculas o minúsculas),
     // ya que solo debe existir un administrador en el sistema.
-    const codigoAdmin = codigosUniq.find(
-      (c) => c.toUpperCase().startsWith('ADMIN'),
-    );
+    const codigoAdmin = codigosUniq.find((c) => c.startsWith('ADMIN'));
     if (codigoAdmin) {
       throw new RpcException({
         statusCode: 400,
@@ -580,42 +773,38 @@ export class AppsService {
       });
     }
 
+    const idAppActor = idAppAdmin ?? idApp;
+
     return this.auditarOperacion(
       {
-        idApp,
+        idApp: idAppActor,
         operation: 'ADMIN_ASIGNAR_SERVICIOS_APP',
         entidadName: 'app',
         entidadId: idApp,
-        requestPayload: { idApp, codigos: codigosUniq },
+        requestPayload: { idApp, idAppAdmin: idAppActor, codigos: codigosUniq },
         responsePayload: (result) => ({
           idApp,
           codigosAsignados: result,
         }),
         statusExito: 200,
       },
-      async () => {
-        // 1. Eliminar asignaciones previas de esta app
-        await this.prisma.app_servicios.deleteMany({
-          where: { id_app: idApp },
-        });
-
-        // 2. Buscar los servicios por su codigo alfanumérico
-        if (codigosUniq && codigosUniq.length > 0) {
-          const serviciosValidos = await this.prisma.servicios.findMany({
-            where: { codigo: { in: codigosUniq }, activo: true },
-            select: { id_servicio: true, codigo: true, nombre: true, activo: true },
-          });
+      async () =>
+        this.prisma.$transaction(async (tx) => {
+          // 1. Validar TODOS los códigos antes de tocar nada: un código
+          //    inválido no debe dejar a la app sin servicios.
+          const serviciosValidos =
+            codigosUniq.length === 0
+              ? []
+              : await tx.servicios.findMany({
+                  where: { codigo: { in: codigosUniq }, activo: true },
+                  select: { id_servicio: true, codigo: true },
+                });
           const mapaCodigos = new Map(
             serviciosValidos.map((s) => [s.codigo, s.id_servicio]),
           );
-
-          // Identificar cuáles códigos no fueron encontrados o no están activos
-          const codigosEncontrados = new Set(serviciosValidos.map((s) => s.codigo));
           const codigosNoValidos = codigosUniq.filter(
-            (c) => !codigosEncontrados.has(c.toUpperCase()),
+            (c) => !mapaCodigos.has(c),
           );
-
-          // Si hay códigos no válidos, lanzar error informando cuáles son
           if (codigosNoValidos.length > 0) {
             throw new RpcException({
               statusCode: 400,
@@ -625,33 +814,46 @@ export class AppsService {
             });
           }
 
-          // Filtrar solo los códigos que existen y mapear a id_servicio
-          const registros = codigosUniq
-            .filter((codigo) => mapaCodigos.has(codigo))
-            .map((codigo) => ({
-              id_app: idApp,
-              id_servicio: mapaCodigos.get(codigo)!,
-            }));
+          // 2. Conservar el estado `activo` de las asignaciones que ya existían.
+          const previas = await tx.app_servicios.findMany({
+            where: { id_app: idApp },
+            select: { id_servicio: true, activo: true },
+          });
+          const activoPrevio = new Map(
+            previas.map((p) => [p.id_servicio, p.activo]),
+          );
 
+          // 3. Reemplazar asignaciones dentro de una transacción: o queda el
+          //    conjunto nuevo completo, o queda el anterior intacto.
+          await tx.app_servicios.deleteMany({ where: { id_app: idApp } });
+          const registros = codigosUniq.map((codigo) => {
+            const idServicio = mapaCodigos.get(codigo)!;
+            return {
+              id_app: idApp,
+              id_servicio: idServicio,
+              activo: activoPrevio.get(idServicio) ?? true,
+            };
+          });
           if (registros.length > 0) {
-            await this.prisma.app_servicios.createMany({
+            await tx.app_servicios.createMany({
               data: registros,
               skipDuplicates: true,
             });
           }
-        }
 
-        // 3. Devolver el listado actual de servicios de la app (codigos + nombres)
-        const asignaciones = await this.prisma.app_servicios.findMany({
-          where: { id_app: idApp },
-          include: { servicios: { select: { codigo: true, nombre: true } } },
-        });
+          // 4. Devolver el listado actual de servicios de la app (codigos + nombres)
+          const asignaciones = await tx.app_servicios.findMany({
+            where: { id_app: idApp },
+            include: {
+              servicios: { select: { codigo: true, nombre: true } },
+            },
+          });
 
-        return asignaciones.map((a) => ({
-          id_servicio: a.id_servicio,
-          ...a.servicios,
-        }));
-      },
+          return asignaciones.map((a) => ({
+            id_servicio: a.id_servicio,
+            ...a.servicios,
+          }));
+        }),
     );
   }
 
@@ -675,14 +877,14 @@ export class AppsService {
    * @param idServicio ID numérico del servicio (campo `id_servicio` de la tabla `servicios`).
    * @returns objeto con el código del servicio y el nuevo estado.
    */
-  async activarDesactivarServicio(idServicio: number) {
+  async activarDesactivarServicio(idServicio: number, idAppAdmin?: number) {
     return this.auditarOperacion(
       {
-        idApp: 0, // 0 indica acción sobre el servicio global, no sobre una app específica
+        idApp: idAppAdmin ?? 0, // actor admin; 0 sólo si no vino identificado
         operation: 'ADMIN_TOGLEAR_SERVICIO',
         entidadName: 'servicio',
         entidadId: idServicio,
-        requestPayload: { idServicio },
+        requestPayload: { idServicio, idAppAdmin: idAppAdmin ?? 0 },
         statusExito: 200,
         responsePayload: (result) => ({
           idServicio: result.id_servicio,
@@ -737,7 +939,11 @@ export class AppsService {
    *
    * Emite auditoría con `operation: 'ADMIN_DESASIGNAR_SERVICIOS_APP'`.
    */
-  async desasignarServiciosApp(idApp: number, codigos: string[]) {
+  async desasignarServiciosApp(
+    idApp: number,
+    codigos: string[],
+    idAppAdmin?: number,
+  ) {
     // Deduplicar entrada
     const codigosUniq = [...new Set(codigos)];
 
@@ -756,11 +962,15 @@ export class AppsService {
 
     return this.auditarOperacion(
       {
-        idApp,
+        idApp: idAppAdmin ?? idApp,
         operation: 'ADMIN_DESASIGNAR_SERVICIOS_APP',
         entidadName: 'app',
         entidadId: idApp,
-        requestPayload: { idApp, codigos: codigosUniq },
+        requestPayload: {
+          idApp,
+          idAppAdmin: idAppAdmin ?? idApp,
+          codigos: codigosUniq,
+        },
         responsePayload: (result) => ({
           idApp,
           codigosDesasignados: result.codigosDesasignados,
@@ -857,14 +1067,20 @@ export class AppsService {
     idApp: number,
     codigo: string,
     activo: boolean,
+    idAppAdmin?: number,
   ) {
     return this.auditarOperacion(
       {
-        idApp,
+        idApp: idAppAdmin ?? idApp,
         operation: 'ADMIN_CAMBIAR_ESTADO_SERVICIO_APP',
         entidadName: 'app',
         entidadId: idApp,
-        requestPayload: { idApp, codigo, activo },
+        requestPayload: {
+          idApp,
+          idAppAdmin: idAppAdmin ?? idApp,
+          codigo,
+          activo,
+        },
         responsePayload: (result) => ({
           idApp,
           codigo: result.codigo,

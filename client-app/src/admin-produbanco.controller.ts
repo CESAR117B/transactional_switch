@@ -4,11 +4,11 @@ import {
   Get,
   Param,
   Query,
-  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequireService } from './require-service.decorator';
 import { RequireCmd } from './require-cmd.decorator';
+import { AppAuth, AppAuthConId } from './app-auth.decorator';
 import { AppService } from './app.service';
 import { ListarTransaccionesAdminQueryDto } from './dto/listar-transacciones-admin-query.dto';
 
@@ -41,14 +41,10 @@ export class AdminProdubancoController {
   @RequireCmd('transacciones_admin')
   @Get('transacciones')
   async listarTransacciones(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Query() query: ListarTransaccionesAdminQueryDto,
   ) {
-    if (!req.appAuth?.id_app) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
+    void auth;
     return this.appService.transaccionesAdmin(query);
   }
 
@@ -61,15 +57,11 @@ export class AdminProdubancoController {
   @RequireCmd('estado_transaccion_admin')
   @Get('transacciones/estado/:dato')
   async estadoTransaccion(
-    @Req() req: ReqConAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Param('dato') dato: string,
     @Query('idApp') idAppRaw?: string,
   ) {
-    if (!req.appAuth?.id_app) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
+    void auth;
     if (!dato || !dato.trim()) {
       throw new BadRequestException(
         'dato es requerido (idTransaccion o referenciaLote)',
@@ -86,9 +78,4 @@ export class AdminProdubancoController {
 
     return this.appService.estadoTransaccionAdmin(dato.trim(), idApp);
   }
-}
-
-/** Request con el appAuth inyectado por el ApiKeyGuard global (JWT). */
-interface ReqConAppAuth {
-  appAuth?: { id_app?: number };
 }

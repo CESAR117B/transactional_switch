@@ -8,6 +8,8 @@ import {
   IsEnum,
   IsArray,
   ArrayMinSize,
+  ArrayMaxSize,
+  Max,
   ValidateNested,
   Length,
   MaxLength,
@@ -187,6 +189,9 @@ export class TransferenciaDetalleItemDto {
     { message: 'monto debe ser numérico con máx 2 decimales' },
   )
   @IsPositive({ message: 'monto debe ser positivo' })
+  @Max(99_999_999.99, {
+    message: 'monto supera el máximo permitido por la trama (99.999.999,99)',
+  })
   monto: number;
 
   @ApiPropertyOptional({
@@ -268,7 +273,7 @@ export class CrearTransferenciaLoteDto {
 
   // fechaInicio/fechaVencimiento YA no se envían al microservicio: el back
   // genera la vigencia del sobre (hoy → hoy + 1) y la incluye en el
-  // <Envelope> a Produbanco (TramasProdubanco.service).
+  // <Envelope> a Produbanco (tramas-produbanco.service).
 
   @ApiProperty({
     description:
@@ -278,6 +283,7 @@ export class CrearTransferenciaLoteDto {
   })
   @IsArray({ message: 'detalles debe ser un arreglo' })
   @ArrayMinSize(1, { message: 'detalles debe tener al menos 1 elemento' })
+  @ArrayMaxSize(100, { message: 'detalles admite como máximo 100 elementos' })
   @ValidateNested({ each: true })
   @Type(() => TransferenciaDetalleItemDto)
   detalles: TransferenciaDetalleItemDto[];

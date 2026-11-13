@@ -1,14 +1,15 @@
 import {
-  BadRequestException,
   Body,
   Controller,
+  Headers,
   Post,
-  Req,
 } from '@nestjs/common';
 import { AppService } from './app.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequireService } from './require-service.decorator';
 import { TokenizeCardDto } from './dto/tokenize-card.dto';
+import { AppAuth, AppAuthConId } from './app-auth.decorator';
+import { requerirIdempotencyKey } from './idempotency-key';
 
 @ApiTags('Servicios') // Etiqueta general para agrupar los endpoints de esta clase
 @ApiBearerAuth()
@@ -21,16 +22,14 @@ export class SaveCardsController {
     summary: 'Guarda una tarjeta utilizando el servicio de tokenización.',
   })
   @Post('guardar-tarjeta')
-  async guardarTarjeta(@Req() req: any, @Body() cardData: TokenizeCardDto) {
-    // El ApiKeyGuard inyecta req.appAuth con el id de la app autenticada.
-    const idApp = req.appAuth.id_app;
-
-    if (!idApp) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde la API Key',
-      );
-    }
-
-    return this.appService.guardarTarjeta(idApp, cardData);
+  async guardarTarjeta(
+    @AppAuth() auth: AppAuthConId,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() cardData: TokenizeCardDto,
+  ) {
+    return this.appService.guardarTarjeta(auth.id_app, {
+      ...cardData,
+      idempotencyKey: requerirIdempotencyKey(idempotencyKey),
+    });
   }
 }

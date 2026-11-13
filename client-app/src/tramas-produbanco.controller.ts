@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -19,6 +20,8 @@ import { AppService } from './app.service';
 import { CrearPagoLoteDto } from './dto/crear-pago-lote.dto';
 import { CrearTransferenciaLoteDto } from './dto/crear-transferencia-lote.dto';
 import { ListarTransaccionesQueryDto } from './dto/listar-transacciones-query.dto';
+import { RequestWithAppAuth } from './app-auth.types';
+import { requerirIdempotencyKey } from './idempotency-key';
 
 @ApiTags('Servicios')
 @ApiBearerAuth()
@@ -32,14 +35,22 @@ export class TramasProdubancoController {
       'Generar lote de pagos Produbanco (trama directa para bancos nacionales)',
   })
   @Post('transferencia-nacional')
-  async generarPago(@Req() req: any, @Body() dto: CrearPagoLoteDto) {
+  async generarPago(
+    @Req() req: RequestWithAppAuth,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() dto: CrearPagoLoteDto,
+  ) {
     const idApp = req.appAuth?.id_app;
     if (!idApp) {
       throw new BadRequestException(
         'No se pudo identificar la App desde el token',
       );
     }
-    return this.appService.generarPago(idApp, dto);
+    return this.appService.generarPago(
+      idApp,
+      dto,
+      requerirIdempotencyKey(idempotencyKey),
+    );
   }
 
   @ApiOperation({
@@ -48,7 +59,8 @@ export class TramasProdubancoController {
   })
   @Post('transferencia-internacional')
   async generarTransferencia(
-    @Req() req: any,
+    @Req() req: RequestWithAppAuth,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Body() dto: CrearTransferenciaLoteDto,
   ) {
     const idApp = req.appAuth?.id_app;
@@ -57,7 +69,11 @@ export class TramasProdubancoController {
         'No se pudo identificar la App desde el token',
       );
     }
-    return this.appService.generarTransferencia(idApp, dto);
+    return this.appService.generarTransferencia(
+      idApp,
+      dto,
+      requerirIdempotencyKey(idempotencyKey),
+    );
   }
 
   @ApiOperation({
@@ -75,7 +91,7 @@ export class TramasProdubancoController {
   })
   @Get('transacciones')
   async listarTransacciones(
-    @Req() req: ReqConAppAuth,
+    @Req() req: RequestWithAppAuth,
     @Query() query: ListarTransaccionesQueryDto,
   ) {
     const idApp = req.appAuth?.id_app;
@@ -104,7 +120,7 @@ export class TramasProdubancoController {
   })
   @Get('transacciones/estado/:dato')
   async estadoTransaccion(
-    @Req() req: ReqConAppAuth,
+    @Req() req: RequestWithAppAuth,
     @Param('dato') dato: string,
   ) {
     const idApp = req.appAuth?.id_app;
@@ -124,7 +140,7 @@ export class TramasProdubancoController {
 }
 
 /** Lee el header X-Encryption-Key; lanza 400 si falta o está vacío. */
-function extraerLlaveEncriptacion(req: ReqConAppAuth): string {
+function extraerLlaveEncriptacion(req: RequestWithAppAuth): string {
   const raw = req.headers?.['x-encryption-key'];
   const llave = Array.isArray(raw) ? raw[0] : raw;
   if (typeof llave !== 'string' || llave.trim() === '') {
@@ -135,7 +151,3 @@ function extraerLlaveEncriptacion(req: ReqConAppAuth): string {
   return llave.trim();
 }
 
-interface ReqConAppAuth {
-  appAuth?: { id_app?: number };
-  headers?: Record<string, string | string[] | undefined>;
-}

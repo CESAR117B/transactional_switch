@@ -7,6 +7,8 @@ import {
   IsEnum,
   IsArray,
   ArrayMinSize,
+  ArrayMaxSize,
+  Max,
   ValidateNested,
   Length,
   MaxLength,
@@ -58,6 +60,9 @@ export class PagoDetalleItemDto {
     { message: 'monto debe ser numérico con máx 2 decimales' },
   )
   @IsPositive({ message: 'monto debe ser positivo' })
+  @Max(99_999_999.99, {
+    message: 'monto supera el máximo permitido por la trama (99.999.999,99)',
+  })
   monto: number;
 
   @IsString()
@@ -94,11 +99,12 @@ export class CrearPagoLoteDto {
   referenciaLote?: string;
 
   // fechaInicio/fechaVencimiento YA no se envían: el back genera la
-  // vigencia del sobre (hoy → hoy + 1) en TramasProdubanco.service
+  // vigencia del sobre (hoy → hoy + 1) en tramas-produbanco.service
   // (parametrizarPago) y la incluye en el <Envelope> a Produbanco.
 
   @IsArray({ message: 'detalles debe ser un arreglo' })
   @ArrayMinSize(1, { message: 'detalles debe tener al menos 1 elemento' })
+  @ArrayMaxSize(100, { message: 'detalles admite como máximo 100 elementos' })
   @ValidateNested({ each: true })
   @Type(() => PagoDetalleItemDto)
   detalles: PagoDetalleItemDto[];
@@ -108,6 +114,11 @@ export class GenerarPagoPayloadDto {
   @IsNumber({}, { message: 'idApp debe ser número' })
   @IsNotEmpty({ message: 'idApp es requerido' })
   idApp: number;
+
+  @IsString()
+  @IsNotEmpty({ message: 'idempotencyKey es requerida' })
+  @MaxLength(100)
+  idempotencyKey: string;
 
   @ValidateNested()
   @Type(() => CrearPagoLoteDto)

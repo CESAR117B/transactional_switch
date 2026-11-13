@@ -1,6 +1,7 @@
 // src/auditoria/auditoria.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionLogEvent } from '../events/transaction-log.event';
 import * as crypto from 'crypto';
@@ -36,8 +37,9 @@ export class AuditoriaService {
           operation: payload.operation,
           reference: transactionReference,
           referenceHash,
-          requestPayload: sanitizedRequest,
-          responsePayload: payload.responsePayload,
+          requestPayload: sanitizedRequest as Prisma.InputJsonValue,
+          responsePayload: (payload.responsePayload ??
+            {}) as Prisma.InputJsonValue,
           status: payload.status,
           errorMessage: payload.errorMessage,
         },
@@ -56,12 +58,17 @@ export class AuditoriaService {
   }
 
   // Helper para proteger datos sensibles de PCI DSS antes de ir a BD
-  private sanitizePayload(payload: any): any {
-    if (!payload) return {};
-    const clean = { ...payload };
-    if (clean.card_cvv) delete clean.card_cvv;
-    if (clean.card_number) {
-      clean.card_number = `****-****-****-${clean.card_number.slice(-4)}`;
+  private sanitizePayload(payload: unknown): Record<string, unknown> {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return {};
+    }
+    const clean: Record<string, unknown> = {
+      ...(payload as Record<string, unknown>),
+    };
+    delete clean.card_cvv;
+    const cardNumber = clean.card_number;
+    if (typeof cardNumber === 'string') {
+      clean.card_number = `****-****-****-${cardNumber.slice(-4)}`;
     }
     return clean;
   }

@@ -96,7 +96,9 @@ describe('AuthService', () => {
 
       await expect(
         service.validarCredencialesApp('mi-app', 'legacy-key'),
-      ).rejects.toMatchObject({ error: { status: 401 } });
+      ).rejects.toMatchObject({
+        error: { statusCode: 401, message: 'Credenciales inválidas' },
+      });
     });
 
     it('rechaza una app bloqueada', async () => {

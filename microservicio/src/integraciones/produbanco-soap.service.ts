@@ -10,7 +10,35 @@ export class ProdubancoSoapService {
   private clientPromise: Promise<soap.Client> | null = null;
   private cachedWsdlUrl: string | null = null;
 
+  /** Tiempo máximo por invocación SOAP (no sólo por creación de cliente). */
+  private static readonly SOAP_TIMEOUT_MS = 20000;
+
   constructor(private readonly configDb: ConfigDbService) {}
+
+  /**
+   * Carrera contra un timeout: evita que una invocación SOAP colgada bloquee
+   * el cron o una petición HTTP indefinidamente. Al vencer invalida el cliente
+   * cacheado para forzar reconexión en el siguiente intento.
+   */
+  private conTimeout<T>(promesa: Promise<T>, metodo: string): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        this.clearClientCache();
+        reject(
+          new RpcException({
+            statusCode: 504,
+            message: `Timeout de ${ProdubancoSoapService.SOAP_TIMEOUT_MS}ms esperando ${metodo} de Produbanco.`,
+            error: 'Gateway Timeout',
+          }),
+        );
+      }, ProdubancoSoapService.SOAP_TIMEOUT_MS);
+    });
+
+    return Promise.race([promesa, timeout]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
 
   /**
    * Normaliza la URL del WSDL: si no incluye el sufijo `?wsdl`, la librería `soap`
@@ -92,8 +120,10 @@ export class ProdubancoSoapService {
       timeout: 15000, // 15 segundos de timeout de red
     } as soap.IOptions;
 
-    this.clientPromise = soap
-      .createClientAsync(wsdlUrl, options)
+    this.clientPromise = this.conTimeout(
+      soap.createClientAsync(wsdlUrl, options),
+      'creación del cliente WSDL',
+    )
       .then((c) => {
         // El WSDL apunta a la IP interna de Produbanco; forzar el dominio público
         c.setEndpoint(endpointUrl);
@@ -137,8 +167,11 @@ export class ProdubancoSoapService {
         `Invocando DevuelveXmlEncriptado empresa=${payload.strComputador} usuario=${payload.strUsuario} Empresa=${payload.Empresa} xmlInputLength=${payload.strXmlInput.length}`,
       );
 
-      const [result] = await (client as any).DevuelveXmlEncriptadoAsync(
-        payload,
+      const [result] = await this.conTimeout<
+        Array<{ DevuelveXmlEncriptadoResult?: string }>
+      >(
+        (client as any).DevuelveXmlEncriptadoAsync(payload),
+        'DevuelveXmlEncriptado',
       );
       const resultado: string = result?.DevuelveXmlEncriptadoResult ?? '';
 
@@ -249,7 +282,12 @@ export class ProdubancoSoapService {
         Empresa: config.empresa,
       };
 
-      const [result] = await (client as any).CargaDirectaXmlAsync(payload);
+      const [result] = await this.conTimeout<
+        Array<{ CargaDirectaXmlResult?: string }>
+      >(
+        (client as any).CargaDirectaXmlAsync(payload),
+        'CargaDirectaXml',
+      );
 
       const respuesta: string = result?.CargaDirectaXmlResult ?? '';
       if (!respuesta) {
@@ -652,9 +690,10 @@ export class ProdubancoSoapService {
         error: 'Internal Server Error',
       });
     }
-    const respuesta = (await fn.call(client, args)) as Array<
-      Record<string, unknown>
-    >;
+    const respuesta = (await this.conTimeout(
+      fn.call(client, args),
+      metodo,
+    )) as Array<Record<string, unknown>>;
     const clienteSoap = client as unknown as {
       lastRequest?: string;
       lastResponse?: string;

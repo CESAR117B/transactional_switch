@@ -1,5 +1,5 @@
 import { Controller, Logger } from '@nestjs/common';
-import { TramasProdubancoService } from './TramasProdubanco.service';
+import { TramasProdubancoService } from './tramas-produbanco.service';
 import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { GenerarPagoPayloadDto } from '../dto/crear-pago-lote.dto';
 import { GenerarTransferenciaPayloadDto } from '../dto/crear-transferencia-lote.dto';
@@ -14,7 +14,7 @@ export class TramasProdubancoController {
 
   @MessagePattern({ cmd: 'generar_pago' })
   async generarPago(@Payload() payload: GenerarPagoPayloadDto) {
-    const { idApp, data } = payload;
+    const { idApp, data, idempotencyKey } = payload;
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
         statusCode: 400,
@@ -30,30 +30,18 @@ export class TramasProdubancoController {
     this.logger.log(
       `generarPago idApp=${idApp} referenciaLote=${data.referenciaLote} registros=${data.detalles?.length ?? 0}`,
     );
-    try {
-      return await this.tramasProdubancoService.generarPago(idApp, data);
-    } catch (error: any) {
-      if (error instanceof RpcException) throw error;
-      // Preserva BadRequest/Rpc del service y transforma resto a RpcException para TCP
-      const status = error?.status ?? error?.statusCode ?? 500;
-      const message = error?.message ?? 'Error interno en generarPago';
-      this.logger.error(
-        `Error generarPago idApp=${idApp} ref=${data.referenciaLote}: ${message}`,
-        error?.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: error?.error,
-      });
-    }
+    return this.tramasProdubancoService.generarPago(
+      idApp,
+      data,
+      idempotencyKey,
+    );
   }
 
   @MessagePattern({ cmd: 'generar_transferencia' })
   async generarTransferencia(
     @Payload() payload: GenerarTransferenciaPayloadDto,
   ) {
-    const { idApp, data } = payload;
+    const { idApp, data, idempotencyKey } = payload;
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
         statusCode: 400,
@@ -69,25 +57,11 @@ export class TramasProdubancoController {
     this.logger.log(
       `generarTransferencia idApp=${idApp} referenciaLote=${data.referenciaLote} registros=${data.detalles?.length ?? 0}`,
     );
-    try {
-      return await this.tramasProdubancoService.generarTransferencia(
-        idApp,
-        data,
-      );
-    } catch (error: any) {
-      if (error instanceof RpcException) throw error;
-      const status = error?.status ?? error?.statusCode ?? 500;
-      const message = error?.message ?? 'Error interno en generarTransferencia';
-      this.logger.error(
-        `Error generarTransferencia idApp=${idApp} ref=${data.referenciaLote}: ${message}`,
-        error?.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: error?.error,
-      });
-    }
+    return this.tramasProdubancoService.generarTransferencia(
+      idApp,
+      data,
+      idempotencyKey,
+    );
   }
 
   @MessagePattern({ cmd: 'consultar_transacciones' })
@@ -114,32 +88,7 @@ export class TramasProdubancoController {
         `cedula=${payload?.cedula?.trim() ? 'si' : 'no'} ` +
         `cuenta=${payload?.cuenta?.trim() ? 'si' : 'no'}`,
     );
-    try {
-      return await this.tramasProdubancoService.consultarTransacciones(
-        idApp,
-        payload,
-      );
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const e = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        error?: string;
-        stack?: string;
-      };
-      const status = e?.status ?? e?.statusCode ?? 500;
-      const message = e?.message ?? 'Error interno en consultarTransacciones';
-      this.logger.error(
-        `Error consultarTransacciones idApp=${idApp}: ${message}`,
-        e?.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: e?.error,
-      });
-    }
+    return this.tramasProdubancoService.consultarTransacciones(idApp, payload);
   }
 
   @MessagePattern({ cmd: 'consultar_estado_transaccion' })
@@ -169,33 +118,10 @@ export class TramasProdubancoController {
     this.logger.log(
       `consultarEstadoTransaccion idApp=${idApp} dato=${String(dato)}`,
     );
-    try {
-      return await this.tramasProdubancoService.consultarEstadoTransaccion(
-        idApp,
-        { dato, llaveDesencriptacion },
-      );
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const e = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        error?: string;
-        stack?: string;
-      };
-      const status = e?.status ?? e?.statusCode ?? 500;
-      const message =
-        e?.message ?? 'Error interno en consultarEstadoTransaccion';
-      this.logger.error(
-        `Error consultarEstadoTransaccion idApp=${idApp} dato=${String(dato)}: ${message}`,
-        e?.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: e?.error,
-      });
-    }
+    return this.tramasProdubancoService.consultarEstadoTransaccion(idApp, {
+      dato,
+      llaveDesencriptacion,
+    });
   }
 
   /**
@@ -223,39 +149,17 @@ export class TramasProdubancoController {
         `cedula=${cedula?.trim() ? 'si' : 'no'} ` +
         `cuenta=${cuenta?.trim() ? 'si' : 'no'}`,
     );
-    try {
-      return await this.tramasProdubancoService.transaccionesAdmin({
-        page,
-        pageSize,
-        status,
-        operation,
-        fechaDesde,
-        fechaHasta,
-        cedula,
-        cuenta,
-        idApp,
-      });
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const e = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        error?: string;
-        stack?: string;
-      };
-      const statusHttp = e?.status ?? e?.statusCode ?? 500;
-      const message = e?.message ?? 'Error interno en transaccionesAdmin';
-      this.logger.error(
-        `Error transaccionesAdmin idApp=${idApp ?? '*'}: ${message}`,
-        e?.stack,
-      );
-      throw new RpcException({
-        statusCode: statusHttp,
-        message,
-        error: e?.error,
-      });
-    }
+    return this.tramasProdubancoService.transaccionesAdmin({
+      page,
+      pageSize,
+      status,
+      operation,
+      fechaDesde,
+      fechaHasta,
+      cedula,
+      cuenta,
+      idApp,
+    });
   }
 
   /**
@@ -276,32 +180,10 @@ export class TramasProdubancoController {
     this.logger.log(
       `estadoTransaccionAdmin idApp=${idApp ?? '*'} dato=${String(dato)}`,
     );
-    try {
-      return await this.tramasProdubancoService.estadoTransaccionAdmin({
-        dato,
-        idApp,
-      });
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const e = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        error?: string;
-        stack?: string;
-      };
-      const status = e?.status ?? e?.statusCode ?? 500;
-      const message = e?.message ?? 'Error interno en estadoTransaccionAdmin';
-      this.logger.error(
-        `Error estadoTransaccionAdmin idApp=${idApp ?? '*'} dato=${String(dato)}: ${message}`,
-        e?.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: e?.error,
-      });
-    }
+    return this.tramasProdubancoService.estadoTransaccionAdmin({
+      dato,
+      idApp,
+    });
   }
 }
 

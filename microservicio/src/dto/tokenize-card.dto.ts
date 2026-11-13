@@ -3,9 +3,11 @@ import { Transform } from 'class-transformer';
 import {
   IsString,
   IsNotEmpty,
+  IsOptional,
   Length,
   Matches,
   IsBoolean,
+  MaxLength,
 } from 'class-validator';
 
 export class TokenizeCardDto {
@@ -39,4 +41,10 @@ export class TokenizeCardDto {
   @IsBoolean()
   @IsNotEmpty()
   temporal: boolean;
+
+  /** Header Idempotency-Key del gateway: un reintento no crea otra tarjeta. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  idempotencyKey?: string;
 }

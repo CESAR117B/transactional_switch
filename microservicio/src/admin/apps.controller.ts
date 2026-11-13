@@ -1,6 +1,4 @@
 import { Controller, Logger } from '@nestjs/common';
-import { IsArray, IsNotEmpty, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
 import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { BloquearAppPayloadDto } from '../dto/bloquear-app.dto';
 import { CrearAppPayloadDto } from '../dto/crear-app.dto';
@@ -12,6 +10,12 @@ import { ActivarDesactivarServicioDto } from './dto/activar-desactivar-servicio.
 import { AsignarServiciosAppDto } from '../dto/asignar-servicios-app.dto';
 import { DesasignarServiciosAppDto } from './dto/desasignar-servicios-app.dto';
 
+/**
+ * Handlers RPC de administración de apps.
+ *
+ * La traducción de excepciones a `{ statusCode, message, error }` la hace el
+ * filtro global `RpcExceptionFilter`; acá sólo se valida la entrada.
+ */
 @Controller('admin')
 export class AppsController {
   private readonly logger = new Logger(AppsController.name);
@@ -42,32 +46,7 @@ export class AppsController {
     this.logger.log(
       `crear_app idAppAdmin=${idApp} identificador=${data.identificador_app}`,
     );
-
-    try {
-      return await this.appsService.crearApp(idApp, data);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      // Preserva status/message del service y transforma el resto a
-      // RpcException para que el TCP lo serialice igual que el resto.
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        stack?: string;
-        error?: unknown;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en crear_app';
-      this.logger.error(
-        `Error crear_app idAppAdmin=${idApp} identificador=${data.identificador_app}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    return this.appsService.crearApp(idApp, data);
   }
 
   @MessagePattern({ cmd: 'bloquear_app' })
@@ -90,30 +69,7 @@ export class AppsController {
     }
 
     this.logger.log(`bloquear_app idApp=${idApp} idAppAdmin=${idAppAdmin}`);
-
-    try {
-      return await this.appsService.bloquearApp(idApp, idAppAdmin);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        stack?: string;
-        error?: unknown;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en bloquear_app';
-      this.logger.error(
-        `Error bloquear_app idApp=${idApp} idAppAdmin=${idAppAdmin}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    return this.appsService.bloquearApp(idApp, idAppAdmin);
   }
 
   @MessagePattern({ cmd: 'listar_apps' })
@@ -128,31 +84,12 @@ export class AppsController {
     }
 
     this.logger.log(`listar_apps idAppAdmin=${idApp}`);
-    try {
-      return await this.appsService.listarApps(idApp);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        stack?: string;
-        error?: unknown;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en listar_apps';
-      this.logger.error(`Error listar_apps: ${message}`, err.stack);
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    return this.appsService.listarApps(idApp);
   }
 
   @MessagePattern({ cmd: 'actualizar_app' })
   async actualizarApp(@Payload() payload: ActualizarAppPayloadDto) {
-    const { idApp, data } = payload;
+    const { idApp, data, idAppAdmin } = payload;
 
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
@@ -170,30 +107,7 @@ export class AppsController {
     }
 
     this.logger.log(`actualizar_app idApp=${idApp}`);
-
-    try {
-      return await this.appsService.actualizarApp(idApp, data);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        stack?: string;
-        error?: unknown;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en actualizar_app';
-      this.logger.error(
-        `Error actualizar_app idApp=${idApp}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    return this.appsService.actualizarApp(idApp, data, idAppAdmin);
   }
 
   @MessagePattern({ cmd: 'nuevokey_app' })
@@ -216,35 +130,12 @@ export class AppsController {
     }
 
     this.logger.log(`nuevokey_app idApp=${idApp} idAppAdmin=${idAppAdmin}`);
-
-    try {
-      return await this.appsService.nuevokeyApp(idApp, idAppAdmin);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        stack?: string;
-        error?: unknown;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en nuevokey_app';
-      this.logger.error(
-        `Error nuevokey_app idApp=${idApp} idAppAdmin=${idAppAdmin}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    return this.appsService.nuevokeyApp(idApp, idAppAdmin);
   }
 
   @MessagePattern({ cmd: 'asignar_servicios_app' })
   async asignarServiciosApp(@Payload() payload: AsignarServiciosAppDto) {
-    const { idApp, codigos } = payload ?? {};
+    const { idApp, codigos, idAppAdmin } = payload ?? {};
 
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
@@ -253,7 +144,12 @@ export class AppsController {
         error: 'Bad Request',
       });
     }
-    if (codigos === undefined || codigos === null || !Array.isArray(codigos) || codigos.length === 0) {
+    if (
+      codigos === undefined ||
+      codigos === null ||
+      !Array.isArray(codigos) ||
+      codigos.length === 0
+    ) {
       throw new RpcException({
         statusCode: 400,
         message: 'codigos es requerido y debe ser un array no vacío',
@@ -261,34 +157,16 @@ export class AppsController {
       });
     }
 
-    this.logger.log(`asignar_servicios_app idApp=${idApp} codigos=${JSON.stringify(codigos)}`);
-    try {
-      return await this.appsService.asignarServiciosApp(idApp, codigos);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        error?: string;
-        stack?: string;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en asignar_servicios_app';
-      this.logger.error(
-        `Error asignar_servicios_app idApp=${idApp}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    this.logger.log(
+      `asignar_servicios_app idApp=${idApp} codigos=${JSON.stringify(codigos)}`,
+    );
+    return this.appsService.asignarServiciosApp(idApp, codigos, idAppAdmin);
   }
 
   @MessagePattern({ cmd: 'nuevoencryptionkey_app' })
-  async nuevoencryptionKeyApp(@Payload() payload: NuevoencryptionkeyAppPayloadDto) {
+  async nuevoencryptionKeyApp(
+    @Payload() payload: NuevoencryptionkeyAppPayloadDto,
+  ) {
     const { idApp, idAppAdmin } = payload;
 
     if (idApp === undefined || idApp === null) {
@@ -309,30 +187,7 @@ export class AppsController {
     this.logger.log(
       `nuevoencryptionkey_app idApp=${idApp} idAppAdmin=${idAppAdmin}`,
     );
-
-    try {
-      return await this.appsService.nuevoencryptionKeyApp(idApp, idAppAdmin);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        stack?: string;
-        error?: unknown;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en nuevoencryptionkey_app';
-      this.logger.error(
-        `Error nuevoencryptionkey_app idApp=${idApp} idAppAdmin=${idAppAdmin}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    return this.appsService.nuevoencryptionKeyApp(idApp, idAppAdmin);
   }
 
   @MessagePattern({ cmd: 'listar_servicios' })
@@ -342,7 +197,7 @@ export class AppsController {
 
   @MessagePattern({ cmd: 'desasignar_servicios_app' })
   async desasignarServiciosApp(@Payload() payload: DesasignarServiciosAppDto) {
-    const { idApp, codigos } = payload;
+    const { idApp, codigos, idAppAdmin } = payload;
 
     if (idApp === undefined || idApp === null) {
       throw new RpcException({
@@ -351,7 +206,12 @@ export class AppsController {
         error: 'Bad Request',
       });
     }
-    if (codigos === undefined || codigos === null || !Array.isArray(codigos) || codigos.length === 0) {
+    if (
+      codigos === undefined ||
+      codigos === null ||
+      !Array.isArray(codigos) ||
+      codigos.length === 0
+    ) {
       throw new RpcException({
         statusCode: 400,
         message: 'codigos es requerido y debe ser un array no vacío',
@@ -359,40 +219,31 @@ export class AppsController {
       });
     }
 
-    this.logger.log(`desasignar_servicios_app idApp=${idApp} codigos=${JSON.stringify(codigos)}`);
-    try {
-      return await this.appsService.desasignarServiciosApp(idApp, codigos);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        error?: string;
-        stack?: string;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en desasignar_servicios_app';
-      this.logger.error(
-        `Error desasignar_servicios_app idApp=${idApp}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    this.logger.log(
+      `desasignar_servicios_app idApp=${idApp} codigos=${JSON.stringify(codigos)}`,
+    );
+    return this.appsService.desasignarServiciosApp(
+      idApp,
+      codigos,
+      idAppAdmin,
+    );
   }
 
   @MessagePattern({ cmd: 'activar_desactivar_servicio_app' })
   async activarDesactivarServicioApp(
-    @Payload() payload: { idApp: number; codigo: string; activo: boolean },
-  ) {
-    const { idApp, codigo, activo } = payload ?? ({} as {
+    @Payload()
+    payload: {
       idApp: number;
       codigo: string;
       activo: boolean;
+      idAppAdmin?: number;
+    },
+  ) {
+    const { idApp, codigo, activo, idAppAdmin } = payload ?? ({} as {
+      idApp: number;
+      codigo: string;
+      activo: boolean;
+      idAppAdmin?: number;
     });
 
     if (idApp === undefined || idApp === null) {
@@ -421,39 +272,19 @@ export class AppsController {
     this.logger.log(
       `activar_desactivar_servicio_app idApp=${idApp} codigo=${codigo} activo=${activo}`,
     );
-    try {
-      return await this.appsService.cambiarEstadoServicioApp(
-        idApp,
-        codigo,
-        activo,
-      );
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        error?: string;
-        stack?: string;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message =
-        err.message ?? 'Error interno en activar_desactivar_servicio_app';
-      this.logger.error(
-        `Error activar_desactivar_servicio_app idApp=${idApp}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    return this.appsService.cambiarEstadoServicioApp(
+      idApp,
+      codigo,
+      activo,
+      idAppAdmin,
+    );
   }
 
   @MessagePattern({ cmd: 'activar_desactivar_servicio' })
-  async activar_desactivarServicio(@Payload() payload: ActivarDesactivarServicioDto) {
-    const { idServicio } = payload;
+  async activar_desactivarServicio(
+    @Payload() payload: ActivarDesactivarServicioDto,
+  ) {
+    const { idServicio, idAppAdmin } = payload;
 
     if (idServicio === undefined || idServicio === null) {
       throw new RpcException({
@@ -464,28 +295,9 @@ export class AppsController {
     }
 
     this.logger.log(`activar_desactivar_servicio idServicio=${idServicio}`);
-    try {
-      return await this.appsService.activarDesactivarServicio(idServicio);
-    } catch (error: unknown) {
-      if (error instanceof RpcException) throw error;
-      const err = error as {
-        status?: number;
-        statusCode?: number;
-        message?: string;
-        stack?: string;
-        error?: unknown;
-      };
-      const status = err.status ?? err.statusCode ?? 500;
-      const message = err.message ?? 'Error interno en activar_desactivar_servicio';
-      this.logger.error(
-        `Error activar_desactivar_servicio idServicio=${idServicio}: ${message}`,
-        err.stack,
-      );
-      throw new RpcException({
-        statusCode: status,
-        message,
-        error: err.error,
-      });
-    }
+    return this.appsService.activarDesactivarServicio(
+      idServicio,
+      idAppAdmin,
+    );
   }
 }

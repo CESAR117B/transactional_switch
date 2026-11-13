@@ -5,8 +5,8 @@ export class TransactionLogEvent {
   idApp: number;
   operation: string;
   reference: string;
-  requestPayload: any;
-  responsePayload: any;
+  requestPayload: unknown;
+  responsePayload: unknown;
   status: number;
   errorMessage?: string;
 }
