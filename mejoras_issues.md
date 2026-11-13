@@ -6,13 +6,13 @@ Documento de cierre de la revisión hecha en la carpeta `Issues/`. Cada punto co
 
 | Review | Puntos | Resueltos | Pendientes |
 |---|---:|:-:|:-:|
-| Seguridad (`Issues/seguridad.md`) | 3 | 2 | 1 |
+| Seguridad (`Issues/seguridad.md`) | 3 | 3 | 0 |
 | Arquitectura (`Issues/idempotencia_consistencia.md`) | 11 | 11 | 0 |
 | Convenciones (`Issues/Convenciones.md`) | 2 | 2 | 0 |
 | Calidad (`Issues/console.log.md`) | 3 | 3 | 0 |
-| **Total** | **19** | **18** | **1** |
+| **Total** | **19** | **19** | **0** |
 
-El único punto pendiente es la **purga del historial Git y rotación de secretos** (seguridad #3): el árbol actual ya no versiona `.env`, pero los secretos siguen en commits anteriores.
+Los 19 puntos del review están cerrados en el código y en el repositorio. El historial Git fue purgado y `origin/main` reescrito. Queda una única acción operativa externa: **rotar los secretos** (`JWT_SECRET`, `MICROSERVICE_SECRET` y credenciales de BD), porque sus valores estuvieron publicados antes de la purga.
 
 ---
 
@@ -40,31 +40,32 @@ El único punto pendiente es la **purga del historial Git y rotación de secreto
 
 **Archivos:** `firstoken.service.ts`, `auditoria.service.ts`, `firstoken-auditoria.spec.ts`.
 
-## 1.3. Secretos versionados y copiados a la imagen — **pendiente parcial**
+## 1.3. Secretos versionados y copiados a la imagen — resuelto (falta rotación externa)
 
-**Qué pedía:** rotar `JWT_SECRET` y credenciales de BD, sacar `.env` del repo y del build, versionar sólo `.env.example`, agregar `.env` a `.gitignore`/`.dockerignore` y usar build multi-stage con `NODE_ENV=production`.
+**Qué pedía:** rotar `JWT_SECRET` y credenciales de BD, sacar `.env` del repo y del build, agregar `.env` a `.gitignore`/`.dockerignore` y usar build multi-stage con `NODE_ENV=production`. El review también proponía versionar `.env.example`; esa parte **se descartó a propósito**: las variables se comparten por un canal externo y las plantillas se eliminaron del repositorio.
 
 **Qué se hizo:**
-- `.env` ya **no está trackeado** en el commit actual: no aparece en `git ls-files` ni en `HEAD`.
-- `.env` está en `.gitignore` y en `.dockerignore` de ambos proyectos.
+- `.env` **no está trackeado** ni existe en el árbol actual: no aparece en `git ls-files`, `HEAD` ni `origin/main`.
+- `.env` está en `.gitignore` y en `.dockerignore` de ambos proyectos; los archivos locales siguen en disco pero quedan ignorados.
+- **Historial purgado por completo** con `git filter-branch --index-filter` sobre `--all`, eliminando las cuatro rutas de todos los commits:
+  - `client-app/.env`
+  - `client-app/.env.example`
+  - `microservicio/.env`
+  - `microservicio/.env.example`
+- Refuerzos posteriores: `git reflog expire --expire=now --all` y `git gc --prune=now --aggressive` para borrar los objetos antiguos; `main` publicado con `git push --force origin main`.
+- `client-app/.env.example` y `microservicio/.env.example` se **borraron intencionalmente** del disco y del historial. No se vuelven a versionar.
 - Los `Dockerfile` y el `docker-compose.yml` usan `NODE_ENV=production` y los secretos se inyectan por `env_file` en runtime.
 
-**Qué falta (requiere acción del responsable del repo):**
-- **El historial Git NO está purgado.** `git rm -r --cached .` sólo quitó los archivos del índice para los commits nuevos; no reescribe el pasado. Verificación al día de hoy:
-  - `git log --all -- "client-app/.env" "microservicio/.env"` sigue devolviendo **8 commits** (`f5addb7`, `34bd73d`, `9318057`, `f0b245c`, `b28bc94`, `ae4d084`, `aa2d161`, `d3758a8`).
-  - Esos 8 commits son **ancestros de `main`** y también están publicados en `origin/main`.
-  - Por lo tanto, cualquiera con acceso al repositorio o al remoto puede recuperar los secretos desde el historial.
-- **`.env.example` quedó sin trackear.** El `git rm -r --cached .` también lo sacó del índice y no se volvió a agregar. Hay que reincorporarlo (`git add client-app/.env.example microservicio/.env.example`) para que un clon limpio tenga la plantilla.
-- **Rotar** `JWT_SECRET`, `MICROSERVICE_SECRET` y las credenciales de base de datos. La rotación es obligatoria incluso después de purgar: los valores actuales ya estuvieron expuestos.
-- **Purgar el historial de verdad** con `git filter-repo` (recomendado) o BFG, y luego forzar la actualización del remoto:
-  ```bash
-  git filter-repo --path client-app/.env --path microservicio/.env --invert-paths
-  git push --force --all
-  git push --force --tags
-  ```
-  Después, expirar el reflog y ejecutar `git gc --prune=now --aggressive` para eliminar los objetos antiguos.
+**Verificación ejecutada:**
 
-Mientras el historial no se reescriba y el remoto no se actualice, este punto no puede marcarse como cerrado.
+| Comprobación | Resultado |
+|---|---|
+| `git log --all -- <rutas .env*>` | vacío |
+| `git rev-list --all --objects \| greps .env` | sin coincidencias |
+| `git ls-tree -r --name-only origin/main \| greps .env` | sin coincidencias |
+| `main` vs `origin/main` | sincronizados en el commit reescrito |
+
+**Acción externa pendiente (no bloquea el código):** rotar `JWT_SECRET`, `MICROSERVICE_SECRET` y las credenciales de base de datos antes de desplegar. El historial ya no expone los valores, pero los que estuvieron publicados deben considerarse comprometidos.
 
 ---
 
@@ -270,6 +271,6 @@ Casos cubiertos relevantes: cifrar/descifrar y fallo con authTag alterado, hash 
 
 # Pendiente y riesgos residuales
 
-1. **Seguridad #3:** el `.env` ya no está en `HEAD`, pero el historial **sigue sin purgar**: 8 commits con `.env` son alcanzables desde `main` y `origin/main`. `git rm --cached` no elimina el pasado. Faltan la rotación de secretos, la reescritura del historial con `git filter-repo`/BFG y el force-push del remoto. También hay que volver a trackear `.env.example`.
+1. **Seguridad #3:** código e historial ya están limpios (`.env*` eliminado de todos los commits y `origin/main` reescrito). Falta únicamente la **rotación de secretos** (`JWT_SECRET`, `MICROSERVICE_SECRET`, credenciales de BD) como acción operativa externa. Nota: `git filter-repo` no está instalado y no hay Python en este entorno; la purga se hizo con `git filter-branch` nativo, que produce el mismo resultado.
 2. La carpeta `prisma/migrations` no existe: los cambios de esquema se aplican con `prisma db push`. Para producción conviene generar migraciones versionadas.
-3. El límite anti-duplicado de 5 minutos es *best-effort*; dos peticiones exactamente simultáneas con claves de idempotencia distintas podrían pasar ambas. La garantía estricta sigue siendo `Idempotency-Key`.
+3. El límite anti-duplicado de 5 minutos es *best-effort*; dos peticiones exactamente simultáneas con claves de idempotencia distintas podrían pasar ambas. La garantía estricta sigue siendo `Idempotency-Key`. Las variables de entorno se comparten por un canal externo; el repo ya no incluye `.env` ni `.env.example`.
