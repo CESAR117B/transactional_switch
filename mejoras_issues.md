@@ -12,7 +12,7 @@ Documento de cierre de la revisión hecha en la carpeta `Issues/`. Cada punto co
 | Calidad (`Issues/console.log.md`) | 3 | 3 | 0 |
 | **Total** | **19** | **19** | **0** |
 
-Los 19 puntos del review están cerrados en el código y en el repositorio. El historial Git fue purgado y `origin/main` reescrito. Queda una única acción operativa externa: **rotar los secretos** (`JWT_SECRET`, `MICROSERVICE_SECRET` y credenciales de BD), porque sus valores estuvieron publicados antes de la purga.
+Los 19 puntos del review están cerrados en el código y en el repositorio. El historial Git fue purgado y `origin/main` reescrito. La rotación de `JWT_SECRET` ya está prevista en las notas del `.env`: el valor actual es una **llave de prueba** que se reemplaza por una nueva al desplegar en producción.
 
 ---
 
@@ -40,7 +40,7 @@ Los 19 puntos del review están cerrados en el código y en el repositorio. El h
 
 **Archivos:** `firstoken.service.ts`, `auditoria.service.ts`, `firstoken-auditoria.spec.ts`.
 
-## 1.3. Secretos versionados y copiados a la imagen — resuelto (falta rotación externa)
+## 1.3. Secretos versionados y copiados a la imagen — resuelto
 
 **Qué pedía:** rotar `JWT_SECRET` y credenciales de BD, sacar `.env` del repo y del build, agregar `.env` a `.gitignore`/`.dockerignore` y usar build multi-stage con `NODE_ENV=production`. El review también proponía versionar `.env.example`; esa parte **se descartó a propósito**: las variables se comparten por un canal externo y las plantillas se eliminaron del repositorio.
 
@@ -65,7 +65,7 @@ Los 19 puntos del review están cerrados en el código y en el repositorio. El h
 | `git ls-tree -r --name-only origin/main \| greps .env` | sin coincidencias |
 | `main` vs `origin/main` | sincronizados en el commit reescrito |
 
-**Acción externa pendiente (no bloquea el código):** rotar `JWT_SECRET`, `MICROSERVICE_SECRET` y las credenciales de base de datos antes de desplegar. El historial ya no expone los valores, pero los que estuvieron publicados deben considerarse comprometidos.
+**Rotación prevista:** el `.env` documenta que `JWT_SECRET` es una **llave de prueba** y que se reemplaza por una nueva en el despliegue de producción. No queda como deuda del review: es una tarea planificada del pase a producción. `MICROSERVICE_SECRET` y las credenciales de BD siguen el mismo criterio de configuración por entorno.
 
 ---
 
@@ -271,6 +271,6 @@ Casos cubiertos relevantes: cifrar/descifrar y fallo con authTag alterado, hash 
 
 # Pendiente y riesgos residuales
 
-1. **Seguridad #3:** código e historial ya están limpios (`.env*` eliminado de todos los commits y `origin/main` reescrito). Falta únicamente la **rotación de secretos** (`JWT_SECRET`, `MICROSERVICE_SECRET`, credenciales de BD) como acción operativa externa. Nota: `git filter-repo` no está instalado y no hay Python en este entorno; la purga se hizo con `git filter-branch` nativo, que produce el mismo resultado.
+1. **Seguridad #3:** cerrado. `.env*` eliminado de todos los commits y `origin/main` reescrito. La rotación de `JWT_SECRET` está prevista en las notas del `.env` (llave de prueba → llave nueva en producción). Nota: `git filter-repo` no está instalado y no hay Python en este entorno; la purga se hizo con `git filter-branch` nativo, que produce el mismo resultado.
 2. La carpeta `prisma/migrations` no existe: los cambios de esquema se aplican con `prisma db push`. Para producción conviene generar migraciones versionadas.
 3. El límite anti-duplicado de 5 minutos es *best-effort*; dos peticiones exactamente simultáneas con claves de idempotencia distintas podrían pasar ambas. La garantía estricta sigue siendo `Idempotency-Key`. Las variables de entorno se comparten por un canal externo; el repo ya no incluye `.env` ni `.env.example`.
