@@ -83,7 +83,8 @@ Content-Type: application/json
   "identificador_app": "app-externa",
   "nombre": "App Externa S.A.",
   "desarrollador": "Tercero",
-  "ruc": "1790012345001"
+  "ruc": "1790012345001",
+  "email": "desarrollador@ejemplo.com"
 }
 ```
 
@@ -475,6 +476,7 @@ Content-Type: application/json
   "nombre": "Mi Aplicación",
   "desarrollador": "Acme Cía. Ltda.",
   "ruc": "1790012345001",
+  "email": "desarrollador@ejemplo.com",
   "activo": true
 }
 ```
@@ -487,6 +489,7 @@ Campos:
 | `nombre` | No | Nombre comercial (máx. 300). |
 | `desarrollador` | No | Desarrollador o empresa (máx. 100). |
 | `ruc` | No | RUC (máx. 200). |
+| `email` | No | Email de contacto del desarrollador (máx. 200). |
 | `activo` | No | Estado inicial. Por defecto `true`. |
 
 Respuesta (`201`):

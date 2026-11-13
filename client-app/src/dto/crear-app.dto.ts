@@ -73,6 +73,17 @@ export class CrearAppDto {
   ruc?: string;
 
   @ApiPropertyOptional({
+    description: 'Email de contacto del desarrollador (tabla info_app)',
+    example: 'desarrollador@ejemplo.com',
+    maxLength: 200,
+  })
+  @IsOptional()
+  @IsString({ message: 'email debe ser texto' })
+  @Length(1, 200, { message: 'email debe tener entre 1 y 200 caracteres' })
+  @IsNotEmpty({ message: 'email no puede estar vacío' })
+  email?: string;
+
+  @ApiPropertyOptional({
     description: 'Estado inicial de la app (por defecto true)',
     example: true,
     default: true,

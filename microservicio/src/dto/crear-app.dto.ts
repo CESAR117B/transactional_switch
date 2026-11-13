@@ -49,6 +49,11 @@ export class CrearAppDto {
   ruc?: string;
 
   @IsOptional()
+  @IsString({ message: 'email debe ser texto' })
+  @Length(1, 200, { message: 'email debe tener entre 1 y 200 caracteres' })
+  email?: string;
+
+  @IsOptional()
   @Transform(({ obj, key }) =>
     obj[key] === 'true' ? true : obj[key] === 'false' ? false : obj[key],
   )

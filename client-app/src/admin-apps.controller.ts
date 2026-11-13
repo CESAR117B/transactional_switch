@@ -88,7 +88,7 @@ export class AdminAppsController {
 
   @ApiOperation({
     summary:
-      'Actualiza los datos de una app consumidora (identificador, nombre, desarrollador, ruc). ' +
+      'Actualiza los datos de una app consumidora (identificador, nombre, desarrollador, ruc, email). ' +
       'No devuelve la key ni la encryptionKey: serán actualizados en otra función.',
   })
   @RequireCmd('actualizar_app')

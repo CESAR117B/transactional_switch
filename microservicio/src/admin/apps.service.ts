@@ -232,6 +232,7 @@ export class AppsService {
                 nombre: dto.nombre,
                 desarrollador: dto.desarrollador,
                 ruc: dto.ruc,
+                email: dto.email,
               },
             },
           },
