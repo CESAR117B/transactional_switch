@@ -45,13 +45,26 @@ El único punto pendiente es la **purga del historial Git y rotación de secreto
 **Qué pedía:** rotar `JWT_SECRET` y credenciales de BD, sacar `.env` del repo y del build, versionar sólo `.env.example`, agregar `.env` a `.gitignore`/`.dockerignore` y usar build multi-stage con `NODE_ENV=production`.
 
 **Qué se hizo:**
-- `.env` ya **no está trackeado**: sólo se versionan `client-app/.env.example` y `microservicio/.env.example`.
+- `.env` ya **no está trackeado** en el commit actual: no aparece en `git ls-files` ni en `HEAD`.
 - `.env` está en `.gitignore` y en `.dockerignore` de ambos proyectos.
 - Los `Dockerfile` y el `docker-compose.yml` usan `NODE_ENV=production` y los secretos se inyectan por `env_file` en runtime.
 
 **Qué falta (requiere acción del responsable del repo):**
-- **Rotar** `JWT_SECRET`, `MICROSERVICE_SECRET` y las credenciales de base de datos.
-- **Purgar el historial Git**: los secretos todavía existen en commits anteriores. Mientras no se reescriba el historial o se recree el repositorio, el punto no puede marcarse como cerrado.
+- **El historial Git NO está purgado.** `git rm -r --cached .` sólo quitó los archivos del índice para los commits nuevos; no reescribe el pasado. Verificación al día de hoy:
+  - `git log --all -- "client-app/.env" "microservicio/.env"` sigue devolviendo **8 commits** (`f5addb7`, `34bd73d`, `9318057`, `f0b245c`, `b28bc94`, `ae4d084`, `aa2d161`, `d3758a8`).
+  - Esos 8 commits son **ancestros de `main`** y también están publicados en `origin/main`.
+  - Por lo tanto, cualquiera con acceso al repositorio o al remoto puede recuperar los secretos desde el historial.
+- **`.env.example` quedó sin trackear.** El `git rm -r --cached .` también lo sacó del índice y no se volvió a agregar. Hay que reincorporarlo (`git add client-app/.env.example microservicio/.env.example`) para que un clon limpio tenga la plantilla.
+- **Rotar** `JWT_SECRET`, `MICROSERVICE_SECRET` y las credenciales de base de datos. La rotación es obligatoria incluso después de purgar: los valores actuales ya estuvieron expuestos.
+- **Purgar el historial de verdad** con `git filter-repo` (recomendado) o BFG, y luego forzar la actualización del remoto:
+  ```bash
+  git filter-repo --path client-app/.env --path microservicio/.env --invert-paths
+  git push --force --all
+  git push --force --tags
+  ```
+  Después, expirar el reflog y ejecutar `git gc --prune=now --aggressive` para eliminar los objetos antiguos.
+
+Mientras el historial no se reescriba y el remoto no se actualice, este punto no puede marcarse como cerrado.
 
 ---
 
@@ -257,6 +270,6 @@ Casos cubiertos relevantes: cifrar/descifrar y fallo con authTag alterado, hash 
 
 # Pendiente y riesgos residuales
 
-1. **Seguridad #3:** rotar secretos y purgar el historial Git. El `.env` ya no está en `HEAD`, pero sigue en commits anteriores.
+1. **Seguridad #3:** el `.env` ya no está en `HEAD`, pero el historial **sigue sin purgar**: 8 commits con `.env` son alcanzables desde `main` y `origin/main`. `git rm --cached` no elimina el pasado. Faltan la rotación de secretos, la reescritura del historial con `git filter-repo`/BFG y el force-push del remoto. También hay que volver a trackear `.env.example`.
 2. La carpeta `prisma/migrations` no existe: los cambios de esquema se aplican con `prisma db push`. Para producción conviene generar migraciones versionadas.
 3. El límite anti-duplicado de 5 minutos es *best-effort*; dos peticiones exactamente simultáneas con claves de idempotencia distintas podrían pasar ambas. La garantía estricta sigue siendo `Idempotency-Key`.
