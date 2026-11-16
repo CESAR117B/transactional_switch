@@ -32,6 +32,10 @@ services:
       MICROSERVICE_HOST: microservicio
       MICROSERVICE_PORT: "3001"
       NODE_ENV: production
+      # Entorno de pruebas: Swagger (/doc y /doc-json) queda publicado aunque
+      # NODE_ENV sea production. Para simular producción estricta:
+      #   ENABLE_SWAGGER=false docker compose up -d client-app
+      ENABLE_SWAGGER: "${ENABLE_SWAGGER:-true}"
     env_file:
       - ../client-app/.env
     depends_on:

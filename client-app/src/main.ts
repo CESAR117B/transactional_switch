@@ -16,8 +16,14 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger sólo fuera de producción (en prod la API no publica su doc).
-  if (process.env.NODE_ENV !== 'production') {
+  // Swagger se publica fuera de producción y también cuando ENABLE_SWAGGER=true
+  // (entornos de pruebas que corren la imagen de producción). Sin la variable,
+  // el comportamiento en producción no cambia: la doc sigue apagada.
+  const swaggerEnabled =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.ENABLE_SWAGGER === 'true';
+
+  if (swaggerEnabled) {
     const config = new DocumentBuilder()
       .setTitle('API GETWAY')
       .setDescription('Documentación de la API con Swagger')

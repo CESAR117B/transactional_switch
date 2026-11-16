@@ -141,8 +141,49 @@ docker port postgres_18
    ```
 
 3. **Verificación:**
-   - **Microservicio:** Disponible en [http://localhost:3001](http://localhost:3001).
-   - **Client App:** Disponible en [http://localhost:3000](http://localhost:3000).
+   - **Microservicio:** escucha en `3001` **sólo dentro de la red Docker** (no se publica en el host). El gateway lo alcanza como `microservicio:3001`.
+   - **Client App (API Gateway):** Disponible en [http://localhost:3000](http://localhost:3000).
+   - **Healthcheck:** [http://localhost:3000/health](http://localhost:3000/health) debe responder `{"status":"ok","microservicio":"conectado"}`.
+
+### Documentación Swagger en Docker
+
+La imagen se ejecuta con `NODE_ENV=production`, y en producción el gateway no publica su documentación. Para este entorno de pruebas se habilita de forma explícita con la variable `ENABLE_SWAGGER`, que el compose deja activa por defecto:
+
+```yaml
+environment:
+  NODE_ENV: production
+  ENABLE_SWAGGER: "${ENABLE_SWAGGER:-true}"
+```
+
+Rutas disponibles:
+
+| Ruta | Contenido |
+|---|---|
+| `http://localhost:3000/doc` | Interfaz web de Swagger UI |
+| `http://localhost:3000/doc-json` | Especificación OpenAPI en JSON |
+
+Para deshabilitarla sin editar archivos (simular producción estricta):
+
+```bash
+cd microservicio_server
+ENABLE_SWAGGER=false docker compose up -d client-app
+```
+
+En PowerShell:
+
+```powershell
+$env:ENABLE_SWAGGER = "false"
+docker compose up -d client-app
+Remove-Item Env:ENABLE_SWAGGER
+```
+
+> Si `/doc` devuelve `{"message":"Cannot GET /doc", ...}`, revisá que la variable esté en `true` dentro del contenedor:
+>
+> ```bash
+> docker exec nest_client_app printenv ENABLE_SWAGGER
+> ```
+>
+> Un cambio en esta variable sólo requiere recrear el contenedor (`docker compose up -d client-app`); no hace falta reconstruir la imagen.
 
 ---
 
