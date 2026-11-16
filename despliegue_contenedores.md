@@ -35,9 +35,11 @@ Asegúrate de que la estructura de carpetas en tu equipo sea la siguiente:
 ## 2. Requisitos Previos
 
 - **Docker Desktop** instalado y en ejecución.
-- Red de Docker creada para permitir la comunicación entre la base de datos y los microservicios.
 
-Para crear la red compartida, ejecuta en la terminal:
+La red compartida `postgres_network` **la crea automáticamente** el compose de `postgreSql` (está declarada con `name: postgres_network`). Por eso el orden de arranque importa: primero `postgreSql` y después `microservicio_server`, que la consume como `external: true`.
+
+Si preferís crearla a mano antes de levantar nada, también funciona:
+
 ```bash
 docker network create postgres_network
 ```
@@ -82,7 +84,7 @@ Por eso el host y el puerto cambian según desde dónde te conectes:
 |---|---|---|---|
 | DBeaver, microservicio u otra app en Windows | `localhost` | `55432` | `switch` |
 | pgAdmin (contenedor) | `postgres` | `5432` | `switch` |
-| Otro contenedor de la red `postgresql_postgres_network` | `postgres` | `5432` | `switch` |
+| Otro contenedor de la red `postgres_network` | `postgres` | `5432` | `switch` |
 | Contenedor externo que sale al host | `host.docker.internal` | `55432` | `switch` |
 
 Credenciales del compose:
@@ -99,24 +101,30 @@ Credenciales del compose:
 > - **Username:** `root`
 > - **Password:** `1234`
 
-Las IPs internas (`172.18.0.x`) las asigna Docker automáticamente al crear la red bridge `postgresql_postgres_network` y **pueden cambiar** si se recrean los contenedores. Por eso conviene usar el nombre del servicio (`postgres`) en lugar de una IP fija.
+Las IPs internas (`172.18.0.x`) las asigna Docker automáticamente al crear la red bridge `postgres_network` y **pueden cambiar** si se recrean los contenedores. Por eso conviene usar el nombre del servicio (`postgres`) en lugar de una IP fija.
 
 Verificación rápida de la red y el mapeo de puertos:
 
 ```bash
-docker network inspect postgresql_postgres_network
+docker network inspect postgres_network
 docker port postgres_18
 ```
 
-> **Red compartida con los microservicios:** este compose crea la red `postgresql_postgres_network`, mientras que `microservicio_server/docker-compose.yml` declara `postgres_network` como `external: true`. Para que los contenedores NestJS resuelvan `postgres` por nombre, ambos composes deben usar la **misma** red. La forma más simple es fijar el nombre en este compose:
+> **Red compartida con los microservicios:** este compose crea la red `postgres_network` (nombre fijo declarado con `name:`), y `microservicio_server/docker-compose.yml` la declara como `external: true`. Ambos composes deben usar exactamente el **mismo** nombre para que los contenedores NestJS resuelvan `postgres` por DNS interno:
 >
 > ```yaml
 > networks:
 >   postgres_network:
 >     name: postgres_network
+>     driver: bridge
 > ```
 >
-> y luego `docker compose up -d` en `postgreSql` y en `microservicio_server`.
+> Si el nombre no coincide, `docker compose up` falla con `network <nombre> not found` (al declararla externa) o los microservicios no resuelven `postgres`. El orden de arranque es: primero `postgreSql` (crea la red) y después `microservicio_server`.
+>
+> ```bash
+> cd postgreSql && docker compose up -d
+> cd ../microservicio_server && docker compose up -d
+> ```
 
 ---
 
@@ -178,6 +186,27 @@ docker compose up -d
 ---
 
 ## 5. Solución de Problemas Comunes
+
+### Build del microservicio: `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`
+
+Si al construir las imágenes aparece:
+
+```text
+Error: ERR_PNPM_LOCKFILE_CONFIG_MISMATCH
+  × installing dependencies
+  ╰─▶ Cannot proceed with the frozen installation. The current "overrides"
+      configuration doesn't match the value found in the lockfile
+```
+
+Es porque el Dockerfile copia `package.json` y `pnpm-lock.yaml`, pero **no `pnpm-workspace.yaml`**. En pnpm 10+ ese archivo no es sólo para monorepos: es el archivo de configuración de pnpm y contiene los `overrides`, `allowBuilds` y `minimumReleaseAgeExclude` con los que se generó el lockfile. Sin él, pnpm toma los `"overrides"` heredados de `package.json`, que no coinciden con el lockfile.
+
+La corrección es copiarlo en la etapa de build:
+
+```dockerfile
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+```
+
+> **Importante:** no uses `pnpm install --no-frozen-lockfile` para “arreglarlo”: eso reescribe `pnpm-lock.yaml` y puede actualizar versiones de dependencias. Si tras copiar el archivo el install sigue fallando, revisá el diff del lockfile antes de regenerarlo.
 
 ### `postgres_18` termina con `exited with code 1`
 

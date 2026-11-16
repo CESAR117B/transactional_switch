@@ -8,7 +8,10 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Dependencias (capa cacheable)
-COPY package.json pnpm-lock.yaml* ./
+# pnpm-workspace.yaml es el archivo de configuración de pnpm: contiene los
+# `overrides` con los que se generó el lockfile. Sin él, pnpm usa los
+# `overrides` de package.json y falla con ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 RUN pnpm install --frozen-lockfile
 
 # Código, schema Prisma y configuración de build

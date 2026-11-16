@@ -38,4 +38,7 @@ volumes:
 
 networks:
   postgres_network:
+    # Nombre fijo: los microservicios la declaran como `external: true`, así
+    # que ambos compose deben coincidir exactamente en el nombre.
+    name: postgres_network
     driver: bridge
