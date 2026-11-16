@@ -22,7 +22,6 @@ export class ServiciosService {
 
     const serviciosMap = servicios.map((servicio) => ({
       nombre: servicio.nombre,
-      codigo: servicio.codigo,
       descripcion: servicio.descripcion,
       activo: servicio.activo,
     }));

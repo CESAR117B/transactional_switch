@@ -14,7 +14,12 @@ services:
       PORT: "3001"
       NODE_ENV: production
     env_file:
-      - ../microservicio/.env
+      # Plantilla versionada (fallback para un clon nuevo sin .env).
+      - path: ../microservicio/.env.example
+        required: false
+      # Variables reales del entorno; si existe, sobreescribe a la plantilla.
+      - path: ../microservicio/.env
+        required: false
     networks:
       - postgres_network
 
@@ -37,7 +42,12 @@ services:
       #   ENABLE_SWAGGER=false docker compose up -d client-app
       ENABLE_SWAGGER: "${ENABLE_SWAGGER:-true}"
     env_file:
-      - ../client-app/.env
+      # Plantilla versionada (fallback para un clon nuevo sin .env).
+      - path: ../client-app/.env.example
+        required: false
+      # Variables reales del entorno; si existe, sobreescribe a la plantilla.
+      - path: ../client-app/.env
+        required: false
     depends_on:
       - microservicio
     networks:
