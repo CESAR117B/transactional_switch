@@ -29,12 +29,13 @@ export class ListarTransaccionesQueryDto {
   pageSize?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por estado: 1=PENDIENTE, 2=PROCESADO_BANCO, 3=ERROR',
-    enum: [1, 2, 3],
+    description:
+      'Filtrar por estado: 1=PENDIENTE, 2=PROCESADO_BANCO, 3=ERROR, 4=INCIERTO',
+    enum: [1, 2, 3, 4],
   })
   @IsOptional()
   @Type(() => Number)
-  @IsIn([1, 2, 3])
+  @IsIn([1, 2, 3, 4])
   status?: number;
 
   @ApiPropertyOptional({

@@ -316,11 +316,17 @@ export class LotesRepository {
   /**
    * Marca la transacción con estado de error por fallo de red/SOAP o
    * rechazo del banco. `respuestaBanco` conserva la respuesta cruda.
+   *
+   * `rechazoDefinitivo` indica que es seguro reintentar con otra
+   * Idempotency-Key: sólo se marca cuando el banco rechazó explícitamente o
+   * la carga falló antes de enviarse. Un resultado incierto va por
+   * `actualizarTransaccionInciertaBD`.
    */
   actualizarTransaccionErrorBD(
     idTransaccion: bigint,
     mensajeError: string,
     respuestaBanco?: string | null,
+    rechazoDefinitivo = true,
   ) {
     return this.prisma.transaccionesServicios.update({
       where: { idTransaccion },
@@ -328,6 +334,34 @@ export class LotesRepository {
         status: EstadoTransaccion.ERROR,
         errorMessage: mensajeError,
         responsePayload: {
+          error: mensajeError,
+          ...(rechazoDefinitivo ? { rechazoDefinitivo: true } : {}),
+          ...(respuestaBanco
+            ? { cargaRespuestaBanco: respuestaBanco.substring(0, 4000) }
+            : {}),
+        },
+      },
+    });
+  }
+
+  /**
+   * Marca la transacción como INCIERTO: la carga pudo haberse procesado
+   * (timeout, error de red o respuesta no confirmada). Bloquea el
+   * anti-duplicado y se resuelve por reconciliación, nunca reenviando con
+   * una llave nueva.
+   */
+  actualizarTransaccionInciertaBD(
+    idTransaccion: bigint,
+    mensajeError: string,
+    respuestaBanco?: string | null,
+  ) {
+    return this.prisma.transaccionesServicios.update({
+      where: { idTransaccion },
+      data: {
+        status: EstadoTransaccion.INCIERTO,
+        errorMessage: mensajeError,
+        responsePayload: {
+          resultadoIncierto: true,
           error: mensajeError,
           ...(respuestaBanco
             ? { cargaRespuestaBanco: respuestaBanco.substring(0, 4000) }
@@ -463,7 +497,8 @@ export class LotesRepository {
    * Rechaza con 409 si ya existe una transacción de ESTA app con el mismo
    * monto a la misma cuenta beneficiario en los últimos minutos.
    * - Busca por beneficiarioCuentaHash (HMAC con la key de la app).
-   * - Excluye status ERROR: un fallo previo permite reintentar.
+   * - Sólo excluye ERROR definitivo: PENDIENTE e INCIERTO bloquean, porque
+   *   la carga pudo haberse procesado y un reenvío sería un pago doble.
    * - Ítems sin cuenta (CHQ/EFE) no aplican.
    * - Best-effort: dos peticiones simultáneas podrían pasar ambas.
    */
@@ -487,7 +522,9 @@ export class LotesRepository {
             createdAt: { gte: desde },
             transaccionServicio: {
               idApp,
-              status: { not: EstadoTransaccion.ERROR },
+              // Sólo un ERROR definitivo permite reintentar. Un INCIERTO
+              // (4) sigue bloqueando duplicados.
+              status: { notIn: [EstadoTransaccion.ERROR] },
             },
           },
           select: { idTransaccion: true, createdAt: true },

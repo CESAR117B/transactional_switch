@@ -100,6 +100,8 @@ export function textoEstado(status: number): string {
       return 'PROCESADO_BANCO';
     case EstadoTransaccion.ERROR:
       return 'ERROR';
+    case EstadoTransaccion.INCIERTO:
+      return 'INCIERTO';
     default:
       return 'DESCONOCIDO';
   }
@@ -132,6 +134,37 @@ export function infoErrorConBanco(error: unknown): {
     respuestaBanco:
       typeof e?.respuestaBanco === 'string' ? e.respuestaBanco : null,
   };
+}
+
+/**
+ * Clasifica el fallo de una carga a Produbanco:
+ * - `definitivo`: el banco respondió con un rechazo (respuesta cruda adjunta)
+ *   o la petición falló antes de enviarse. Es seguro reintentar con otra
+ *   Idempotency-Key.
+ * - `incierto`: timeout, error de red o respuesta no confirmada. La carga pudo
+ *   haberse procesado: hay que reconciliar, nunca reenviar con llave nueva.
+ */
+export function clasificarErrorCarga(
+  error: unknown,
+): 'definitivo' | 'incierto' {
+  const e = error as
+    | { message?: unknown; respuestaBanco?: unknown }
+    | undefined;
+  if (
+    typeof e?.respuestaBanco === 'string' &&
+    e.respuestaBanco.trim() !== ''
+  ) {
+    return 'definitivo';
+  }
+  const mensaje = typeof e?.message === 'string' ? e.message : '';
+  if (
+    /Produbanco no registró la carga|Produbanco rechazó CargaDirectaXml/i.test(
+      mensaje,
+    )
+  ) {
+    return 'definitivo';
+  }
+  return 'incierto';
 }
 
 /**

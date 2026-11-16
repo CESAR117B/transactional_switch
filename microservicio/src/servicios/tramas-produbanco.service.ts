@@ -20,6 +20,8 @@ import {
   hashContenidoLote,
   infoErrorConBanco,
   normalizarIdempotencyKey,
+  clasificarErrorCarga,
+  comoObjeto,
 } from '../produbanco/produbanco.utils';
 import { TramaBuilderService } from '../produbanco/trama-builder.service';
 
@@ -58,15 +60,20 @@ export class TramasProdubancoService {
   ) {
     const key = normalizarIdempotencyKey(idempotencyKey);
 
+    // El hash del contenido se calcula SIEMPRE antes de resolver un reintento:
+    // una misma llave con otro cuerpo debe fallar (no devolver la respuesta
+    // del lote original como si fuera la misma operación).
+    const requestHash = hashContenidoLote(data);
+
     // Reintento con la MISMA Idempotency-Key: nunca se vuelve a enviar al
     // banco. Si ya terminó se devuelve la respuesta guardada; si está en
     // curso se responde 409; si el resultado es incierto se reconcilia.
     const previa = await this.lotes.buscarPorIdempotencyKey(idApp, key);
-    if (previa) return this.resolverReintento(previa, idApp);
+    if (previa) {
+      this.validarContenidoReintento(previa, requestHash);
+      return this.resolverReintento(previa, idApp);
+    }
 
-    // Hash del contenido sólo para diagnóstico/auditoría: la llave real de
-    // idempotencia es Idempotency-Key.
-    const requestHash = hashContenidoLote(data);
     const config = await this.configDb.getProdubancoConfig();
     const datos = parametrizarPago(
       data,
@@ -107,11 +114,28 @@ export class TramasProdubancoService {
       throw error;
     }
 
+    // Fase A: armar la trama y autenticarla. Si falla acá, la carga NUNCA se
+    // envió al banco: es un rechazo definitivo y se puede reintentar con otra
+    // Idempotency-Key.
+    let tramaEncriptada: string;
     try {
-      // 2. Generar XML y consumir WebService Produbanco
       const xmlPlano = this.tramaBuilder.construirXmlPago(datos);
-      const tramaEncriptada =
+      tramaEncriptada =
         await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
+    } catch (error: unknown) {
+      const info = infoErrorConBanco(error);
+      await this.lotes.actualizarTransaccionErrorBD(
+        transaccion.idTransaccion,
+        info.message,
+        info.respuestaBanco,
+        true,
+      );
+      throw error;
+    }
+
+    // Fase B: enviar la carga. El timeout de CargaDirectaXml NO cancela la
+    // petición de fondo: un error acá puede ser un pago ya procesado.
+    try {
       const { envioId, estado, respuesta } =
         await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
 
@@ -131,14 +155,30 @@ export class TramasProdubancoService {
         montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
       };
     } catch (error: unknown) {
-      // 4. Registrar fallo en BD en caso de error de red o servidor bancario
       const info = infoErrorConBanco(error);
-      await this.lotes.actualizarTransaccionErrorBD(
+
+      // Rechazo explícito del banco (o fallo antes de enviar): definitivo.
+      if (clasificarErrorCarga(error) === 'definitivo') {
+        await this.lotes.actualizarTransaccionErrorBD(
+          transaccion.idTransaccion,
+          info.message,
+          info.respuestaBanco,
+          true,
+        );
+        throw error;
+      }
+
+      // Resultado incierto: se conserva la fila para reconciliar por cron y
+      // se responde sin invitar a una llave nueva (sería un pago doble).
+      await this.lotes.actualizarTransaccionInciertaBD(
         transaccion.idTransaccion,
         info.message,
         info.respuestaBanco,
       );
-      throw error;
+      throw this.errorResultadoIncierto(
+        transaccion.idTransaccion,
+        info.message,
+      );
     }
   }
 
@@ -152,10 +192,14 @@ export class TramasProdubancoService {
   ) {
     const key = normalizarIdempotencyKey(idempotencyKey);
 
-    const previa = await this.lotes.buscarPorIdempotencyKey(idApp, key);
-    if (previa) return this.resolverReintento(previa, idApp);
-
     const requestHash = hashContenidoLote(data);
+
+    const previa = await this.lotes.buscarPorIdempotencyKey(idApp, key);
+    if (previa) {
+      this.validarContenidoReintento(previa, requestHash);
+      return this.resolverReintento(previa, idApp);
+    }
+
     const config = await this.configDb.getProdubancoConfig();
     const datos = parametrizarTransferencia(
       data,
@@ -191,11 +235,25 @@ export class TramasProdubancoService {
       throw error;
     }
 
+    // Fase A: armar la trama y autenticarla (nada se envió todavía).
+    let tramaEncriptada: string;
     try {
-      // 2. Generar XML con campos de exterior y consumir WebService
       const xmlPlano = this.tramaBuilder.construirXmlTransferencia(datos);
-      const tramaEncriptada =
+      tramaEncriptada =
         await this.soapProdubanco.autenticarYEncriptar(xmlPlano);
+    } catch (error: unknown) {
+      const info = infoErrorConBanco(error);
+      await this.lotes.actualizarTransaccionErrorBD(
+        transaccion.idTransaccion,
+        info.message,
+        info.respuestaBanco,
+        true,
+      );
+      throw error;
+    }
+
+    // Fase B: enviar la carga; un timeout puede ser un pago ya procesado.
+    try {
       const { envioId, estado, respuesta } =
         await this.soapProdubanco.cargarDirectaXml(tramaEncriptada);
 
@@ -213,12 +271,47 @@ export class TramasProdubancoService {
       };
     } catch (error: unknown) {
       const info = infoErrorConBanco(error);
-      await this.lotes.actualizarTransaccionErrorBD(
+
+      if (clasificarErrorCarga(error) === 'definitivo') {
+        await this.lotes.actualizarTransaccionErrorBD(
+          transaccion.idTransaccion,
+          info.message,
+          info.respuestaBanco,
+          true,
+        );
+        throw error;
+      }
+
+      await this.lotes.actualizarTransaccionInciertaBD(
         transaccion.idTransaccion,
         info.message,
         info.respuestaBanco,
       );
-      throw error;
+      throw this.errorResultadoIncierto(
+        transaccion.idTransaccion,
+        info.message,
+      );
+    }
+  }
+
+  /**
+   * La misma Idempotency-Key con otro contenido es un error del cliente:
+   * devolver la respuesta del lote original sería aceptar una operación
+   * distinta como si fuera la misma.
+   */
+  private validarContenidoReintento(
+    previa: TxConDetalles,
+    requestHash: string,
+  ): void {
+    if (previa.requestHash && previa.requestHash !== requestHash) {
+      throw new RpcException({
+        statusCode: 422,
+        message:
+          'La Idempotency-Key ya se usó con otro contenido. ' +
+          'Generá una llave nueva sólo si la operación anterior fue rechazada ' +
+          'definitivamente; si quedó incierta, consultá su estado.',
+        error: 'Unprocessable Entity',
+      });
     }
   }
 
@@ -226,9 +319,11 @@ export class TramasProdubancoService {
    * Resuelve un reintento con la MISMA Idempotency-Key:
    * - PROCESADO_BANCO: devuelve la respuesta original sin volver a enviar.
    * - PENDIENTE reciente: 409, la carga original sigue en curso.
-   * - PENDIENTE viejo o ERROR: reconcilia contra Produbanco (consulta, nunca
-   *   reenvía la carga). Si el banco confirma la orden, devuelve la respuesta;
-   *   si no, 409 indicando que debe usarse una Idempotency-Key nueva.
+   * - INCIERTO o PENDIENTE viejo: reconcilia contra Produbanco (consulta,
+   *   nunca reenvía). Si el banco confirma, devuelve la respuesta; si no,
+   *   409 de estado desconocido SIN pedir una llave nueva.
+   * - ERROR definitivo (rechazo explícito): 409 habilitando una llave nueva.
+   * - ERROR sin la marca de definitivo (filas legacy): se trata como incierto.
    */
   private async resolverReintento(tx: TxConDetalles, idApp: number) {
     if (tx.status === EstadoTransaccion.PROCESADO_BANCO) {
@@ -247,7 +342,24 @@ export class TramasProdubancoService {
       });
     }
 
-    // Resultado incierto: consultar al banco sin reenviar la carga.
+    const response = comoObjeto(tx.responsePayload);
+    const rechazoDefinitivo =
+      tx.status === EstadoTransaccion.ERROR &&
+      response['rechazoDefinitivo'] === true;
+
+    if (rechazoDefinitivo) {
+      throw new RpcException({
+        statusCode: 409,
+        message:
+          'La operación con esta Idempotency-Key fue rechazada definitivamente' +
+          (tx.errorMessage ? `: ${tx.errorMessage}` : '.') +
+          ' Podés reintentar con una Idempotency-Key nueva.',
+        error: 'Conflict',
+      });
+    }
+
+    // Resultado incierto (INCIERTO, PENDIENTE viejo o ERROR legacy):
+    // consultar al banco sin reenviar la carga.
     const secretKey = await this.lotes.getEncryptionKey(idApp);
     await this.consulta.consultarBanco(tx, secretKey);
     if (tx.status === EstadoTransaccion.PROCESADO_BANCO) {
@@ -257,9 +369,27 @@ export class TramasProdubancoService {
     throw new RpcException({
       statusCode: 409,
       message:
-        'La operación con esta Idempotency-Key no se completó' +
-        (tx.errorMessage ? `: ${tx.errorMessage}` : '.') +
-        ' Generá una Idempotency-Key nueva para reintentar.',
+        'El resultado de esta Idempotency-Key es desconocido; no se pudo ' +
+        'confirmar con el banco' +
+        (tx.errorMessage ? ` (${tx.errorMessage})` : '') +
+        '. NO generes una llave nueva: reintentá con la misma para consultar ' +
+        'o esperá la reconciliación automática.',
+      error: 'Conflict',
+    });
+  }
+
+  /** Error 409 para el primer intento con resultado incierto. */
+  private errorResultadoIncierto(
+    idTransaccion: bigint,
+    detalle: string,
+  ): RpcException {
+    return new RpcException({
+      statusCode: 409,
+      message:
+        `No se pudo confirmar el resultado de la carga (idTransaccion=${idTransaccion}): ` +
+        `${detalle}. La operación quedó en estado INCIERTO y se reconciliará ` +
+        'automáticamente. NO uses una Idempotency-Key nueva: reintentá con la ' +
+        'misma para consultar su estado.',
       error: 'Conflict',
     });
   }

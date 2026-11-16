@@ -81,7 +81,7 @@ export class ConsultaTransaccionesService {
     if (
       params.status !== undefined &&
       params.status !== null &&
-      [1, 2, 3].includes(Number(params.status))
+      [1, 2, 3, 4].includes(Number(params.status))
     ) {
       where.status = Number(params.status);
     }
@@ -208,7 +208,7 @@ export class ConsultaTransaccionesService {
     if (
       params.status !== undefined &&
       params.status !== null &&
-      [1, 2, 3].includes(Number(params.status))
+      [1, 2, 3, 4].includes(Number(params.status))
     ) {
       where.status = Number(params.status);
     }
@@ -767,6 +767,7 @@ export class ConsultaTransaccionesService {
       mensaje: prevStr('mensaje'),
       cargaRespuestaBanco: prevStr('cargaRespuestaBanco'),
       error: mensajeRevocado,
+      ...(revocado ? { rechazoDefinitivo: true } : {}),
       estadoBanco: estadoSobre || prevStr('estadoBanco'),
       codigoBanco,
       mensajeBanco,

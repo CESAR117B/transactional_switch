@@ -5,6 +5,7 @@ import { TramasProdubancoService } from './tramas-produbanco.service';
 import { LogProceso } from '../logs/log-proceso.decorator';
 import { CronLogResult, CronLogService } from '../logs/cron-log.service';
 import { TramaSoap } from '../integraciones/produbanco-soap.service';
+import { EstadoTransaccion } from '../produbanco/produbanco.types';
 import {
   CRON_LOCK_PRODUBANCO,
   CronLockService,
@@ -154,15 +155,19 @@ export class TransaccionesProdubancoJobService {
       const hace2Minutos = new Date(Date.now() - 2 * 60 * 1000);
 
       // Criterio: transacciones de Produbanco con AL MENOS UN detalle en
-      // estado_item = 'PENDIENTE'. No se filtra por status de cabecera ni por
+      // estado_item = 'PENDIENTE' o cabecera en INCIERTO. No se filtra por
       // antigüedad: una carga aceptada deja status=2 (VALIDADO) y un rechazo
       // status=3, pero en ambos casos el detalle puede seguir PENDIENTE y es
-      // justamente lo que se debe sincronizar contra el banco.
+      // justamente lo que se debe sincronizar contra el banco. Las INCIERTO
+      // se reconcilian aunque sus detalles ya no estén PENDIENTE.
       const pendientes = await this.prisma.transaccionesServicios.findMany({
         where: {
           operation: { in: TramasProdubancoService.OPERACIONES_PRODUBANCO },
           createdAt: { lte: hace2Minutos },
-          detalles: { some: { estadoItem: JobEstadoItem.PENDIENTE } },
+          OR: [
+            { status: EstadoTransaccion.INCIERTO },
+            { detalles: { some: { estadoItem: JobEstadoItem.PENDIENTE } } },
+          ],
         },
         select: { idTransaccion: true },
         take: 100,

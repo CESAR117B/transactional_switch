@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UniversalCryptoService } from '../servicios/universal-crypto.service';
 import { Prisma, TokenizedCard } from '@prisma/client';
+import { createHash } from 'crypto';
 
 /** Resultado de tokenización que el microservicio devuelve al gateway. */
 export interface TokenizacionResult {
@@ -22,6 +23,10 @@ export interface TokenizacionResult {
 }
 
 type JsonObject = Record<string, unknown>;
+type TipoTarjeta = 'PERMANENT' | 'TEMPORAL';
+
+/** Centinela de `evaluarTarjetaExistente`: hay que reintentar el proveedor. */
+const REUTILIZAR_RESERVA = 'REUTILIZAR';
 
 function esObjeto(valor: unknown): valor is JsonObject {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor);
@@ -30,6 +35,9 @@ function esObjeto(valor: unknown): valor is JsonObject {
 @Injectable()
 export class FirstokenService {
   private readonly logger = new Logger(FirstokenService.name);
+
+  /** Ventana en la que una reserva PENDING se considera "en curso". */
+  private static readonly PENDING_EN_CURSO_MS = 2 * 60 * 1000;
 
   constructor(
     private readonly httpService: HttpService,
@@ -105,178 +113,246 @@ export class FirstokenService {
     };
   }
 
+  /**
+   * Una fila PENDING con `firstToken` es una tarjeta legacy (el flujo
+   * anterior no marcaba `ACTIVE` en el alta temporal) o una ya completada
+   * antes de actualizar el estado. Las reservas nuevas nacen con
+   * `firstToken` vacío.
+   */
+  private esTarjetaCompleta(card: TokenizedCard): boolean {
+    return card.firstToken.trim() !== '';
+  }
+
+  /** Hash del contenido de la tarjeta (sin la llave local ni datos de control). */
+  private hashContenidoTarjeta(payload: JsonObject): string {
+    return createHash('sha256')
+      .update(JSON.stringify(payload), 'utf8')
+      .digest('hex');
+  }
+
+  /** Metadatos como objeto plano (sin `any`). */
+  private metadataDe(card: TokenizedCard): JsonObject {
+    return esObjeto(card.metadata) ? card.metadata : {};
+  }
+
+  /**
+   * Decide qué hacer con una fila que ya ocupa la Idempotency-Key:
+   * - completa (ACTIVE o legacy) → devuelve la respuesta guardada;
+   * - completa con otro contenido → 422;
+   * - REVOKED → 409;
+   * - PENDING vacía reciente → 409 "en curso";
+   * - PENDING vacía vieja → `REUTILIZAR` (reintentar el proveedor).
+   */
+  private async evaluarTarjetaExistente(
+    card: TokenizedCard,
+    requestHash: string,
+  ): Promise<TokenizacionResult | typeof REUTILIZAR_RESERVA> {
+    if (card.status === 'REVOKED') {
+      throw new RpcException({
+        statusCode: 409,
+        message:
+          'La tokenización con esta Idempotency-Key fue revocada. ' +
+          'Generá una Idempotency-Key nueva.',
+        error: 'Conflict',
+      });
+    }
+
+    if (this.esTarjetaCompleta(card)) {
+      const hashGuardado = this.metadataDe(card)['requestHash'];
+      if (typeof hashGuardado === 'string' && hashGuardado !== requestHash) {
+        throw new RpcException({
+          statusCode: 422,
+          message:
+            'La Idempotency-Key ya se usó con otra tarjeta. ' +
+            'Generá una Idempotency-Key nueva para tokenizar datos distintos.',
+          error: 'Unprocessable Entity',
+        });
+      }
+      if (card.status !== 'ACTIVE') {
+        // Tarjeta legacy (o completada justo antes de marcar ACTIVE).
+        await this.prisma.tokenizedCard.update({
+          where: { idCard: card.idCard },
+          data: { status: 'ACTIVE' },
+        });
+      }
+      return this.respuestaDeTarjeta(card);
+    }
+
+    const actualizadaMs = card.updatedAt?.getTime?.() ?? 0;
+    const hashReserva = this.metadataDe(card)['requestHash'];
+    if (typeof hashReserva === 'string' && hashReserva !== requestHash) {
+      throw new RpcException({
+        statusCode: 422,
+        message:
+          'La Idempotency-Key ya se usó con otra tarjeta. ' +
+          'Generá una Idempotency-Key nueva para tokenizar datos distintos.',
+        error: 'Unprocessable Entity',
+      });
+    }
+    const enCurso =
+      Date.now() - actualizadaMs < FirstokenService.PENDING_EN_CURSO_MS;
+    if (enCurso) {
+      throw new RpcException({
+        statusCode: 409,
+        message:
+          'Ya hay una tokenización en curso con esta Idempotency-Key. ' +
+          'Esperá su resultado antes de reintentar.',
+        error: 'Conflict',
+      });
+    }
+    return REUTILIZAR_RESERVA;
+  }
+
+  /**
+   * Reserva la Idempotency-Key ANTES de llamar a Firstoken. Los campos del
+   * proveedor quedan vacíos hasta completar la fila; la fila PENDING nunca
+   * se devuelve al cliente. No requiere cambios de schema (columnas NOT NULL
+   * con centinelas vacíos).
+   */
+  private crearReserva(
+    idApp: number,
+    idempotencyKey: string,
+    tipo: TipoTarjeta,
+    requestHash: string,
+  ): Promise<TokenizedCard> {
+    return this.prisma.tokenizedCard.create({
+      data: {
+        idApp,
+        idempotencyKey,
+        firstToken: '',
+        cardTruncated: '',
+        franchise: '',
+        holderName: '',
+        expirationMonth: '',
+        expirationYear: '',
+        lastFour: '',
+        status: 'PENDING',
+        typeCard: tipo,
+        metadata: { requestHash },
+      },
+    });
+  }
+
+  /** Borra la reserva PENDING si el proveedor falló, para permitir reintento. */
+  private async liberarReserva(card: TokenizedCard): Promise<void> {
+    try {
+      await this.prisma.tokenizedCard.deleteMany({
+        where: { idCard: card.idCard, status: 'PENDING' },
+      });
+    } catch (error: unknown) {
+      this.logger.warn(
+        `No se pudo liberar la reserva de tokenización idCard=${card.idCard}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   async permanentTokenCard(
     idApp: number,
     datosTarjeta: TokenizeCardDto,
   ): Promise<TokenizacionResult> {
-    const idempotencyKey = this.normalizarIdempotencyKey(
-      datosTarjeta.idempotencyKey,
-    );
-
-    // Reintento: devolver la tarjeta ya guardada sin llamar de nuevo a Firstoken.
-    const existente = await this.buscarTarjetaPorIdempotencyKey(
-      idApp,
-      idempotencyKey,
-    );
-    if (existente) return this.respuestaDeTarjeta(existente);
-
-    // 1. Obtenemos la configuración
-    const config = await this.configDb.getFirstTokenConfig();
-
-    const urlFinal = `${config.base_url}/routes/${config.routes.permanent_card}`;
-    this.logger.debug(`URL de destino: ${urlFinal}`);
-
-    // Extraemos también 'idApp' para guardarlo en BD, pero NO enviarlo a
-    // FirsToken. idempotencyKey es local y tampoco viaja al proveedor.
-    const { temporal, card_cvv, idempotencyKey: _key, ...payloadLimpio } =
-      datosTarjeta;
-
-    try {
-      // 2. Enviamos la petición limpia a FirsToken
-      const response = await firstValueFrom(
-        this.httpService.post(urlFinal, payloadLimpio, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: config.timeout,
-        }),
-      );
-
-      // 3. Extraemos la data de la respuesta para mayor legibilidad
-      const responseData = response.data;
-      const cardDetails = responseData.custom_field_details.card;
-
-      // 4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
-      const appRecord = await this.prisma.app.findUnique({
-        where: { id_app: idApp },
-        select: { encryptionKey: true },
-      });
-
-      if (!appRecord || !appRecord.encryptionKey) {
-        throw new RpcException({
-          statusCode: 500,
-          message: `La app con ID ${idApp} no tiene una llave de encriptación configurada.`,
-          error: 'Internal Server Error',
-        });
-      }
-
-      const tokenEncriptado = this.universalCryptoService.encrypt(
-        cardDetails.token,
-        appRecord.encryptionKey,
-      );
-
-      // 5. Mapeamos exactamente la respuesta hacia tu modelo de Prisma
-      let savedCard: TokenizedCard;
-      try {
-        savedCard = await this.prisma.tokenizedCard.create({
-          data: {
-            idApp: idApp, // Lo convertimos a BigInt como exige tu BD si es necesario
-            idempotencyKey,
-            firstToken: tokenEncriptado, // GUARDAMOS LA CADENA ENCRIPTADA
-            cardTruncated: cardDetails.card_truncated,
-            franchise: cardDetails.brand.toUpperCase(), // Ej: DINERS -> UPPERCASE
-            holderName: responseData.card_holder,
-            expirationMonth: responseData.card_month,
-            expirationYear: responseData.card_year,
-            lastFour: cardDetails.last_four,
-            status: 'ACTIVE', // Agregamos un campo para diferenciar temporal de permanente
-            metadata: {
-              bin: cardDetails.bin, // Guardamos el BIN en el JSON opcional por si acaso
-            },
-            typeCard: 'PERMANENT', // Indicamos que es una tarjeta permanente
-          },
-        });
-      } catch (error: unknown) {
-        // Carrera con otro reintento: devolver la tarjeta que ganó.
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          const ganadora = await this.buscarTarjetaPorIdempotencyKey(
-            idApp,
-            idempotencyKey,
-          );
-          if (ganadora) return this.respuestaDeTarjeta(ganadora);
-        }
-        throw error;
-      }
-
-      this.logger.log(
-        `✅ Tarjeta permanente guardada con ID: ${savedCard.idCard}`,
-      );
-
-      this.eventEmitter.emit('audit.record', {
-        servicio: 'FIRSTOKEN',
-        entidadId: savedCard.idCard,
-        entidadName: 'tokenized_cards',
-        idApp: idApp,
-        operation: 'PERMANENT_TOKEN_CARD',
-        requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
-        responsePayload: this.respuestaAuditable(response.data),
-        status: response.status,
-      });
-
-      const datamap: TokenizacionResult = {
-        card_truncated: cardDetails.card_truncated,
-        card_holder: responseData.card_holder,
-        card_month: responseData.card_month,
-        card_year: responseData.card_year,
-        brand: cardDetails.brand,
-        last_four: cardDetails.last_four,
-        token: tokenEncriptado, // Guardamos el token encriptado en el datamap para auditoría, pero el listener se encargará de no loguearlo
-        typeCard: 'PERMANENT',
-      };
-      // Devolvemos la respuesta de FirsToken con el token ya cifrado.
-      return {
-        ...datamap,
-      };
-    } catch (error) {
-      const mensajeError = error.response?.data || error.message;
-      this.eventEmitter.emit('audit.record', {
-        servicio: 'FIRSTOKEN',
-        idApp: idApp,
-        operation: 'PERMANENT_TOKEN_CARD',
-        reference: '',
-        requestPayload: datosTarjeta,
-        responsePayload: this.respuestaAuditable(error.response?.data),
-        status: error.response?.status || 500,
-        errorMessage: mensajeError,
-      });
-
-      this.logger.error('Fallo en FirsToken o Base de Datos:', mensajeError);
-
-      throw new RpcException({
-        statusCode: error.response?.status || 500,
-        message: mensajeError,
-      });
-    }
+    return this.tokenizar(idApp, datosTarjeta, 'PERMANENT');
   }
 
   async temporalTokenCard(
     idApp: number,
     datosTarjeta: TokenizeCardDto,
   ): Promise<TokenizacionResult> {
+    return this.tokenizar(idApp, datosTarjeta, 'TEMPORAL');
+  }
+
+  /**
+   * Flujo común de tokenización con idempotencia por reserva:
+   *
+   * 1. Reintento con la misma llave → respuesta guardada (sin HTTP).
+   * 2. Crear la fila PENDING con la llave ANTES del POST al proveedor: la
+   *    unique (idApp, idempotencyKey) impide dos llamadas simultáneas.
+   * 3. Completar la fila a ACTIVE con el token cifrado y los datos.
+   * 4. Si el proveedor falla, borrar la reserva para permitir un reintento
+   *    limpio con la misma llave.
+   */
+  private async tokenizar(
+    idApp: number,
+    datosTarjeta: TokenizeCardDto,
+    tipo: TipoTarjeta,
+  ): Promise<TokenizacionResult> {
+    const operation =
+      tipo === 'TEMPORAL' ? 'TEMPORAL_TOKEN_CARD' : 'PERMANENT_TOKEN_CARD';
     const idempotencyKey = this.normalizarIdempotencyKey(
       datosTarjeta.idempotencyKey,
     );
 
+    // Payload que viaja a Firstoken: nunca incluye la llave local ni
+    // `temporal`. El CVV sólo aplica al flujo temporal.
+    const { temporal, card_cvv, idempotencyKey: _key, ...resto } = datosTarjeta;
+    const payloadLimpio: JsonObject =
+      tipo === 'TEMPORAL' ? { ...resto, card_cvv } : resto;
+    const requestHash = this.hashContenidoTarjeta(payloadLimpio);
+
+    // 1. Reintento / carrera previa.
     const existente = await this.buscarTarjetaPorIdempotencyKey(
       idApp,
       idempotencyKey,
     );
-    if (existente) return this.respuestaDeTarjeta(existente);
+    let reserva: TokenizedCard | null = null;
+    if (existente) {
+      const evaluada = await this.evaluarTarjetaExistente(
+        existente,
+        requestHash,
+      );
+      if (evaluada !== REUTILIZAR_RESERVA) return evaluada;
+      reserva = existente;
+    }
 
-    // 1. Obtenemos la configuración
+    // 2. Configuración y URL (no llaman al proveedor).
     const config = await this.configDb.getFirstTokenConfig();
-    const urlFinal = `${config.base_url}/routes/${config.routes.temporal_card}`;
-    this.logger.debug(`URL de destino (Temporal): ${urlFinal}`);
+    const ruta =
+      tipo === 'TEMPORAL'
+        ? config.routes.temporal_card
+        : config.routes.permanent_card;
+    const urlFinal = `${config.base_url}/routes/${ruta}`;
+    this.logger.debug(`URL de destino (${tipo}): ${urlFinal}`);
 
-    // Solo sacamos 'temporal'. El 'card_cvv' SÍ viaja en payloadLimpio para
-    // tokens temporales; idempotencyKey es local y nunca viaja al proveedor.
-    const { temporal, idempotencyKey: _key, ...payloadLimpio } = datosTarjeta;
+    // 3. Reservar la llave ANTES del POST.
+    if (!reserva) {
+      try {
+        reserva = await this.crearReserva(
+          idApp,
+          idempotencyKey,
+          tipo,
+          requestHash,
+        );
+      } catch (error: unknown) {
+        const esUnique =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002';
+        if (!esUnique) throw error;
+        // Otro request ganó la reserva: resolver como reintento.
+        const ganadora = await this.buscarTarjetaPorIdempotencyKey(
+          idApp,
+          idempotencyKey,
+        );
+        if (!ganadora) throw error;
+        const evaluada = await this.evaluarTarjetaExistente(
+          ganadora,
+          requestHash,
+        );
+        if (evaluada !== REUTILIZAR_RESERVA) return evaluada;
+        reserva = ganadora;
+      }
+    }
+    if (!reserva) {
+      throw new RpcException({
+        statusCode: 500,
+        message: 'No se pudo reservar la Idempotency-Key de tokenización.',
+        error: 'Internal Server Error',
+      });
+    }
+    const reservaActual = reserva;
 
     try {
-      // 2. Enviamos la petición a FirsToken
+      // 4. Llamar al proveedor con el payload limpio.
       const response = await firstValueFrom(
         this.httpService.post(urlFinal, payloadLimpio, {
           headers: {
@@ -289,7 +365,7 @@ export class FirstokenService {
       const responseData = response.data;
       const cardDetails = responseData.custom_field_details.card;
 
-      //  4. OBTENEMOS LA LLAVE Y ENCRIPTAMOS EL TOKEN
+      // 5. Obtener la llave de la app y cifrar el token.
       const appRecord = await this.prisma.app.findUnique({
         where: { id_app: idApp },
         select: { encryptionKey: true },
@@ -308,42 +384,28 @@ export class FirstokenService {
         appRecord.encryptionKey,
       );
 
-      // 3. Mapeamos hacia Prisma
-      let savedCard: TokenizedCard;
-      try {
-        savedCard = await this.prisma.tokenizedCard.create({
-          data: {
-            idApp: idApp,
-            idempotencyKey,
-            firstToken: tokenEncriptado, // En este caso será el UUID (ej. d54f0486-...)
-            cardTruncated: cardDetails.card_truncated,
-            franchise: cardDetails.brand.toUpperCase(),
-            holderName: responseData.card_holder,
-            expirationMonth: responseData.card_month,
-            expirationYear: responseData.card_year,
-            lastFour: cardDetails.last_four,
-            typeCard: 'TEMPORAL', // Indicamos que es una tarjeta temporal
-            metadata: {
-              bin: cardDetails.bin,
-            },
+      // 6. Completar la reserva: recién acá existe el token.
+      const savedCard = await this.prisma.tokenizedCard.update({
+        where: { idCard: reservaActual.idCard },
+        data: {
+          firstToken: tokenEncriptado,
+          cardTruncated: cardDetails.card_truncated,
+          franchise: cardDetails.brand.toUpperCase(),
+          holderName: responseData.card_holder,
+          expirationMonth: responseData.card_month,
+          expirationYear: responseData.card_year,
+          lastFour: cardDetails.last_four,
+          status: 'ACTIVE',
+          typeCard: tipo,
+          metadata: {
+            bin: cardDetails.bin,
+            requestHash,
           },
-        });
-      } catch (error: unknown) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          const ganadora = await this.buscarTarjetaPorIdempotencyKey(
-            idApp,
-            idempotencyKey,
-          );
-          if (ganadora) return this.respuestaDeTarjeta(ganadora);
-        }
-        throw error;
-      }
+        },
+      });
 
       this.logger.log(
-        `⏳ Tarjeta TEMPORAL guardada con ID: ${savedCard.idCard}`,
+        `Tarjeta ${tipo} guardada con ID: ${savedCard.idCard}`,
       );
 
       this.eventEmitter.emit('audit.record', {
@@ -351,41 +413,40 @@ export class FirstokenService {
         entidadId: savedCard.idCard,
         entidadName: 'tokenized_cards',
         idApp: idApp,
-        operation: 'TEMPORAL_TOKEN_CARD',
+        operation,
         requestPayload: datosTarjeta, // El listener se encargará de sanitizarlo
         responsePayload: this.respuestaAuditable(response.data),
         status: response.status,
       });
 
-      const datamap: TokenizacionResult = {
+      return {
         card_truncated: cardDetails.card_truncated,
         card_holder: responseData.card_holder,
         card_month: responseData.card_month,
         card_year: responseData.card_year,
         brand: cardDetails.brand,
         last_four: cardDetails.last_four,
-        token: tokenEncriptado, // Guardamos el token encriptado en el datamap para auditoría, pero el listener se encargará de no loguearlo
-        typeCard: 'TEMPORAL',
-      };
-
-      // 4. Devolvemos respuesta con el ID de BD casteado a string
-      return {
-        ...datamap,
+        token: tokenEncriptado,
+        typeCard: tipo,
       };
     } catch (error) {
-      const mensajeError = error.response?.data || error.message;
+      // El proveedor (o el guardado) falló: liberar la reserva para que un
+      // reintento con la MISMA llave pueda ejecutarse.
+      await this.liberarReserva(reservaActual);
 
+      const mensajeError = error.response?.data || error.message;
       this.eventEmitter.emit('audit.record', {
         servicio: 'FIRSTOKEN',
         idApp: idApp,
-        operation: 'TEMPORAL_TOKEN_CARD',
+        operation,
         reference: '',
         requestPayload: datosTarjeta,
         responsePayload: this.respuestaAuditable(error.response?.data),
         status: error.response?.status || 500,
         errorMessage: mensajeError,
       });
-      this.logger.error('Fallo en FirsToken (Temporal):', mensajeError);
+
+      this.logger.error(`Fallo en FirsToken (${tipo}):`, mensajeError);
 
       throw new RpcException({
         statusCode: error.response?.status || 500,

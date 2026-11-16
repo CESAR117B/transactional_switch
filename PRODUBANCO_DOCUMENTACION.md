@@ -203,7 +203,7 @@ X-Encryption-Key: <encryptionKey de tu app>
 > de responder (a diferencia de la carga, sección 3, que la devuelve cifrada).
 
 Todos los query params son opcionales (`page=1`, `pageSize=20` max. 50,
-`status` 1/2/3, `operation` pago o transferencia). Solo muestra operaciones de
+`status` 1/2/3/4, `operation` pago o transferencia). Solo muestra operaciones de
 Produbanco de **tu app**.
 
 ### Filtros de búsqueda
@@ -310,8 +310,8 @@ administrativa (`/admin/produbanco/transacciones/estado/:dato`).
 
 | Campo | Significado |
 |-------|-------------|
-| `status` (local) | Estado interno del back: `1` PENDIENTE (en proceso), `2` PROCESADO_BANCO, `3` ERROR |
-| `statusServicio` | Resumen legible del estado local (`PENDIENTE` / `PROCESADO_BANCO` / `ERROR`) |
+| `status` (local) | Estado interno del back: `1` PENDIENTE (en proceso), `2` PROCESADO_BANCO, `3` ERROR definitivo, `4` INCIERTO |
+| `statusServicio` | Resumen legible del estado local (`PENDIENTE` / `PROCESADO_BANCO` / `ERROR` / `INCIERTO`) |
 | `estadoTransaccion` | **Estado verbatim de Produbanco** (ej: `ACTIVO`, `APROBADO`, `REVOCADO`) — no está mapeado; usa tal cual |
 | `estadoItem` (detalle) | Estado verbatim por pago dentro del lote |
 | `codigoBanco` / `mensajeBanco` | Último código/mensaje de la consulta al banco (`0005` = aún sin datos) |
@@ -323,24 +323,38 @@ microservicio y se devuelve el último estado persistido en BD.
 
 ## 7. Errores de la carga al banco
 
-Si Produbanco rechaza la trama o hay error de red, el back guarda el lote en
-`ERROR` y devuelve el error con la respuesta cruda del banco:
+El back distingue dos casos:
 
-```json
-{ "message": "Trama inválida", "respuestaBanco": "<respuesta cruda del SOAP>" }
-```
+- **Rechazo definitivo (`status = 3`):** Produbanco respondió con error o la
+  carga falló antes de enviarse. Se guarda la respuesta cruda del banco y es
+  seguro reintentar con otra `Idempotency-Key`:
+
+  ```json
+  { "message": "Trama inválida", "respuestaBanco": "<respuesta cruda del SOAP>" }
+  ```
+
+- **Resultado incierto (`status = 4`):** timeout, error de red o respuesta no
+  confirmada. La carga **pudo haberse procesado**. Se responde `409` con
+  `"La operación quedó en estado INCIERTO..."` y **no** se debe usar una llave
+  nueva. El cron reconcilia contra el banco cada 5 minutos.
 
 ---
 
 ## 8. Idempotencia (importante)
 
-El back detecta **lotes con contenido idéntico** (mismo pago, mismo monto,
-mismos beneficiarios):
+La llave de idempotencia es el header `Idempotency-Key` (UUID por operación),
+no el contenido del lote:
 
-- Si el lote anterior terminó en `ERROR`: se **recicla automáticamente**
-  (reenvía al banco y responde normal).
-- Si está `PENDIENTE` o `PROCESADO_BANCO`: responde `409 Conflict` — para
-  reenviar el mismo pago usa **nuevos datos** (ej: nueva `referencia`).
+- Reintento con la misma llave y mismo contenido:
+  - `PROCESADO_BANCO` → devuelve la respuesta original sin reenviar.
+  - `PENDIENTE` reciente → `409` "en curso".
+  - `INCIERTO` o `PENDIENTE` viejo → consulta al banco; si confirma devuelve
+    la respuesta; si no, `409` de estado desconocido **sin** pedir llave nueva.
+  - `ERROR` definitivo → `409` habilitando una `Idempotency-Key` nueva.
+- Misma llave con **otro contenido** → `422 Unprocessable Entity`.
+- Un lote en `ERROR` nunca se recicla ni se reenvía automáticamente.
+- Además existe un límite anti-duplicado (mismo monto + misma cuenta
+  beneficiario por app en 5 minutos) que también bloquea los `INCIERTO`.
 
 El login fallido y las claves de las apps se manejan en la BD del back; la
 documentación Swagger en `/doc` refleja siempre los DTOs vigentes.

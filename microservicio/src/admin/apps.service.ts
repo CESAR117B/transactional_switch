@@ -556,7 +556,8 @@ export class AppsService {
       await this.prisma.$transaction(
         async (tx) => {
           const tarjetas = await tx.tokenizedCard.findMany({
-            where: { idApp },
+            // Excluye reservas PENDING sin token (firstToken vacío).
+            where: { idApp, firstToken: { not: '' } },
             select: { idCard: true, firstToken: true },
           });
           for (const tarjeta of tarjetas) {

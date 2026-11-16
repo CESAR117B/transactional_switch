@@ -262,11 +262,65 @@ Casos cubiertos relevantes: cifrar/descifrar y fallo con authTag alterado, hash 
 
 ---
 
+# 5. Evaluación final (`Issues/evalucion_final.md`)
+
+## 5.1. Pago doble ante un resultado incierto — resuelto
+
+**Qué pedía:** separar el rechazo definitivo del resultado incierto, con un estado propio que responda 409 sin pedir llave nueva, se reconcilie por cron y siga bloqueando duplicados.
+
+**Qué se hizo:**
+- Nuevo `EstadoTransaccion.INCIERTO = 4`. `ERROR = 3` pasa a significar **solo rechazo definitivo**.
+- `generarPago` y `generarTransferencia` separan la carga en dos fases:
+  - **Fase A** (armar trama + `autenticarYEncriptar`): si falla, nada se envió → `ERROR`.
+  - **Fase B** (`CargaDirectaXml`): `clasificarErrorCarga()` decide.
+    - Rechazo con `respuestaBanco` o mensaje del banco → `ERROR` (`rechazoDefinitivo: true`).
+    - Timeout, error de red o respuesta no confirmada → `INCIERTO` + `409` con el mensaje “NO uses una Idempotency-Key nueva”.
+- `resolverReintento`:
+  - `INCIERTO` / `PENDIENTE` viejo → reconcilia con el banco; si no confirma, 409 de estado desconocido sin invitar a llave nueva.
+  - `ERROR` definitivo → 409 habilitando llave nueva.
+  - `ERROR` legacy sin la marca → se trata como incierto (conservador).
+- El anti-duplicado usa `status: { notIn: [ERROR] }`: `INCIERTO` sigue bloqueando.
+- El cron incluye cabeceras `INCIERTO` en la reconciliación cada 5 minutos.
+- Filtros de listado aceptan `status=4` (microservicio y DTO del gateway).
+
+**Archivos:** `produbanco.types.ts`, `produbanco.utils.ts`, `lotes.repository.ts`, `tramas-produbanco.service.ts`, `consulta-transacciones.service.ts`, `transacciones-produbanco.job.ts`, `listar-transacciones-query.dto.ts`.
+
+## 5.2. Llave de idempotencia atada al contenido — resuelto
+
+**Qué pedía:** si la misma `Idempotency-Key` llega con otro cuerpo, no devolver silenciosamente la respuesta original.
+
+**Qué se hizo:** el `requestHash` se calcula antes de resolver el reintento y se compara con el persistido. Si difiere → `422` “La Idempotency-Key ya se usó con otro contenido”.
+
+**Archivos:** `tramas-produbanco.service.ts` (`validarContenidoReintento`).
+
+## 5.3. Tokenización registraba la llave después del proveedor — resuelto
+
+**Qué pedía:** crear la fila `PENDIENTE` con la llave antes de llamar a Firstoken y completarla después.
+
+**Qué se hizo (sin cambios de schema):**
+- La fila `tokenized_cards` se reserva con `status = PENDING` y `firstToken = ''` **antes** del POST.
+- `firstToken`/`franchise`/etc. se completan en un `update` a `ACTIVE` recién con la respuesta del proveedor.
+- `P2002` al reservar → otro request ganó: se resuelve como reintento.
+- `PENDING` reciente → 409 “tokenización en curso”.
+- `PENDING` vieja → se reutiliza la misma fila y se reintenta el proveedor (sin doble cobro; a lo sumo un token huérfano inerte).
+- Error del proveedor → se borra la reserva para permitir un reintento limpio con la misma llave.
+- `metadata.requestHash` detecta la misma llave usada con otra tarjeta → 422.
+- Las tarjetas legacy `PENDING` con token (flujo temporal anterior) se reconocen y se marcan `ACTIVE` al primer reintento.
+- La rotación de `encryptionKey` re-cifra solo filas con token (`firstToken != ''`), excluyendo reservas vacías.
+
+**Archivos:** `integraciones/firstoken.service.ts`, `admin/apps.service.ts`.
+
+## 5.4. Estado de los puntos restantes de la evaluación
+
+Quedan como sugerencias no bloqueantes ya señaladas por el review: sumar totales con `Prisma.Decimal`/centavos, hacer obligatorio `idAppAdmin` en los DTOs admin, y migrar los 4 handlers de `@Req()` a `@AppAuth()`.
+
+---
+
 # Verificación final
 
 | Proyecto | Typecheck | Tests | Build |
 |---|---|---|---|
-| `microservicio` | OK | 10 suites / 55 tests | OK |
+| `microservicio` | OK | 11 suites / 67 tests | OK |
 | `client-app` | OK | 4 suites / 26 tests | OK |
 
 # Pendiente y riesgos residuales

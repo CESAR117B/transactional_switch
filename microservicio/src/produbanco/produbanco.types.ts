@@ -8,11 +8,17 @@ import {
   TipoCuentaBanco,
 } from '../dto/crear-transferencia-lote.dto';
 
-// Estados transaccionales internos
+// Estados transaccionales internos.
+//
+// ERROR (3) es SIEMPRE un rechazo definitivo: el banco respondió con error o
+// la carga falló antes de enviarse. INCIERTO (4) es un resultado desconocido
+// (timeout, error de red, respuesta no confirmada): la carga pudo haberse
+// procesado, así que NO se puede reintentar con una Idempotency-Key nueva.
 export enum EstadoTransaccion {
   PENDIENTE = 1,
   PROCESADO_BANCO = 2,
   ERROR = 3,
+  INCIERTO = 4,
 }
 
 /** Únicas operaciones de Produbanco: todo listado/consulta se limita a estas. */
