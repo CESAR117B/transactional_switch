@@ -310,9 +310,15 @@ Casos cubiertos relevantes: cifrar/descifrar y fallo con authTag alterado, hash 
 
 **Archivos:** `integraciones/firstoken.service.ts`, `admin/apps.service.ts`.
 
-## 5.4. Estado de los puntos restantes de la evaluación
+## 5.4. Puntos restantes de la evaluación — resueltos
 
-Quedan como sugerencias no bloqueantes ya señaladas por el review: sumar totales con `Prisma.Decimal`/centavos, hacer obligatorio `idAppAdmin` en los DTOs admin, y migrar los 4 handlers de `@Req()` a `@AppAuth()`.
+Los tres puntos no bloqueantes que quedaban de `Issues/evalucion_final.md` quedaron aplicados:
+
+- **Totales con Decimal.** Nuevo helper `sumarMontos()` en `produbanco.utils.ts`: suma con `Prisma.Decimal`, ignora valores vacíos/no numéricos y devuelve `number` redondeado a 2 decimales (mismo contrato de respuesta). Se usa en `tramas-produbanco.service.ts` (pago y transferencia), `lotes.repository.ts` (`respuestaDeTransaccion`) y `consulta-transacciones.service.ts` (listado y detalle).
+- **`idAppAdmin` obligatorio.** Los DTOs `ActualizarAppPayloadDto`, `AsignarServiciosAppDto`, `DesasignarServiciosAppDto` y `ActivarDesactivarServicioDto` exigen `idAppAdmin`. Se eliminaron los respaldos silenciosos `idAppAdmin ?? idApp`, `?? 0` y `?? idApp` de `apps.service.ts`; el controlador RPC responde 400 si falta. El gateway ya lo envía siempre (`app.service.ts`).
+- **`@AppAuth()` en el gateway.** Los 4 handlers de `tramas-produbanco.controller.ts` usan `@AppAuth() auth: AppAuthConId` y leen `X-Encryption-Key` con `@Headers(...)`; se eliminaron los `@Req()` y el chequeo repetido de `id_app`.
+
+**Archivos:** `produbanco.utils.ts`, `produbanco.utils.spec.ts` (nuevo), `tramas-produbanco.service.ts`, `lotes.repository.ts`, `consulta-transacciones.service.ts`, `actualizar-app-payload.dto.ts`, `asignar-servicios-app.dto.ts`, `admin/dto/desasignar-servicios-app.dto.ts`, `admin/dto/activar-desactivar-servicio.dto.ts`, `admin/apps.service.ts`, `admin/apps.controller.ts`, `client-app/src/tramas-produbanco.controller.ts`.
 
 ---
 
@@ -320,7 +326,7 @@ Quedan como sugerencias no bloqueantes ya señaladas por el review: sumar totale
 
 | Proyecto | Typecheck | Tests | Build |
 |---|---|---|---|
-| `microservicio` | OK | 11 suites / 67 tests | OK |
+| `microservicio` | OK | 12 suites / 71 tests | OK |
 | `client-app` | OK | 4 suites / 26 tests | OK |
 
 # Pendiente y riesgos residuales

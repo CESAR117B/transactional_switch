@@ -7,7 +7,6 @@ import {
   Param,
   Post,
   Query,
-  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -17,10 +16,10 @@ import {
 } from '@nestjs/swagger';
 import { RequireService } from './require-service.decorator';
 import { AppService } from './app.service';
+import { AppAuth, AppAuthConId } from './app-auth.decorator';
 import { CrearPagoLoteDto } from './dto/crear-pago-lote.dto';
 import { CrearTransferenciaLoteDto } from './dto/crear-transferencia-lote.dto';
 import { ListarTransaccionesQueryDto } from './dto/listar-transacciones-query.dto';
-import { RequestWithAppAuth } from './app-auth.types';
 import { requerirIdempotencyKey } from './idempotency-key';
 
 @ApiTags('Servicios')
@@ -36,18 +35,12 @@ export class TramasProdubancoController {
   })
   @Post('transferencia-nacional')
   async generarPago(
-    @Req() req: RequestWithAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Body() dto: CrearPagoLoteDto,
   ) {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
     return this.appService.generarPago(
-      idApp,
+      auth.id_app,
       dto,
       requerirIdempotencyKey(idempotencyKey),
     );
@@ -59,18 +52,12 @@ export class TramasProdubancoController {
   })
   @Post('transferencia-internacional')
   async generarTransferencia(
-    @Req() req: RequestWithAppAuth,
+    @AppAuth() auth: AppAuthConId,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Body() dto: CrearTransferenciaLoteDto,
   ) {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
     return this.appService.generarTransferencia(
-      idApp,
+      auth.id_app,
       dto,
       requerirIdempotencyKey(idempotencyKey),
     );
@@ -91,17 +78,15 @@ export class TramasProdubancoController {
   })
   @Get('transacciones')
   async listarTransacciones(
-    @Req() req: RequestWithAppAuth,
+    @AppAuth() auth: AppAuthConId,
+    @Headers('x-encryption-key') llaveRaw: string | string[] | undefined,
     @Query() query: ListarTransaccionesQueryDto,
   ) {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
-    const llave = extraerLlaveEncriptacion(req);
-    return this.appService.consultarTransacciones(idApp, query, llave);
+    return this.appService.consultarTransacciones(
+      auth.id_app,
+      query,
+      extraerLlaveEncriptacion(llaveRaw),
+    );
   }
 
   @ApiOperation({
@@ -120,28 +105,27 @@ export class TramasProdubancoController {
   })
   @Get('transacciones/estado/:dato')
   async estadoTransaccion(
-    @Req() req: RequestWithAppAuth,
+    @AppAuth() auth: AppAuthConId,
+    @Headers('x-encryption-key') llaveRaw: string | string[] | undefined,
     @Param('dato') dato: string,
   ) {
-    const idApp = req.appAuth?.id_app;
-    if (!idApp) {
-      throw new BadRequestException(
-        'No se pudo identificar la App desde el token',
-      );
-    }
     if (!dato || !dato.trim()) {
       throw new BadRequestException(
         'dato es requerido (idTransaccion o referenciaLote)',
       );
     }
-    const llave = extraerLlaveEncriptacion(req);
-    return this.appService.consultarEstadoTransaccion(idApp, dato.trim(), llave);
+    return this.appService.consultarEstadoTransaccion(
+      auth.id_app,
+      dato.trim(),
+      extraerLlaveEncriptacion(llaveRaw),
+    );
   }
 }
 
 /** Lee el header X-Encryption-Key; lanza 400 si falta o está vacío. */
-function extraerLlaveEncriptacion(req: RequestWithAppAuth): string {
-  const raw = req.headers?.['x-encryption-key'];
+function extraerLlaveEncriptacion(
+  raw: string | string[] | undefined,
+): string {
   const llave = Array.isArray(raw) ? raw[0] : raw;
   if (typeof llave !== 'string' || llave.trim() === '') {
     throw new BadRequestException(
@@ -150,4 +134,3 @@ function extraerLlaveEncriptacion(req: RequestWithAppAuth): string {
   }
   return llave.trim();
 }
-

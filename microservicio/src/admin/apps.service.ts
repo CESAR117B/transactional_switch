@@ -386,15 +386,15 @@ export class AppsService {
   async actualizarApp(
     idApp: number,
     dto: UpdateAppDto,
-    idAppAdmin?: number,
+    idAppAdmin: number,
   ) {
     return this.auditarOperacion(
       {
-        idApp: idAppAdmin ?? idApp,
+        idApp: idAppAdmin,
         operation: 'ADMIN_ACTUALIZAR_APP',
         entidadName: 'app',
         entidadId: idApp,
-        requestPayload: { idApp, idAppAdmin: idAppAdmin ?? idApp, data: dto },
+        requestPayload: { idApp, idAppAdmin, data: dto },
       },
       () => this.actualizarAppInterno(idApp, dto),
     );
@@ -755,7 +755,7 @@ export class AppsService {
   async asignarServiciosApp(
     idApp: number,
     codigos: string[],
-    idAppAdmin?: number,
+    idAppAdmin: number,
   ) {
     // Normalizar ANTES de validar y de borrar: `catalogo_srv` y
     // `CATALOGO_SRV` deben resolver al mismo servicio.
@@ -775,15 +775,13 @@ export class AppsService {
       });
     }
 
-    const idAppActor = idAppAdmin ?? idApp;
-
     return this.auditarOperacion(
       {
-        idApp: idAppActor,
+        idApp: idAppAdmin,
         operation: 'ADMIN_ASIGNAR_SERVICIOS_APP',
         entidadName: 'app',
         entidadId: idApp,
-        requestPayload: { idApp, idAppAdmin: idAppActor, codigos: codigosUniq },
+        requestPayload: { idApp, idAppAdmin, codigos: codigosUniq },
         responsePayload: (result) => ({
           idApp,
           codigosAsignados: result,
@@ -879,14 +877,14 @@ export class AppsService {
    * @param idServicio ID numérico del servicio (campo `id_servicio` de la tabla `servicios`).
    * @returns objeto con el código del servicio y el nuevo estado.
    */
-  async activarDesactivarServicio(idServicio: number, idAppAdmin?: number) {
+  async activarDesactivarServicio(idServicio: number, idAppAdmin: number) {
     return this.auditarOperacion(
       {
-        idApp: idAppAdmin ?? 0, // actor admin; 0 sólo si no vino identificado
+        idApp: idAppAdmin, // actor admin siempre identificado
         operation: 'ADMIN_TOGLEAR_SERVICIO',
         entidadName: 'servicio',
         entidadId: idServicio,
-        requestPayload: { idServicio, idAppAdmin: idAppAdmin ?? 0 },
+        requestPayload: { idServicio, idAppAdmin },
         statusExito: 200,
         responsePayload: (result) => ({
           idServicio: result.id_servicio,
@@ -944,7 +942,7 @@ export class AppsService {
   async desasignarServiciosApp(
     idApp: number,
     codigos: string[],
-    idAppAdmin?: number,
+    idAppAdmin: number,
   ) {
     // Deduplicar entrada
     const codigosUniq = [...new Set(codigos)];
@@ -964,13 +962,13 @@ export class AppsService {
 
     return this.auditarOperacion(
       {
-        idApp: idAppAdmin ?? idApp,
+        idApp: idAppAdmin,
         operation: 'ADMIN_DESASIGNAR_SERVICIOS_APP',
         entidadName: 'app',
         entidadId: idApp,
         requestPayload: {
           idApp,
-          idAppAdmin: idAppAdmin ?? idApp,
+          idAppAdmin,
           codigos: codigosUniq,
         },
         responsePayload: (result) => ({
@@ -1069,17 +1067,17 @@ export class AppsService {
     idApp: number,
     codigo: string,
     activo: boolean,
-    idAppAdmin?: number,
+    idAppAdmin: number,
   ) {
     return this.auditarOperacion(
       {
-        idApp: idAppAdmin ?? idApp,
+        idApp: idAppAdmin,
         operation: 'ADMIN_CAMBIAR_ESTADO_SERVICIO_APP',
         entidadName: 'app',
         entidadId: idApp,
         requestPayload: {
           idApp,
-          idAppAdmin: idAppAdmin ?? idApp,
+          idAppAdmin,
           codigo,
           activo,
         },

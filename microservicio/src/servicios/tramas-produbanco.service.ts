@@ -22,6 +22,7 @@ import {
   normalizarIdempotencyKey,
   clasificarErrorCarga,
   comoObjeto,
+  sumarMontos,
 } from '../produbanco/produbanco.utils';
 import { TramaBuilderService } from '../produbanco/trama-builder.service';
 
@@ -152,7 +153,7 @@ export class TramasProdubancoService {
       // re-cifra aquí (el IV es aleatorio y no coincidiría).
       return {
         referenciaLote: transaccion.reference,
-        montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
+        montoTotal: sumarMontos(data.detalles.map((item) => item.monto)),
       };
     } catch (error: unknown) {
       const info = infoErrorConBanco(error);
@@ -267,7 +268,7 @@ export class TramasProdubancoService {
 
       return {
         referenciaLote: transaccion.reference,
-        montoTotal: data.detalles.reduce((acc, item) => acc + item.monto, 0),
+        montoTotal: sumarMontos(data.detalles.map((item) => item.monto)),
       };
     } catch (error: unknown) {
       const info = infoErrorConBanco(error);

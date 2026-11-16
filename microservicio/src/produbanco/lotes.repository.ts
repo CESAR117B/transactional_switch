@@ -19,7 +19,12 @@ import {
   OPERACIONES_PRODUBANCO,
   TxConDetalles,
 } from './produbanco.types';
-import { comoObjeto, normalizarNombreApp, sha256 } from './produbanco.utils';
+import {
+  comoObjeto,
+  normalizarNombreApp,
+  sha256,
+  sumarMontos,
+} from './produbanco.utils';
 
 /**
  * Persistencia de lotes Produbanco: cabecera + detalles cifrados, hashes de
@@ -173,11 +178,11 @@ export class LotesRepository {
   } {
     const req = comoObjeto(tx.requestPayload);
     const detalles = Array.isArray(req['detalles']) ? req['detalles'] : [];
-    const montoTotal = detalles.reduce((acc, detalle) => {
-      const item = comoObjeto(detalle);
-      const monto = Number(item['monto']);
-      return acc + (Number.isFinite(monto) ? monto : 0);
-    }, 0);
+    // Montos como Decimal, no como float: la respuesta se devuelve igual como
+    // número con 2 decimales.
+    const montoTotal = sumarMontos(
+      detalles.map((detalle) => comoObjeto(detalle)['monto']),
+    );
     return { referenciaLote: tx.reference, montoTotal };
   }
 

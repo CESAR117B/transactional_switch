@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -13,10 +13,9 @@ export class ActivarDesactivarServicioDto {
   @Type(() => Number)
   idServicio: number;
 
-  /** App administradora que ejecuta la acción (auditoría). */
-  @IsOptional()
+  /** App administradora que ejecuta la acción (auditoría). Obligatorio. */
   @Type(() => Number)
   @IsInt({ message: 'idAppAdmin debe ser un entero' })
   @Min(1, { message: 'idAppAdmin debe ser mayor a 0' })
-  idAppAdmin?: number;
+  idAppAdmin: number;
 }

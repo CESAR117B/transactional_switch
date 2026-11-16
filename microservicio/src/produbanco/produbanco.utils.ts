@@ -1,4 +1,5 @@
 import { RpcException } from '@nestjs/microservices';
+import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import { CrearPagoLoteDto } from '../dto/crear-pago-lote.dto';
 import { CrearTransferenciaLoteDto } from '../dto/crear-transferencia-lote.dto';
@@ -89,6 +90,29 @@ export function aTexto(valor: unknown): string {
   if (typeof valor === 'string') return valor;
   if (typeof valor === 'number') return String(valor);
   return '';
+}
+
+/**
+ * Suma montos monetarios con `Prisma.Decimal` para evitar el error de coma
+ * flotante del `reduce` sobre `number` (p. ej. 0.1 + 0.2).
+ *
+ * Acepta `number`, `string` o `Prisma.Decimal`, ignora valores vacíos o no
+ * numéricos (mismo criterio tolerante que el reduce anterior) y devuelve un
+ * `number` redondeado a 2 decimales: no cambia el contrato de las respuestas,
+ * que siguen exponiendo un número.
+ */
+export function sumarMontos(montos: ReadonlyArray<unknown>): number {
+  let total = new Prisma.Decimal(0);
+  for (const monto of montos) {
+    if (monto === null || monto === undefined || monto === '') continue;
+    try {
+      const decimal = new Prisma.Decimal(monto as Prisma.Decimal.Value);
+      if (decimal.isFinite()) total = total.plus(decimal);
+    } catch {
+      // Valor no convertible: se ignora, igual que el reduce anterior.
+    }
+  }
+  return total.toDecimalPlaces(2).toNumber();
 }
 
 /** Nombre legible del estado interno de la cabecera. */

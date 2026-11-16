@@ -2,7 +2,6 @@ import {
   IsArray,
   IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
   Min,
 } from 'class-validator';
@@ -20,12 +19,14 @@ export class AsignarServiciosAppDto {
   @IsNotEmpty({ message: 'El ID de la app es obligatorio' })
   idApp: number;
 
-  /** App administradora que ejecuta la acción (auditoría). */
-  @IsOptional()
+  /**
+   * App administradora que ejecuta la acción (auditoría). Obligatorio: sin
+   * actor identificado no se puede auditar la operación.
+   */
   @Type(() => Number)
   @IsInt({ message: 'idAppAdmin debe ser un entero' })
   @Min(1, { message: 'idAppAdmin debe ser mayor a 0' })
-  idAppAdmin?: number;
+  idAppAdmin: number;
 
   @IsArray()
   @IsNotEmpty({ message: 'El array de códigos no puede estar vacío' })

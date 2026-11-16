@@ -105,8 +105,15 @@ export class AppsController {
         error: 'Bad Request',
       });
     }
+    if (idAppAdmin === undefined || idAppAdmin === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idAppAdmin es requerido para actualizar_app',
+        error: 'Bad Request',
+      });
+    }
 
-    this.logger.log(`actualizar_app idApp=${idApp}`);
+    this.logger.log(`actualizar_app idApp=${idApp} idAppAdmin=${idAppAdmin}`);
     return this.appsService.actualizarApp(idApp, data, idAppAdmin);
   }
 
@@ -156,9 +163,16 @@ export class AppsController {
         error: 'Bad Request',
       });
     }
+    if (idAppAdmin === undefined || idAppAdmin === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idAppAdmin es requerido para asignar_servicios_app',
+        error: 'Bad Request',
+      });
+    }
 
     this.logger.log(
-      `asignar_servicios_app idApp=${idApp} codigos=${JSON.stringify(codigos)}`,
+      `asignar_servicios_app idApp=${idApp} idAppAdmin=${idAppAdmin} codigos=${JSON.stringify(codigos)}`,
     );
     return this.appsService.asignarServiciosApp(idApp, codigos, idAppAdmin);
   }
@@ -218,9 +232,16 @@ export class AppsController {
         error: 'Bad Request',
       });
     }
+    if (idAppAdmin === undefined || idAppAdmin === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idAppAdmin es requerido para desasignar_servicios_app',
+        error: 'Bad Request',
+      });
+    }
 
     this.logger.log(
-      `desasignar_servicios_app idApp=${idApp} codigos=${JSON.stringify(codigos)}`,
+      `desasignar_servicios_app idApp=${idApp} idAppAdmin=${idAppAdmin} codigos=${JSON.stringify(codigos)}`,
     );
     return this.appsService.desasignarServiciosApp(
       idApp,
@@ -236,14 +257,14 @@ export class AppsController {
       idApp: number;
       codigo: string;
       activo: boolean;
-      idAppAdmin?: number;
+      idAppAdmin: number;
     },
   ) {
     const { idApp, codigo, activo, idAppAdmin } = payload ?? ({} as {
       idApp: number;
       codigo: string;
       activo: boolean;
-      idAppAdmin?: number;
+      idAppAdmin: number;
     });
 
     if (idApp === undefined || idApp === null) {
@@ -268,9 +289,17 @@ export class AppsController {
         error: 'Bad Request',
       });
     }
+    if (idAppAdmin === undefined || idAppAdmin === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message:
+          'idAppAdmin es requerido para activar_desactivar_servicio_app',
+        error: 'Bad Request',
+      });
+    }
 
     this.logger.log(
-      `activar_desactivar_servicio_app idApp=${idApp} codigo=${codigo} activo=${activo}`,
+      `activar_desactivar_servicio_app idApp=${idApp} idAppAdmin=${idAppAdmin} codigo=${codigo} activo=${activo}`,
     );
     return this.appsService.cambiarEstadoServicioApp(
       idApp,
@@ -293,8 +322,17 @@ export class AppsController {
         error: 'Bad Request',
       });
     }
+    if (idAppAdmin === undefined || idAppAdmin === null) {
+      throw new RpcException({
+        statusCode: 400,
+        message: 'idAppAdmin es requerido para activar_desactivar_servicio',
+        error: 'Bad Request',
+      });
+    }
 
-    this.logger.log(`activar_desactivar_servicio idServicio=${idServicio}`);
+    this.logger.log(
+      `activar_desactivar_servicio idServicio=${idServicio} idAppAdmin=${idAppAdmin}`,
+    );
     return this.appsService.activarDesactivarServicio(
       idServicio,
       idAppAdmin,

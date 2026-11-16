@@ -24,6 +24,7 @@ import {
   comoObjeto,
   infoError,
   operacionValida,
+  sumarMontos,
   textoEstado,
 } from './produbanco.utils';
 
@@ -630,7 +631,7 @@ export class ConsultaTransaccionesService {
         ? this.desencriptarSeguro(primero.beneficiarioCuenta, secretKey)
         : null,
       registros: tx.detalles.length,
-      montoTotal: tx.detalles.reduce((acc, d) => acc + Number(d.monto), 0),
+      montoTotal: sumarMontos(tx.detalles.map((d) => d.monto)),
       estadosDetalle,
     };
   }
@@ -661,7 +662,7 @@ export class ConsultaTransaccionesService {
       fechaCreacion: tx.createdAt,
       totales: {
         registros: tx.detalles.length,
-        montoTotal: tx.detalles.reduce((acc, d) => acc + Number(d.monto), 0),
+        montoTotal: sumarMontos(tx.detalles.map((d) => d.monto)),
       },
       detalles: tx.detalles.map((d) => ({
         secuencia: d.secuencia,
