@@ -5,7 +5,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { AppService } from './app.service';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequireService } from './require-service.decorator';
 import { TokenizeCardDto } from './dto/tokenize-card.dto';
 import { AppAuth, AppAuthConId } from './app-auth.decorator';
@@ -20,6 +20,13 @@ export class SaveCardsController {
 
   @ApiOperation({
     summary: 'Guarda una tarjeta utilizando el servicio de tokenización.',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      'UUID único por operación (máx. 100 caracteres). Reutilizalo exactamente igual en cada reintento para evitar tokenizaciones duplicadas.',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @Post('guardar-tarjeta')
   async guardarTarjeta(

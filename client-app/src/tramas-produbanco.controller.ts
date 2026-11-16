@@ -33,6 +33,13 @@ export class TramasProdubancoController {
     summary:
       'Generar lote de pagos Produbanco (trama directa para bancos nacionales)',
   })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      'UUID único por operación (máx. 100 caracteres). Reutilizalo exactamente igual en cada reintento para evitar pagos duplicados.',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @Post('transferencia-nacional')
   async generarPago(
     @AppAuth() auth: AppAuthConId,
@@ -49,6 +56,13 @@ export class TramasProdubancoController {
   @ApiOperation({
     summary:
       'Generar lote de transferencias Produbanco (Aplica para bancos internacionales)',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      'UUID único por operación (máx. 100 caracteres). Reutilizalo exactamente igual en cada reintento para evitar transferencias duplicadas.',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @Post('transferencia-internacional')
   async generarTransferencia(
