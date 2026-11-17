@@ -337,6 +337,7 @@ Recomendaciones:
   intentos.
 - No reintentar automáticamente un `POST` de pago/transferencia sin una clave
   de idempotencia o sin verificar antes el estado de la transacción.
+  Ver [sección 10](#10-idempotencia-header-idempotency-key).
 - Usar una `referencia` única por operación y conservar la respuesta.
 
 ### 9. Buenas prácticas de seguridad
@@ -351,6 +352,109 @@ Recomendaciones:
 - Solicitar la rotación de credenciales al administrador si se sospecha una
   filtración (`nuevokey_app` / `nuevoencryptionkey_app`).
 - No exponer el microservicio ni PostgreSQL fuera de la red interna.
+
+---
+
+### 10. Idempotencia: header `Idempotency-Key`
+
+Los endpoints que crean operaciones (pagos, transferencias, tokenización de
+tarjetas) exigen el header **`Idempotency-Key`**. Sin él, el gateway responde
+`400` y no ejecuta nada.
+
+| Endpoint | Servicio requerido |
+|---|---|
+| `POST /tramas-produbanco/transferencia-nacional` | `SPR_PRODUBANCO` |
+| `POST /tramas-produbanco/transferencia-internacional` | `SPR_PRODUBANCO` |
+| `POST /guardar-tarjeta` | `SRV_FIRSTOKEN` |
+
+#### Qué es
+
+Es una llave **que genera la app cliente**, no el servidor. Sirve para que un
+reintento (timeout, caída de red, doble clic) no ejecute la operación dos veces:
+si llega la misma llave con el mismo payload, se devuelve el resultado de la
+primera ejecución en lugar de crear otra transacción.
+
+#### Formato y reglas
+
+- **Tipo:** texto libre.
+- **Longitud máxima:** `100` caracteres (coincide con la columna en BD).
+- **Recomendado:** UUID v4.
+- **Secreto:** no lo es. Puede ir en logs, pero conviene no reutilizarlo entre
+  operaciones distintas.
+- **Alcance:** una llave por **operación lógica**, no por app. Reutilizarla en
+  cada reintento de esa misma operación; generar una nueva para cada operación
+  distinta.
+
+#### Cómo generar una
+
+Powershell:
+
+```powershell
+[guid]::NewGuid().ToString()
+# 550e8400-e29b-41d4-a716-446655440000
+```
+
+Node.js:
+
+```js
+crypto.randomUUID();
+```
+
+Postman / Insomnia: en el valor del header usá la variable dinámica `{{$guid}}`.
+
+Bash (Linux/macOS):
+
+```bash
+uuidgen | tr '[:upper:]' '[:lower:]'
+```
+
+#### Ejemplo completo
+
+```bash
+IDEMPOTENCY_KEY=$(uuidgen)
+
+curl -X POST http://localhost:3000/tramas-produbanco/transferencia-nacional \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
+  -d @pago.json
+```
+
+En PowerShell:
+
+```powershell
+$key = [guid]::NewGuid().ToString()
+Invoke-RestMethod -Method Post `
+  -Uri http://localhost:3000/tramas-produbanco/transferencia-nacional `
+  -Headers @{ Authorization = "Bearer $token"; "Idempotency-Key" = $key } `
+  -ContentType "application/json" `
+  -Body (Get-Content pago.json -Raw)
+```
+
+#### Cómo probar la idempotencia
+
+1. Generá una llave y guardala: `$key = [guid]::NewGuid().ToString()`.
+2. Enviá la petición con esa llave. Anotá la respuesta.
+3. **Reintento correcto:** enviá el **mismo payload** con la **misma** llave.
+   Debe responder lo mismo y no crear una transacción nueva.
+4. **Operación distinta:** generá una llave nueva. Si repitieras el mismo
+   payload con otra llave, se crearía otra operación (el sistema no deduplica
+   por contenido, sólo por llave).
+
+#### Errores asociados
+
+| Caso | Respuesta |
+|---|---|
+| Header ausente o vacío | `400` — `Falta el header Idempotency-Key...` |
+| Más de 100 caracteres | `400` — `El header Idempotency-Key supera el máximo de 100 caracteres.` |
+| Misma llave mientras la primera operación sigue en curso | Conflicto con el mensaje `Ya hay una operación en curso con esta Idempotency-Key.` |
+| Misma llave, mismo payload, operación ya terminada | Se devuelve el resultado original (no se duplica) |
+
+#### En Swagger
+
+La UI (`/doc`) ya muestra el campo **`Idempotency-Key`** como header requerido
+en los tres endpoints. Podés pegar ahí cualquier UUID (o el que generó tu
+cliente) y ejecutar la prueba desde el navegador.
 
 ---
 
