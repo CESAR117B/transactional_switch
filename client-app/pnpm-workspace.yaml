@@ -121,9 +121,17 @@ minimumReleaseAgeExclude:
 overrides:
   brace-expansion: ">=5.0.12"
   js-yaml: ">=5.4.1"
-  fast-uri: ">=4.1.5"
-  qs: ">=6.16.0"
-  multer: ">=2.4.0"
+  # Correcciones de `pnpm audit`.
+  # Runtime: body-parser/qs vía express, multer vía platform-express,
+  # fast-uri vía ajv.
+  "fast-uri": ">=4.2.3"
+  "qs": ">=6.16.1"
+  body-parser: ">=2.4.0"
+  multer: ">=2.5.0"
+  # Tooling (jest/babel/istanbul): glob y minimatch sólo en devDependencies.
+  glob: ">=14.0.2"
+  "test-exclude>minimatch": ">=11.0.1"
+  "@swc/cli>minimatch": ">=11.0.1"
   http-cache-semantics: ">=4.3.0"
   proxy-addr: ">=2.0.8"
   handlebars: ">=4.7.10"
