@@ -634,6 +634,8 @@ export class ConsultaTransaccionesService {
           }
         : {}),
       referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
+      // Único indicador de estado visible para la app cliente: `status`
+      // (numérico interno) queda reservado al admin.
       statusServicio: textoEstado(tx.status),
       ...this.camposBancoResponse(response),
       envioId,
@@ -679,6 +681,8 @@ export class ConsultaTransaccionesService {
           }
         : {}),
       referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
+      // Único indicador de estado visible para la app cliente: `status`
+      // (numérico interno) queda reservado al admin.
       statusServicio: textoEstado(tx.status),
       ...this.camposBancoResponse(response),
       envioId,

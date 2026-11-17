@@ -460,6 +460,35 @@ Los campos internos sólo aparecen en:
 - `GET /admin/produbanco/transacciones`
 - `GET /admin/produbanco/transacciones/estado/:dato`
 
+#### Cómo saber si la operación salió bien
+
+Para la app cliente, el **único** indicador de estado de la cabecera es
+`statusServicio`. El campo numérico `status` y el estado verbatim del banco
+(`estadoTransaccion`) son internos y sólo los ve el admin.
+
+Valores posibles de `statusServicio`:
+
+| Valor | Significado | Qué hacer |
+|---|---|---|
+| `PENDIENTE` | Enviada, aún sin respuesta definitiva del banco. | Consultar el estado más tarde; no reenviar. |
+| `PROCESADO_BANCO` | **La operación fue procesada por el banco.** | Éxito: usar `detalles[].estadoItem` para el resultado de cada ítem. |
+| `INCIERTO` | No se pudo confirmar el resultado (timeout, corte, respuesta incompleta). | Volver a consultar el estado; **no** reenviar con una llave nueva. |
+| `ERROR` | El banco o la validación rechazaron la operación. | Revisar `errorMessage` y `codigoBanco` / `mensajeBanco`. |
+| `DESCONOCIDO` | Estado no mapeado (dato legado). | Tratar como `INCIERTO` y consultar. |
+
+Regla práctica para el cliente:
+
+```text
+statusServicio === "PROCESADO_BANCO"  → operación exitosa
+statusServicio === "PENDIENTE" | "INCIERTO" | "DESCONOCIDO" → volver a consultar
+statusServicio === "ERROR"            → falló; no reintentar sin corregir
+```
+
+> `PROCESADO_BANCO` indica que el **lote** fue procesado. El resultado final de
+> cada pago está en `detalles[].estadoItem` (y su `codigoRespuesta` /
+> `mensajeBanco`), porque un lote puede procesarse con ítems aprobados y otros
+> rechazados.
+
 #### Errores asociados
 
 | Caso | Respuesta |
