@@ -1,9 +1,9 @@
 # Integración Produbanco — Guía para apps cliente
 
 Pagos a otros bancos del Ecuador y transferencias al exterior ví­a Produbanco
-(Cash Directo), mÃ¡s consulta/listado del estado de las transacciones.
+(Cash Directo), más consulta/listado del estado de las transacciones.
 
-**Base URL:** `http://localhost:3000` · **Swagger:** `/doc` (solo en desarrollo)
+**Base URL:** `http://localhost:3000` · **Swagger:** `/doc` (`ENABLE_SWAGGER`, activo por defecto)
 
 ---
 
@@ -71,11 +71,16 @@ con la llave registrada.
 | `POST` | `/tramas-produbanco/transferencia-nacional` | Pago a otros bancos nacionales |
 | `POST` | `/tramas-produbanco/transferencia-internacional` | Pago al exterior (Transfer Full) |
 | `GET` | `/tramas-produbanco/transacciones` | Listar transacciones (paginado) |
-| `GET` | `/tramas-produbanco/transacciones/estado/:dato` | Estado en vivo por `idTransaccion` o `referenciaLote` |
+| `GET` | `/tramas-produbanco/transacciones/estado/:dato` | Estado en vivo por `referenciaLote` (cifrada o en claro) |
 
 > **Lo que NO se envía** (lo inyecta el back): `cuentaEmpresa`,
 > `tipoCuentaEmpresa`, `empresa`, `idEmpresa` y `referenciaLote`.
 > Sólo se envía la data del pago.
+
+La app cliente **no** recibe `idTransaccion` ni los demás campos internos: su
+identificador de operación es `referenciaLote`. La consulta administrativa
+(`/admin/produbanco/...`, sección 9) devuelve la misma respuesta más esos
+campos internos.
 
 ---
 
@@ -93,7 +98,7 @@ POST /tramas-produbanco/transferencia-nacional
     {
       "tipoId": "C",
       "identificacion": "1723456789",
-      "nombre": "Juan PÃ©rez",
+      "nombre": "Juan Pérez",
       "formaPago": "SPI",
       "tipoCuenta": "CTE",
       "cuenta": "0036001234567890",
@@ -132,8 +137,13 @@ POST /tramas-produbanco/transferencia-nacional
 
 > **Ya NO se devuelven** `exito`, `idTransaccion`, `envioId` ni
 > `totalRegistros`: la respuesta se limita a `referenciaLote` y
-> `montoTotal`. Para obtener `idTransaccion` y `envioId` consulta el listado
-> (sección 5) o el estado (sección 6) — esos sí los incluyen.
+> `montoTotal`. Para obtener `envioId` consulta el listado (sección 5) o el
+> estado (sección 6) — esos sí lo incluyen.
+>
+> **`idTransaccion` no se expone a la app cliente**: es un identificador
+> interno que sólo ve la consulta administrativa (sección 9). Guarda la
+> `referenciaLote` y úsala como identificador de la operación y como `:dato`
+> en la consulta de estado.
 
 > **Anti-duplicado (`429`):** se rechaza la transacción si la misma app ya
 > envió una con el **mismo monto a la misma cuenta beneficiario** dentro de
@@ -177,10 +187,10 @@ POST /tramas-produbanco/transferencia-internacional
 |-------|-------|
 | `fechaInicio` / `fechaVencimiento` | **No se envían**: el microservicio genera la vigencia del sobre automáticamente (hoy → hoy + 1) y la incluye en la trama al banco |
 | `motivoTransferencia` | **Obligatoria**: `codigo,ejención` según catalogo SIB (ej: `106,0` = sin exención) |
-| `codigoSwiftAba` | SWIFT/BIC o ABA del banco destino, 8â€“11 mayusculas |
+| `codigoSwiftAba` | SWIFT/BIC o ABA del banco destino, 8–11 mayusculas |
 | `moneda` | ISO-3, default `USD` |
-| `tipoComision` | `OUR` ordenante Â· `BEN` beneficiario Â· `SHA` compartida |
-| `referencia` | Opcional (mÃ¡x. 50); si falta, el back usa la `referenciaLote` generada |
+| `tipoComision` | `OUR` ordenante · `BEN` beneficiario · `SHA` compartida |
+| `referencia` | Opcional (máx. 50); si falta, el back usa la `referenciaLote` generada |
 
 Misma respuesta que el pago nacional. Requiere **habilitación por contrato**
 con Produbanco para transferencias al exterior. El límite anti-duplicado de
@@ -227,12 +237,8 @@ Produbanco de **tu app**.
   "totalPages": 1,
   "items": [
     {
-      "idTransaccion": "21",
       "referenciaLote": "TIENDA-00001-20261016143052-a3f9",
-      "operacion": "SPR_PRODUBANCO-PAGO",
-      "status": 2,
       "statusServicio": "PROCESADO_BANCO",
-      "estadoTransaccion": "APROBADO",
       "codigoBanco": null,
       "mensajeBanco": null,
       "fechaConsultaBanco": "15/10/2026 10:30:00",
@@ -243,62 +249,81 @@ Produbanco de **tu app**.
       "beneficiarioCuenta": "0036001234567890",
       "registros": 1,
       "montoTotal": 150.75,
-      "estadosDetalle": { "APROBADO": 1 }
+      "entregados": 0,
+      "entregaEfectiva": false,
+      "estadosDetalle": { "Pendiente de envio por el banco": 1 }
     }
   ]
 }
 ```
+
+> **Campos que NO se devuelven a la app cliente:** `idTransaccion`,
+> `operacion`, `status`, `estadoTransaccion`. Son internos y sólo aparecen en
+> la consulta administrativa (sección 9). El identificador de la operación
+> para el cliente es `referenciaLote`, y el único indicador de estado de
+> cabecera es `statusServicio` (ver sección 6).
+
+> El filtro `status` de la query sí sigue disponible aunque el campo no se
+> muestre en la respuesta: sirve para pedir sólo lotes en un estado
+> determinado.
 
 ---
 
 ## 6. Estado de una transacción
 
 ```http
-GET /tramas-produbanco/transacciones/estado/21
+GET /tramas-produbanco/transacciones/estado/TIENDA-00001-20261016143052-a3f9
 X-Encryption-Key: <encryptionKey de tu app>
 ```
 
 > **Header `X-Encryption-Key` obligatorio** (ver sección 1). Sin él → `400`;
-> con una llave distinta a la registrada → `401`. La app cliente debe
-> desencriptar localmente la `referenciaLote` que le devolvió la carga
-> (sección 3) y usarla **en claro** como `:dato` para buscar por referencia.
-> La respuesta, como en el listado, viene **desencriptada**.
+> con una llave distinta a la registrada → `401`. La respuesta, como en el
+> listado, viene **desencriptada**.
 
-`/estado/:dato` acepta **un** valor: `idTransaccion` o `referenciaLote`.
+`/estado/:dato` acepta **un** valor:
+
+- `referenciaLote` **cifrada**, tal cual la devolvió la carga (sección 3). Al
+  contener `/`, `:` y `=`, hay que enviarla **URL-encoded**.
+- `referenciaLote` **en claro** (`TIENDA-00001-20261016143052-a3f9`), por
+  ejemplo la que devuelve el listado.
+- `idTransaccion`, sólo si lo tienes de una fuente interna: la app cliente no
+  lo recibe en ninguna respuesta.
+
 Consulta el estado **en vivo** en Produbanco, actualiza la BD y responde con
 el resumen persistido. **No** incluye el detalle crudo del banco
 (`orden`/`movimientos` SOAP): ese detalle solo está disponible en la consulta
-administrativa (`/admin/produbanco/transacciones/estado/:dato`).
+administrativa (`/admin/produbanco/transacciones/estado/:dato`, sección 9).
 
 ```json
 {
-  "idTransaccion": "21",
   "referenciaLote": "TIENDA-00001-20261016143052-a3f9",
-  "operacion": "SPR_PRODUBANCO-PAGO",
-  "status": 2,
   "statusServicio": "PROCESADO_BANCO",
-  "estadoTransaccion": "APROBADO",
   "codigoBanco": "0000",
   "mensajeBanco": "CONSULTA EXITOSA",
   "fechaConsultaBanco": "16/10/2026 09:15:00",
-  "cargaRespuestaBanco": "<xml crudo de la carga...>",
   "envioId": "12345678",
   "errorMessage": null,
   "fechaCreacion": "2026-10-15T10:00:00.000Z",
-  "totales": { "registros": 1, "montoTotal": 150.75 },
+  "totales": {
+    "registros": 1,
+    "montoTotal": 150.75,
+    "entregados": 1,
+    "entregaEfectiva": true
+  },
   "detalles": [
     {
       "secuencia": 1,
       "tipoId": "C",
       "identificacion": "1723456789",
-      "nombre": "Juan PÃ©rez",
+      "nombre": "Juan Pérez",
       "cuenta": "0036001234567890",
       "bancoCodigo": "0036",
       "formaPago": "SPI",
       "monto": 150.75,
       "moneda": "USD",
       "referenciaDocumento": "FAC-00123",
-      "estadoItem": "APROBADO",
+      "estadoItem": "ENTREGADO OK",
+      "entregaEfectiva": true,
       "codigoRespuesta": "0000",
       "mensajeBanco": "PAGO PROCESADO"
     }
@@ -306,15 +331,79 @@ administrativa (`/admin/produbanco/transacciones/estado/:dato`).
 }
 ```
 
+> **Campos que NO se devuelven a la app cliente:** `idTransaccion`,
+> `operacion`, `status`, `estadoTransaccion` y `cargaRespuestaBanco`. Son
+> internos y sólo aparecen en la consulta administrativa (sección 9). El
+> mismo criterio aplica al listado (sección 5).
+
 ### Cómo leer los estados
+
+Para la app cliente, el **único** indicador de estado de la cabecera es
+`statusServicio`:
+
+| `statusServicio` | Significado | Qué hacer |
+|---|---|---|
+| `PENDIENTE` | Enviada, aún sin respuesta definitiva del banco | Consultar más tarde; **no** reenviar |
+| `PROCESADO_BANCO` | **La operación fue procesada por el banco** | Éxito del lote: revisar `detalles[]` |
+| `INCIERTO` | No se pudo confirmar (timeout, corte, respuesta incompleta) | Volver a consultar; **no** reenviar con llave nueva |
+| `ERROR` | El banco o la validación rechazaron la operación | Revisar `errorMessage`, `codigoBanco` / `mensajeBanco` |
+| `DESCONOCIDO` | Estado no mapeado (dato legado) | Tratar como `INCIERTO` y consultar |
+
+```text
+statusServicio === "PROCESADO_BANCO"                       → operación exitosa
+statusServicio === "PENDIENTE" | "INCIERTO" | "DESCONOCIDO" → volver a consultar
+statusServicio === "ERROR"                                 → falló; no reintentar sin corregir
+```
+
+> `PROCESADO_BANCO` indica que el **lote** fue procesado. El resultado de cada
+> pago está en `detalles[].estadoItem` y `detalles[].entregaEfectiva`, porque
+> un lote puede procesarse con ítems entregados y otros rechazados.
+
+Otros campos públicos:
 
 | Campo | Significado |
 |-------|-------------|
-| `status` (local) | Estado interno del back: `1` PENDIENTE (en proceso), `2` PROCESADO_BANCO, `3` ERROR definitivo, `4` INCIERTO |
-| `statusServicio` | Resumen legible del estado local (`PENDIENTE` / `PROCESADO_BANCO` / `ERROR` / `INCIERTO`) |
-| `estadoTransaccion` | **Estado verbatim de Produbanco** (ej: `ACTIVO`, `APROBADO`, `REVOCADO`) — no está mapeado; usa tal cual |
-| `estadoItem` (detalle) | Estado verbatim por pago dentro del lote |
+| `estadoItem` (detalle) | Estado **verbatim de Produbanco** por pago dentro del lote (`Pendiente de envio por el banco`, `Aplica al banco`, `PROCESO OK`, `ENTREGADO OK`, `PROCESADAS ERROR`, ...). Se devuelve sin interpretar. |
 | `codigoBanco` / `mensajeBanco` | Último código/mensaje de la consulta al banco (`0005` = aún sin datos) |
+| `envioId` | Identificador del sobre en Produbanco, para trazabilidad |
+
+### Entrega efectiva del dinero
+
+Para no obligar al cliente a interpretar la redacción del banco, cada ítem
+incluye un booleano calculado:
+
+| Campo | Tipo | Significado |
+|---|---|---|
+| `detalles[].entregaEfectiva` | `boolean` | `true` sólo cuando Produbanco reportó `ENTREGADO OK`: **el dinero fue entregado de forma efectiva en la cuenta del beneficiario de ese ítem** |
+| `detalles[].estadoItem` | `string` | El estado oficial del banco, tal cual (se puede mostrar; no reemplaza al flag) |
+| `totales.entregados` | `number` | Cantidad de ítems con `entregaEfectiva = true` |
+| `totales.entregaEfectiva` | `boolean` | `true` sólo si **todos** los ítems del lote fueron entregados (y hay al menos uno) |
+
+El **listado** (sección 5) expone el mismo criterio a nivel de cada `items[]`:
+`entregados` y `entregaEfectiva`. Así listado y detalle responden con los
+mismos nombres y la misma semántica.
+
+Reglas para el cliente:
+
+- `entregaEfectiva === true` → **confirmado: el dinero llegó a la cuenta**.
+- `entregaEfectiva === false` → todavía no hay constancia de entrega: volver a
+  consultar; no asumir éxito ni reenviar el pago.
+- La comparación es tolerante a mayúsculas, acentos y espacios (`ENTREGADO OK`,
+  `entregado ok`, `Entregado`). Cualquier otro valor —incluido
+  `NO ENTREGADO`— devuelve `false`.
+
+### Campos internos (sólo admin)
+
+Estos campos **no** se devuelven a la app cliente y sólo aparecen en la
+consulta administrativa (sección 9):
+
+| Campo | Significado |
+|---|---|
+| `idTransaccion` | Identificador interno del lote |
+| `operacion` | Servicio interno (`SPR_PRODUBANCO-PAGO`, ...) |
+| `status` | Estado interno numérico: `1` PENDIENTE, `2` PROCESADO_BANCO, `3` ERROR, `4` INCIERTO |
+| `estadoTransaccion` | Estado verbatim de la cabecera del banco |
+| `cargaRespuestaBanco` | XML crudo de la carga al banco (sólo en el detalle) |
 
 Un fallo de consulta **no** rompe la respuesta: se registra en los logs del
 microservicio y se devuelve el último estado persistido en BD.
@@ -325,7 +414,8 @@ microservicio y se devuelve el último estado persistido en BD.
 
 El back distingue dos casos:
 
-- **Rechazo definitivo (`status = 3`):** Produbanco respondió con error o la
+- **Rechazo definitivo** (`statusServicio = "ERROR"`; internamente `status = 3`):
+  Produbanco respondió con error o la
   carga falló antes de enviarse. Se guarda la respuesta cruda del banco y es
   seguro reintentar con otra `Idempotency-Key`:
 
@@ -333,7 +423,8 @@ El back distingue dos casos:
   { "message": "Trama inválida", "respuestaBanco": "<respuesta cruda del SOAP>" }
   ```
 
-- **Resultado incierto (`status = 4`):** timeout, error de red o respuesta no
+- **Resultado incierto** (`statusServicio = "INCIERTO"`; internamente
+  `status = 4`): timeout, error de red o respuesta no
   confirmada. La carga **pudo haberse procesado**. Se responde `409` con
   `"La operación quedó en estado INCIERTO..."` y **no** se debe usar una llave
   nueva. El cron reconcilia contra el banco cada 5 minutos.
@@ -358,3 +449,49 @@ no el contenido del lote:
 
 El login fallido y las claves de las apps se manejan en la BD del back; la
 documentación Swagger en `/doc` refleja siempre los DTOs vigentes.
+
+---
+
+## 9. Consulta administrativa (solo admin)
+
+Estas rutas ven las transacciones de **todas** las apps y son las únicas que
+exponen los campos internos. Requieren que la app tenga el servicio
+`ADMIN_PRODUBANCO` **y** el comando correspondiente (`transacciones_admin`,
+`estado_transaccion_admin`).
+
+| Método | Ruta | Uso |
+|--------|------|-----|
+| `GET` | `/admin/produbanco/transacciones` | Listar transacciones de todas las apps (paginado) |
+| `GET` | `/admin/produbanco/transacciones/estado/:dato` | Estado en vivo de cualquier app |
+
+- **No** requieren el header `X-Encryption-Key`: el microservicio descifra con
+  la `encryptionKey` de la app dueña de cada transacción.
+- `:dato` acepta `idTransaccion`, `referenciaLote` en claro o cifrada (esta
+  última URL-encoded). El detalle acepta además `?idApp=` para acotar la
+  búsqueda.
+
+### Misma respuesta que el cliente + campos internos
+
+La respuesta del admin es **idéntica** a la de la app cliente, más:
+
+| Campo | Dónde | Significado |
+|---|---|---|
+| `idTransaccion` | listado y detalle | Identificador interno del lote |
+| `operacion` | listado y detalle | Servicio interno (`SPR_PRODUBANCO-PAGO`, ...) |
+| `status` | listado y detalle | Estado interno numérico (`1` PENDIENTE, `2` PROCESADO_BANCO, `3` ERROR, `4` INCIERTO) |
+| `estadoTransaccion` | listado y detalle | Estado verbatim de la cabecera del banco |
+| `cargaRespuestaBanco` | sólo detalle | XML crudo de la carga al banco (diagnóstico) |
+| `appId` | listado y detalle | `id_app` dueña de la transacción |
+| `appIdentificador` | listado y detalle | Identificador de esa app |
+| `appNombre` | listado y detalle | Nombre de esa app |
+| `banco` | sólo detalle | Respuesta en vivo de Produbanco (`orden` / `movimientos` SOAP) |
+
+Todo lo demás —`referenciaLote`, `statusServicio`, `codigoBanco`,
+`mensajeBanco`, `fechaConsultaBanco`, `envioId`, `errorMessage`,
+`fechaCreacion`, beneficiario, `registros`, `montoTotal`, `entregados`,
+`entregaEfectiva`, `estadosDetalle`, `detalles[]` con `entregaEfectiva` por
+ítem— es exactamente igual que en la respuesta del cliente, así que un mismo
+consumidor puede reutilizar el parseo entre ambos endpoints.
+
+> `banco` sólo se devuelve en el detalle administrativo; el listado y los
+> endpoints de cliente nunca incluyen el SOAP crudo.
