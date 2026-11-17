@@ -297,7 +297,7 @@ export class ConsultaTransaccionesService {
       items: items.map((tx) => {
         const app = apps.get(tx.idApp);
         return {
-          ...this.formatearListado(tx, app?.encryptionKey ?? null),
+          ...this.formatearListado(tx, app?.encryptionKey ?? null, true),
           appId: tx.idApp,
           appIdentificador: app?.identificadorApp ?? null,
           appNombre: app?.nombreApp ?? null,
@@ -345,7 +345,7 @@ export class ConsultaTransaccionesService {
     const app = apps.get(tx.idApp);
 
     return {
-      ...this.formatearDetalleTransaccion(tx, secretKey),
+      ...this.formatearDetalleTransaccion(tx, secretKey, true),
       appId: tx.idApp,
       appIdentificador: app?.identificadorApp ?? null,
       appNombre: app?.nombreApp ?? null,
@@ -605,7 +605,12 @@ export class ConsultaTransaccionesService {
     };
   }
 
-  private formatearListado(tx: TxListado, secretKey: string | null) {
+  private formatearListado(
+    tx: TxListado,
+    secretKey: string | null,
+    /** `true` sólo para el admin: expone los campos internos. */
+    incluirCamposInternos = false,
+  ) {
     const response = comoObjeto(tx.responsePayload);
     const envioId =
       typeof response['envioId'] === 'string' ? response['envioId'] : null;
@@ -618,12 +623,18 @@ export class ConsultaTransaccionesService {
     // identificación y cuenta del beneficiario para el listado.
     const primero = tx.detalles[0];
     return {
-      idTransaccion: tx.idTransaccion.toString(),
+      // Campos internos: los ve sólo la app admin. La app cliente no debe
+      // conocer el id interno, la operación, el status ni el estado verbatim.
+      ...(incluirCamposInternos
+        ? {
+            idTransaccion: tx.idTransaccion.toString(),
+            operacion: tx.operation,
+            status: tx.status,
+            estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
+          }
+        : {}),
       referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
-      operacion: tx.operation,
-      status: tx.status,
       statusServicio: textoEstado(tx.status),
-      estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
       ...this.camposBancoResponse(response),
       envioId,
       errorMessage: tx.errorMessage,
@@ -643,24 +654,33 @@ export class ConsultaTransaccionesService {
   private formatearDetalleTransaccion(
     tx: TxConDetalles,
     secretKey: string,
+    /** `true` sólo para el admin: expone los campos internos. */
+    incluirCamposInternos = false,
   ) {
     const response = comoObjeto(tx.responsePayload);
     const envioId =
       typeof response['envioId'] === 'string' ? response['envioId'] : null;
     return {
-      idTransaccion: tx.idTransaccion.toString(),
+      // Campos internos: los ve sólo la app admin. La app cliente no debe
+      // conocer el id interno, la operación, el status, el estado verbatim
+      // ni el XML crudo de la carga al banco.
+      ...(incluirCamposInternos
+        ? {
+            idTransaccion: tx.idTransaccion.toString(),
+            operacion: tx.operation,
+            status: tx.status,
+            estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
+            // XML crudo de CargaDirectaXml (diagnóstico, ej. Envio_Id=0 no
+            // documentado); solo en el detalle, no en el listado.
+            cargaRespuestaBanco:
+              typeof response['cargaRespuestaBanco'] === 'string'
+                ? response['cargaRespuestaBanco']
+                : null,
+          }
+        : {}),
       referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
-      operacion: tx.operation,
-      status: tx.status,
       statusServicio: textoEstado(tx.status),
-      estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
       ...this.camposBancoResponse(response),
-      // XML crudo de CargaDirectaXml (diagnóstico, ej. Envio_Id=0 no
-      // documentado); solo en el detalle, no en el listado.
-      cargaRespuestaBanco:
-        typeof response['cargaRespuestaBanco'] === 'string'
-          ? response['cargaRespuestaBanco']
-          : null,
       envioId,
       errorMessage: tx.errorMessage,
       fechaCreacion: tx.createdAt,

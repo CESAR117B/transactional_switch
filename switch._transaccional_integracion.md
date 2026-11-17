@@ -435,6 +435,31 @@ Es decir:
 Ambas formas son válidas como `:dato` en la consulta de estado, así que el
 cliente puede guardar la que recibe del POST y usarla directamente.
 
+#### Campos que ve la app cliente
+
+Las respuestas de los endpoints de app cliente
+(`/tramas-produbanco/transacciones` y `/tramas-produbanco/transacciones/estado/:dato`)
+**no incluyen** los campos internos de la operación:
+
+| Campo | ¿Cliente? | ¿Admin? |
+|---|---|---|
+| `idTransaccion` | ❌ | ✅ |
+| `operacion` | ❌ | ✅ |
+| `status` | ❌ | ✅ |
+| `estadoTransaccion` | ❌ | ✅ |
+| `cargaRespuestaBanco` | ❌ | ✅ |
+| `referenciaLote` | ✅ | ✅ |
+| `statusServicio` | ✅ | ✅ |
+| `codigoBanco`, `mensajeBanco`, `fechaConsultaBanco` | ✅ | ✅ |
+| `envioId`, `errorMessage`, `fechaCreacion` | ✅ | ✅ |
+| `beneficiario*`, `registros`, `montoTotal`, `estadosDetalle`, `detalles` | ✅ | ✅ |
+
+El cliente identifica la operación por `referenciaLote`, no por `idTransaccion`.
+Los campos internos sólo aparecen en:
+
+- `GET /admin/produbanco/transacciones`
+- `GET /admin/produbanco/transacciones/estado/:dato`
+
 #### Errores asociados
 
 | Caso | Respuesta |
