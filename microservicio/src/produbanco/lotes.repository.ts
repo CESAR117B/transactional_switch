@@ -412,9 +412,18 @@ export class LotesRepository {
       });
     };
     const buscarPorReferencia = async () => {
+      // El cliente puede enviar la referencia en dos formas:
+      //  1. En claro: se busca por su hash (columna determinística).
+      //  2. Tal cual se la devolvió `generar_pago`/`generar_transferencia`,
+      //     que responde `tx.reference` CIFRADO (iv:authTag:cipher). En ese
+      //     caso el hash no coincide, pero la columna `reference` guarda
+      //     exactamente ese mismo texto.
       const hash = sha256(dato);
       return this.prisma.transaccionesServicios.findFirst({
-        where: { referenceHash: hash, operation: filtroOperacion },
+        where: {
+          OR: [{ referenceHash: hash }, { reference: dato }],
+          operation: filtroOperacion,
+        },
         include,
       });
     };

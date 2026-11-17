@@ -310,6 +310,10 @@ export class ConsultaTransaccionesService {
    * Estado de una transacción de Produbanco de CUALQUIER app (solo admin).
    * Misma lógica en vivo que consultarEstadoTransaccion, pero resuelve por
    * `dato` sin exigir la app y descifra con la key de la app dueña.
+   *
+   * `dato` acepta idTransaccion, referenciaLote en claro o referenciaLote
+   * cifrada (la que devuelve generar_pago/generar_transferencia); la
+   * resolución vive en `lotes.buscarTransaccionPorDato`.
    */
   async estadoTransaccionAdmin(
     params: {

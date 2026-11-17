@@ -458,6 +458,97 @@ cliente) y ejecutar la prueba desde el navegador.
 
 ---
 
+### 11. `referenciaLote`: cómo guardarla y consultarla
+
+#### Al crear el lote
+
+`POST /tramas-produbanco/transferencia-nacional` (y `transferencia-internacional`)
+devuelve la referencia **cifrada**, con el formato `iv:authTag:cipher` en base64:
+
+```json
+{
+  "referenciaLote": "kWScxTNB/g4YtmVe:d1vLidWtZDF6EvNspXQG3g==:jrsLi81gk9SZK2G4glBP0jX3Ehh1Az0y5EIVwxXOPsBjGR68S/k=",
+  "montoTotal": 5
+}
+```
+
+**Guardala tal cual**: es el identificador que el cliente conserva para
+consultar el estado después. No hace falta descifrarla ni volver a cifrarla.
+
+#### Al consultar el detalle
+
+`GET /tramas-produbanco/transacciones/estado/:dato` acepta **tres formas**:
+
+| `:dato` | Ejemplo |
+|---|---|
+| `idTransaccion` (numérico) | `32` |
+| `referenciaLote` en claro | `LOTE-2026-0001` |
+| `referenciaLote` cifrada (la que devolvió el POST) | `kWScxTNB/g4YtmVe:d1vLidWt...` |
+
+El **mismo criterio** aplica al endpoint de administración
+`GET /admin/produbanco/transacciones/estado/:dato` (servicio `ADMIN_APPS`),
+que además acepta el query opcional `idApp` para acotar la búsqueda a una app:
+
+```bash
+# Cifrada, sin acotar por app
+curl "http://localhost:3000/admin/produbanco/transacciones/estado/$ENC" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+
+# Cifrada, acotada a la app dueña
+curl "http://localhost:3000/admin/produbanco/transacciones/estado/$ENC?idApp=17" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+Si se envía `idApp` y la transacción pertenece a otra app, responde `404`
+sin revelar que existe.
+
+La cifrada **debe ir URL-encoded** porque contiene `/`, `:` y `=`:
+
+```bash
+REF='kWScxTNB/g4YtmVe:d1vLidWtZDF6EvNspXQG3g==:jrsLi81gk9SZK2G4glBP0jX3Ehh1Az0y5EIVwxXOPsBjGR68S/k='
+ENC=$(python -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1], safe=''))" "$REF")
+
+curl "http://localhost:3000/tramas-produbanco/transacciones/estado/$ENC" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Encryption-Key: <encryptionKey>"
+```
+
+En PowerShell:
+
+```powershell
+$ref = 'kWScxTNB/g4YtmVe:d1vLidWtZDF6EvNspXQG3g==:jrsLi81gk9SZK2G4glBP0jX3Ehh1Az0y5EIVwxXOPsBjGR68S/k='
+$enc = [uri]::EscapeDataString($ref)
+Invoke-RestMethod -Headers @{ Authorization = "Bearer $token"; "X-Encryption-Key" = $key } `
+  "http://localhost:3000/tramas-produbanco/transacciones/estado/$enc"
+```
+
+> **Importante:** no decodifiques la referencia antes de enviarla; el gateway
+> y el microservicio la comparan contra el valor cifrado almacenado. Tampoco
+> la cortes: el `=` final del base64 forma parte del valor.
+
+#### Diferencia con el listado
+
+`GET /tramas-produbanco/transacciones` y el detalle devuelven `referenciaLote`
+**en claro** (el microservicio la descifra con la `encryptionKey` de la app).
+Es decir:
+
+- **Respuesta del POST (crear):** `referenciaLote` cifrada.
+- **Listado y detalle (GET):** `referenciaLote` en claro.
+
+Ambas formas son válidas como `:dato` en la consulta de estado, así que el
+cliente puede guardar la que recibe del POST y usarla directamente.
+
+#### Errores asociados
+
+| Caso | Respuesta |
+|---|---|
+| `dato` vacío | `400` — `dato es requerido (idTransaccion o referenciaLote)` |
+| Referencia inexistente o de otra app | `404` — `Transacción no encontrada.` |
+| Falta `X-Encryption-Key` | `400` |
+| `encryptionKey` inválida | `401`/`403` según validación de credenciales |
+
+---
+
 # Documentación de la app administradora (`admin_app`)
 
 ## Credenciales de la app administradora
