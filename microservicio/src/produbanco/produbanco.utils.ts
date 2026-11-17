@@ -115,6 +115,24 @@ export function sumarMontos(montos: ReadonlyArray<unknown>): number {
   return total.toDecimalPlaces(2).toNumber();
 }
 
+/**
+ * `true` sólo cuando Produbanco reportó la entrega efectiva del dinero en el
+ * ítem (Estado_Proceso = `ENTREGADO OK`).
+ *
+ * El estado verbatim del banco se sigue devolviendo en `estadoItem`; este flag
+ * existe para que un cliente no tenga que interpretar la redacción del banco
+ * (que varía entre "Entregado OK", "ENTREGADO", etc.).
+ */
+export function entregaEfectiva(estadoItem?: string | null): boolean {
+  const normalizado = String(estadoItem ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+  return normalizado === 'ENTREGADO OK' || normalizado === 'ENTREGADO';
+}
+
 /** Nombre legible del estado interno de la cabecera. */
 export function textoEstado(status: number): string {
   switch (status) {

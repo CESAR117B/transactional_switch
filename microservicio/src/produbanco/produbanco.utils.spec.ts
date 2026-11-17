@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { sumarMontos } from './produbanco.utils';
+import { entregaEfectiva, sumarMontos } from './produbanco.utils';
 
 describe('sumarMontos', () => {
   it('evita el error de coma flotante al sumar importes', () => {
@@ -19,5 +19,29 @@ describe('sumarMontos', () => {
 
   it('devuelve 0 para una lista vacía', () => {
     expect(sumarMontos([])).toBe(0);
+  });
+});
+
+describe('entregaEfectiva', () => {
+  it('reconoce la entrega efectiva reportada por Produbanco', () => {
+    expect(entregaEfectiva('ENTREGADO OK')).toBe(true);
+    expect(entregaEfectiva('  entregado   ok ')).toBe(true);
+    expect(entregaEfectiva('Entregado')).toBe(true);
+  });
+
+  it('no marca entrega en estados pendientes o fallidos', () => {
+    expect(entregaEfectiva('Pendiente de envio por el banco')).toBe(false);
+    expect(entregaEfectiva('Pendiente sin respuesta del banco')).toBe(false);
+    expect(entregaEfectiva('Aplica al banco')).toBe(false);
+    expect(entregaEfectiva('PROCESO OK')).toBe(false);
+    expect(entregaEfectiva('PROCESADAS ERROR')).toBe(false);
+    expect(entregaEfectiva('REVOCADO')).toBe(false);
+    expect(entregaEfectiva('NO ENTREGADO')).toBe(false);
+  });
+
+  it('trata valores vacíos o nulos como no entregado', () => {
+    expect(entregaEfectiva(null)).toBe(false);
+    expect(entregaEfectiva(undefined)).toBe(false);
+    expect(entregaEfectiva('   ')).toBe(false);
   });
 });

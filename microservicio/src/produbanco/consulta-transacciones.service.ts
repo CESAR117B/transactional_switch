@@ -22,6 +22,7 @@ import {
 import {
   aTexto,
   comoObjeto,
+  entregaEfectiva,
   infoError,
   operacionValida,
   sumarMontos,
@@ -691,6 +692,13 @@ export class ConsultaTransaccionesService {
       totales: {
         registros: tx.detalles.length,
         montoTotal: sumarMontos(tx.detalles.map((d) => d.monto)),
+        // Cuántos ítems tienen el dinero efectivamente entregado por el banco
+        // (Estado_Proceso = ENTREGADO OK) y si el lote entero lo está.
+        entregados: tx.detalles.filter((d) => entregaEfectiva(d.estadoItem))
+          .length,
+        entregaEfectiva:
+          tx.detalles.length > 0 &&
+          tx.detalles.every((d) => entregaEfectiva(d.estadoItem)),
       },
       detalles: tx.detalles.map((d) => ({
         secuencia: d.secuencia,
@@ -706,7 +714,10 @@ export class ConsultaTransaccionesService {
         monto: Number(d.monto),
         moneda: d.moneda,
         referenciaDocumento: d.referenciaDocumento,
+        // Estado verbatim de Produbanco: se muestra tal cual lo reporta.
         estadoItem: d.estadoItem,
+        // Atajo para el cliente: el dinero llegó a la cuenta del beneficiario.
+        entregaEfectiva: entregaEfectiva(d.estadoItem),
         codigoRespuesta: d.codigoRespuesta,
         mensajeBanco: d.mensajeRespuesta,
       })),

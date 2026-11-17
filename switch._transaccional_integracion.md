@@ -489,6 +489,49 @@ statusServicio === "ERROR"            → falló; no reintentar sin corregir
 > `mensajeBanco`), porque un lote puede procesarse con ítems aprobados y otros
 > rechazados.
 
+#### Entrega efectiva del dinero
+
+`detalles[].estadoItem` se devuelve **tal cual lo reporta Produbanco**
+(`Pendiente de envio por el banco`, `Aplica al banco`, `PROCESO OK`,
+`ENTREGADO OK`, `PROCESADAS ERROR`, `REVOCADO`, etc.). Es el estado oficial y
+sirve para trazabilidad.
+
+Para no obligar al cliente a interpretar la redacción del banco, cada ítem
+incluye además:
+
+| Campo | Tipo | Significado |
+|---|---|---|
+| `detalles[].entregaEfectiva` | `boolean` | `true` sólo cuando Produbanco reportó `ENTREGADO OK`: **el dinero fue entregado de forma efectiva en la cuenta del beneficiario de ese ítem**. |
+| `totales.entregados` | `number` | Cantidad de ítems con `entregaEfectiva = true`. |
+| `totales.entregaEfectiva` | `boolean` | `true` sólo si **todos** los ítems del lote fueron entregados (y hay al menos uno). |
+
+Ejemplo de un ítem entregado:
+
+```json
+{
+  "secuencia": 1,
+  "nombre": "JUAN PEREZ",
+  "cuenta": "2203456789",
+  "bancoCodigo": "0102",
+  "monto": 5,
+  "estadoItem": "ENTREGADO OK",
+  "entregaEfectiva": true,
+  "codigoRespuesta": "00",
+  "mensajeBanco": "PROCESADO OK"
+}
+```
+
+Reglas para el cliente:
+
+- `estadoItem` → qué dice el banco, sin interpretación (mostrar si se quiere).
+- `entregaEfectiva === true` → **confirmado: el dinero llegó a la cuenta**.
+- `entregaEfectiva === false` → todavía no hay constancia de entrega: volver a
+  consultar el estado; no asumir éxito ni reenviar el pago.
+
+> La comparación es tolerante a mayúsculas y espacios (`ENTREGADO OK`,
+> `entregado ok`, `Entregado`). Cualquier otro valor —incluido
+> `NO ENTREGADO`— devuelve `false`.
+
 #### Errores asociados
 
 | Caso | Respuesta |
