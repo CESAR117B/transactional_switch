@@ -453,12 +453,19 @@ Las respuestas de los endpoints de app cliente
 | `codigoBanco`, `mensajeBanco`, `fechaConsultaBanco` | ✅ | ✅ |
 | `envioId`, `errorMessage`, `fechaCreacion` | ✅ | ✅ |
 | `beneficiario*`, `registros`, `montoTotal`, `estadosDetalle`, `detalles` | ✅ | ✅ |
+| `entregados`, `entregaEfectiva`, `detalles[].entregaEfectiva` | ✅ | ✅ |
 
 El cliente identifica la operación por `referenciaLote`, no por `idTransaccion`.
 Los campos internos sólo aparecen en:
 
 - `GET /admin/produbanco/transacciones`
 - `GET /admin/produbanco/transacciones/estado/:dato`
+
+Fuera de esos cinco campos internos, **la respuesta del admin es la misma que
+la del cliente**, y le agrega sólo metadatos de la app
+(`appId`, `appIdentificador`, `appNombre`) y, en el detalle, `banco` con la
+respuesta en vivo. Así un mismo consumidor puede reutilizar el parseo entre
+ambos endpoints.
 
 #### Cómo saber si la operación salió bien
 
@@ -504,6 +511,19 @@ incluye además:
 | `detalles[].entregaEfectiva` | `boolean` | `true` sólo cuando Produbanco reportó `ENTREGADO OK`: **el dinero fue entregado de forma efectiva en la cuenta del beneficiario de ese ítem**. |
 | `totales.entregados` | `number` | Cantidad de ítems con `entregaEfectiva = true`. |
 | `totales.entregaEfectiva` | `boolean` | `true` sólo si **todos** los ítems del lote fueron entregados (y hay al menos uno). |
+
+El **listado** (`GET /tramas-produbanco/transacciones` y su equivalente admin)
+expone el mismo criterio con los mismos nombres, pero a nivel de ítem de la
+página:
+
+| Campo (en cada `items[]`) | Tipo | Significado |
+|---|---|---|
+| `entregados` | `number` | Ítems del lote con entrega efectiva. |
+| `entregaEfectiva` | `boolean` | `true` si todos los ítems del lote fueron entregados. |
+
+Así, listado y detalle responden con la misma semántica: `entregados` /
+`entregaEfectiva` en ambos, y el detalle además lo repite por ítem en
+`detalles[].entregaEfectiva`.
 
 Ejemplo de un ítem entregado:
 

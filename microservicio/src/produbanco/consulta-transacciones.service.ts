@@ -650,6 +650,13 @@ export class ConsultaTransaccionesService {
         : null,
       registros: tx.detalles.length,
       montoTotal: sumarMontos(tx.detalles.map((d) => d.monto)),
+      // Mismo criterio de entrega que el detalle (`totales.entregados` /
+      // `totales.entregaEfectiva`), para que listado y detalle coincidan.
+      entregados: tx.detalles.filter((d) => entregaEfectiva(d.estadoItem))
+        .length,
+      entregaEfectiva:
+        tx.detalles.length > 0 &&
+        tx.detalles.every((d) => entregaEfectiva(d.estadoItem)),
       estadosDetalle,
     };
   }
