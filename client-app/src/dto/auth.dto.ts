@@ -8,10 +8,10 @@ export class LoginDto {
     type: String,
     required: true,
   })
-  @IsString({ message: 'El app_id debe ser una cadena de texto.' })
-  @IsNotEmpty({ message: 'El app_id es obligatorio para iniciar sesión.' })
-  @MaxLength(100, { message: 'El app_id no puede exceder 100 caracteres.' })
-  app_id: string;
+  @IsString({ message: 'El identificador_app debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El identificador_app es obligatorio para iniciar sesión.' })
+  @MaxLength(100, { message: 'El identificador_app no puede exceder 100 caracteres.' })
+  identificador_app: string;
 
   @ApiProperty({
     description:

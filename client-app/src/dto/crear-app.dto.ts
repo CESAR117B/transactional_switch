@@ -23,7 +23,7 @@ export class CrearAppDto {
   @ApiProperty({
     description:
       'Identificador único de la app (minúsculas, sin espacios). Sirve como ' +
-      'app_id en POST /auth/login.',
+      'identificador_app en POST /auth/login.',
     example: 'mi-app-nueva',
     minLength: 3,
     maxLength: 50,

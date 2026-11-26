@@ -50,7 +50,7 @@ export class AuthController {
         permisos?: string[];
       }>(
         { cmd: 'validar_app' },
-        { identificador: credentials.app_id, key: credentials.app_key },
+        { identificador: credentials.identificador_app, key: credentials.app_key },
       );
 
       if (!appInfo) {
@@ -78,10 +78,10 @@ export class AuthController {
         throw error;
       }
 
-      // Un solo mensaje al cliente (sin revelar si el app_id existe o no);
+      // Un solo mensaje al cliente (sin revelar si el identificador_app existe o no);
       // el detalle se guarda en el log del servidor.
       this.logger.warn(
-        `Login fallido: ${credentials.app_id} — ${
+        `Login fallido: ${credentials.identificador_app} — ${
           error instanceof Error ? error.message : JSON.stringify(error)
         }`,
       );

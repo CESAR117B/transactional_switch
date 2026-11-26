@@ -15,7 +15,7 @@ Todas las operaciones (excepto login) requieren un token JWT.
 POST /auth/login
 Content-Type: application/json
 
-{ "app_id": "tu_app_id", "app_key": "tu_app_key" }
+{ "identificador_app": "tu_identificador_app", "app_key": "tu_app_key" }
 ```
 
 Respuesta:

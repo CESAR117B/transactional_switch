@@ -44,7 +44,7 @@ Antes de operar, la app externa necesita:
 1. **URL base** del gateway, por ejemplo:
    `https://<host-del-switch>:3000`.
 2. **Credenciales propias** entregadas por la app administradora:
-   - `app_id` (el `identificador_app`).
+   - `identificador_app` (el `identificador_app`).
    - `app_key` (la `key`).
    - `encryptionKey` (necesaria para operaciones cifradas).
 3. **Servicios asignados** según las funciones que vaya a utilizar.
@@ -64,7 +64,7 @@ El flujo completo es:
 1. La app externa solicita integración al administrador.
 2. El administrador registra la app (registrar_app).
 3. El administrador asigna los servicios (asignar-servicios-app).
-4. El administrador entrega app_id, app_key y encryptionKey.
+4. El administrador entrega identificador_app, app_key y encryptionKey.
 5. La app externa hace login en /auth/login y obtiene el JWT.
 6. La app externa consulta /servicios/mis-servicios.
 7. La app externa consume los endpoints de los servicios asignados.
@@ -136,7 +136,7 @@ El administrador entrega a la app externa:
 
 | Dato | Uso |
 |---|---|
-| `app_id` (`identificador_app`) | Campo `app_id` del login. |
+| `identificador_app` | Campo `identificador_app` del login. |
 | `app_key` (`key`) | Campo `app_key` del login. |
 | `encryptionKey` | Header `X-Encryption-Key` en consultas que lo requieran. |
 | Lista de servicios asignados | Define qué endpoints puede usar. |
@@ -152,7 +152,7 @@ Content-Type: application/json
 
 ```json
 {
-  "app_id": "app-externa",
+  "identificador_app": "app-externa",
   "app_key": "<app_key>"
 }
 ```
@@ -285,7 +285,7 @@ BASE_URL="https://switch.ejemplo.com"
 # 1. Login de la app administradora
 ADMIN_TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"app_id":"admin_app","app_key":"admin_app_1234"}' \
+  -d '{"identificador_app":"admin_app","app_key":"admin_app_1234"}' \
   | jq -r '.access_token')
 
 # 2. Registrar la app de prueba
@@ -304,7 +304,7 @@ curl -s -X POST "$BASE_URL/admin/asignar-servicios-app" \
 # 4. Login de la app de prueba con las credenciales devueltas en el paso 2
 APP_TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"app_id":"app-prueba","app_key":"<app_key>"}' \
+  -d '{"identificador_app":"app-prueba","app_key":"<app_key>"}' \
   | jq -r '.access_token')
 
 # 5. Verificar los servicios habilitados
@@ -762,7 +762,7 @@ desde el navegador.
 ## Credenciales de la app administradora
 
 ```text
-app_id (identificador_app): admin_app
+identificador_app (identificador_app): admin_app
 app_key (key):              admin_app_1234
 ```
 
@@ -794,7 +794,7 @@ Content-Type: application/json
 
 ```json
 {
-  "app_id": "admin_app",
+  "identificador_app": "admin_app",
   "app_key": "admin_app_1234"
 }
 ```
@@ -888,7 +888,7 @@ Campos:
 
 | Campo | Obligatorio | Descripción |
 |---|---|---|
-| `identificador_app` | Sí | 3 a 50 caracteres, minúsculas, sin espacios. Sólo `a-z`, `0-9`, `_` y `-`. Es el `app_id` del login. |
+| `identificador_app` | Sí | 3 a 50 caracteres, minúsculas, sin espacios. Sólo `a-z`, `0-9`, `_` y `-`. Es el `identificador_app` del login. |
 | `nombre` | No | Nombre comercial (máx. 300). |
 | `desarrollador` | No | Desarrollador o empresa (máx. 100). |
 | `ruc` | No | RUC (máx. 200). |
@@ -1256,7 +1256,7 @@ guardarse en la auditoría.
 # 1. Login
 curl -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"app_id":"admin_app","app_key":"admin_app_1234"}'
+  -d '{"identificador_app":"admin_app","app_key":"admin_app_1234"}'
 
 # 2. Registrar una app (usar el access_token del paso 1)
 curl -X POST http://localhost:3000/admin/registrar_app \
