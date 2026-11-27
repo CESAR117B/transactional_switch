@@ -15,8 +15,7 @@ COPY prisma ./prisma
 COPY src ./src
 
 # Genera el cliente y tipos de Prisma en build, luego compila a dist/
-RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" pnpm exec prisma generate \
-  && pnpm run build
+RUN  pnpm run build
 
 # --- Etapa de runtime ---
 FROM node:24-alpine AS runner
