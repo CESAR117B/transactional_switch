@@ -15,7 +15,7 @@ function crearPrisma() {
 function appBase(overrides: Record<string, unknown> = {}) {
   return {
     id_app: 1,
-    identificador_app: 'mi-app',
+    user_app: 'mi-app',
     activo: true,
     key: 'legacy-key',
     app_servicios: [],
@@ -79,7 +79,7 @@ describe('AuthService', () => {
 
       expect(resultado).toEqual({
         id_app: 1,
-        identificador: 'mi-app',
+        user_app: 'mi-app',
         permisos: [],
         servicios: [],
       });
@@ -143,7 +143,7 @@ describe('AuthService', () => {
 
       await expect(service.obtenerPermisosVigentes(1)).resolves.toEqual({
         id_app: 1,
-        identificador: 'mi-app',
+        user_app: 'mi-app',
         permisos: ['listar'],
         servicios: ['CATALOGO_SRV'],
       });

@@ -19,24 +19,24 @@ import {
  * Los servicios NO se asignan en esta función (será otra función);
  * la app nace con app_servicios vacío.
  *
- * Los campos disponibles para actualizar son: identificador_app,
+ * Los campos disponibles para actualizar son: user_app,
  * nombre, desarrollador, ruc y email (en la tabla info_app).
  */
 export class UpdateAppDto {
   @ApiProperty({
-    description: 'Identificador único de la app (minúsculas, sin espacios).',
+    description: 'user_app único de la app (minúsculas, sin espacios).',
     example: 'mi-app-nueva',
     minLength: 3,
     maxLength: 50,
   })
-  @IsString({ message: 'identificador_app debe ser texto' })
-  @IsNotEmpty({ message: 'identificador_app es requerido' })
+  @IsString({ message: 'user_app debe ser texto' })
+  @IsNotEmpty({ message: 'user_app es requerido' })
   @Matches(/^[a-z0-9][a-z0-9_-]{2,49}$/, {
     message:
-      'identificador_app debe ser minúsculas sin espacios: 3 a 50 caracteres ' +
+      'user_app debe ser minúsculas sin espacios: 3 a 50 caracteres ' +
       'alfanuméricos, guion o guion bajo',
   })
-  identificador_app: string;
+  user_app: string;
 
   @ApiPropertyOptional({
     description: 'Nombre comercial de la app',

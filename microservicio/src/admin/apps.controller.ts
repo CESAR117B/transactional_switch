@@ -44,7 +44,7 @@ export class AppsController {
     }
 
     this.logger.log(
-      `crear_app idAppAdmin=${idApp} identificador=${data.identificador_app}`,
+      `crear_app idAppAdmin=${idApp} user_app=${data.user_app}`,
     );
     return this.appsService.crearApp(idApp, data);
   }

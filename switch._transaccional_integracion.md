@@ -44,7 +44,7 @@ Antes de operar, la app externa necesita:
 1. **URL base** del gateway, por ejemplo:
    `https://<host-del-switch>:3000`.
 2. **Credenciales propias** entregadas por la app administradora:
-   - `identificador_app` (el `identificador_app`).
+   - `user_app` (identificación de la app).
    - `app_key` (la `key`).
    - `encryptionKey` (necesaria para operaciones cifradas).
 3. **Servicios asignados** según las funciones que vaya a utilizar.
@@ -64,7 +64,7 @@ El flujo completo es:
 1. La app externa solicita integración al administrador.
 2. El administrador registra la app (registrar_app).
 3. El administrador asigna los servicios (asignar-servicios-app).
-4. El administrador entrega identificador_app, app_key y encryptionKey.
+4. El administrador entrega user_app, app_key y encryptionKey.
 5. La app externa hace login en /auth/login y obtiene el JWT.
 6. La app externa consulta /servicios/mis-servicios.
 7. La app externa consume los endpoints de los servicios asignados.
@@ -80,7 +80,7 @@ Content-Type: application/json
 
 ```json
 {
-  "identificador_app": "app-externa",
+  "user_app": "app-externa",
   "nombre": "App Externa S.A.",
   "desarrollador": "Tercero",
   "ruc": "1790012345001",
@@ -93,7 +93,7 @@ La respuesta devuelve **una sola vez**:
 ```json
 {
   "id_app": 25,
-  "identificador_app": "app-externa",
+  "user_app": "app-externa",
   "key": "<app_key>",
   "encryptionKey": "<encryptionKey>",
   "servicios": []
@@ -136,7 +136,7 @@ El administrador entrega a la app externa:
 
 | Dato | Uso |
 |---|---|
-| `identificador_app` | Campo `identificador_app` del login. |
+| `user_app` | Campo `user_app` del login. |
 | `app_key` (`key`) | Campo `app_key` del login. |
 | `encryptionKey` | Header `X-Encryption-Key` en consultas que lo requieran. |
 | Lista de servicios asignados | Define qué endpoints puede usar. |
@@ -152,7 +152,7 @@ Content-Type: application/json
 
 ```json
 {
-  "identificador_app": "app-externa",
+  "user_app": "app-externa",
   "app_key": "<app_key>"
 }
 ```
@@ -285,14 +285,14 @@ BASE_URL="https://switch.ejemplo.com"
 # 1. Login de la app administradora
 ADMIN_TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"identificador_app":"admin_app","app_key":"admin_app_1234"}' \
+  -d '{"user_app":"admin_app","app_key":"admin_app_1234"}' \
   | jq -r '.access_token')
 
 # 2. Registrar la app de prueba
 curl -s -X POST "$BASE_URL/admin/registrar_app" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"identificador_app":"app-prueba","nombre":"App de prueba"}'
+  -d '{"user_app":"app-prueba","nombre":"App de prueba"}'
 
 # 3. Asignar los servicios que se quieren probar
 #    (reemplazar los códigos por los que devuelve GET /admin/listar-servicios)
@@ -304,7 +304,7 @@ curl -s -X POST "$BASE_URL/admin/asignar-servicios-app" \
 # 4. Login de la app de prueba con las credenciales devueltas en el paso 2
 APP_TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"identificador_app":"app-prueba","app_key":"<app_key>"}' \
+  -d '{"user_app":"app-prueba","app_key":"<app_key>"}' \
   | jq -r '.access_token')
 
 # 5. Verificar los servicios habilitados
@@ -463,7 +463,7 @@ Los campos internos sólo aparecen en:
 
 Fuera de esos cinco campos internos, **la respuesta del admin es la misma que
 la del cliente**, y le agrega sólo metadatos de la app
-(`appId`, `appIdentificador`, `appNombre`) y, en el detalle, `banco` con la
+(`appId`, `appUserApp`, `appNombre`) y, en el detalle, `banco` con la
 respuesta en vivo. Así un mismo consumidor puede reutilizar el parseo entre
 ambos endpoints.
 
@@ -762,7 +762,7 @@ desde el navegador.
 ## Credenciales de la app administradora
 
 ```text
-identificador_app (identificador_app): admin_app
+user_app:                   admin_app
 app_key (key):              admin_app_1234
 ```
 
@@ -794,7 +794,7 @@ Content-Type: application/json
 
 ```json
 {
-  "identificador_app": "admin_app",
+  "user_app": "admin_app",
   "app_key": "admin_app_1234"
 }
 ```
@@ -875,7 +875,7 @@ Content-Type: application/json
 
 ```json
 {
-  "identificador_app": "mi-app-nueva",
+  "user_app": "mi-app-nueva",
   "nombre": "Mi Aplicación",
   "desarrollador": "Acme Cía. Ltda.",
   "ruc": "1790012345001",
@@ -888,7 +888,7 @@ Campos:
 
 | Campo | Obligatorio | Descripción |
 |---|---|---|
-| `identificador_app` | Sí | 3 a 50 caracteres, minúsculas, sin espacios. Sólo `a-z`, `0-9`, `_` y `-`. Es el `identificador_app` del login. |
+| `user_app` | Sí | 3 a 50 caracteres, minúsculas, sin espacios. Sólo `a-z`, `0-9`, `_` y `-`. Es el `user_app` que se envía en /auth/login. |
 | `nombre` | No | Nombre comercial (máx. 300). |
 | `desarrollador` | No | Desarrollador o empresa (máx. 100). |
 | `ruc` | No | RUC (máx. 200). |
@@ -900,7 +900,7 @@ Respuesta (`201`):
 ```json
 {
   "id_app": 12,
-  "identificador_app": "mi-app-nueva",
+  "user_app": "mi-app-nueva",
   "activo": true,
   "key": "<key-en-claro>",
   "encryptionKey": "<encryptionKey-en-claro>",
@@ -932,7 +932,7 @@ Devuelve, por cada app:
 [
   {
     "id_app": 12,
-    "identificador_app": "mi-app-nueva",
+    "user_app": "mi-app-nueva",
     "activo": true,
     "info_app": {
       "nombre": "Mi Aplicación",
@@ -958,7 +958,7 @@ Content-Type: application/json
 {
   "idApp": 12,
   "data": {
-    "identificador_app": "mi-app-nueva",
+    "user_app": "mi-app-nueva",
     "nombre": "Mi Aplicación S.A.",
     "desarrollador": "Acme Cía. Ltda.",
     "ruc": "1790012345001",
@@ -968,7 +968,7 @@ Content-Type: application/json
 ```
 
 - `idApp` es la app **objetivo** a modificar.
-- `data.identificador_app` es obligatorio.
+- `data.user_app` es obligatorio.
 - No devuelve ni modifica `key` ni `encryptionKey`.
 - Si la app no existe → `404`.
 
@@ -997,7 +997,7 @@ Respuesta:
 ```json
 {
   "id_app": 12,
-  "identificador_app": "mi-app-nueva",
+  "user_app": "mi-app-nueva",
   "activo": false,
   "mensaje": "App mi-app-nueva bloqueada..."
 }
@@ -1256,13 +1256,13 @@ guardarse en la auditoría.
 # 1. Login
 curl -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"identificador_app":"admin_app","app_key":"admin_app_1234"}'
+  -d '{"user_app":"admin_app","app_key":"admin_app_1234"}'
 
 # 2. Registrar una app (usar el access_token del paso 1)
 curl -X POST http://localhost:3000/admin/registrar_app \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
-  -d '{"identificador_app":"mi-app-nueva","nombre":"Mi Aplicación"}'
+  -d '{"user_app":"mi-app-nueva","nombre":"Mi Aplicación"}'
 
 # 3. Asignarle servicios
 curl -X POST http://localhost:3000/admin/asignar-servicios-app \

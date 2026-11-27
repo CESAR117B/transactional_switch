@@ -15,7 +15,7 @@ import { MicroserviceRpcService } from './microservice-rpc.service';
 /** Respuesta de `validar_permisos_app` (microservicio). */
 interface PermisosVigentes {
   id_app: number;
-  identificador: string;
+  user_app: string;
   servicios?: string[];
   permisos?: string[];
 }
@@ -75,14 +75,14 @@ export class ApiKeyGuard implements CanActivate {
 
       const appInfo = {
         id_app: vigentes.id_app,
-        identificador: vigentes.identificador,
+        user_app: vigentes.user_app,
         servicios: vigentes.servicios ?? [],
         permisos: vigentes.permisos ?? [],
       };
 
       request.appAuth = appInfo;
 
-      this.logger.debug(`App autenticada vía JWT: ${appInfo.identificador}`);
+      this.logger.debug(`App autenticada vía JWT: ${appInfo.user_app}`);
       this.logger.debug(
         `Servicios: [${appInfo.servicios?.join(', ') || 'Ninguno'}] ` +
           `Permisos: [${appInfo.permisos?.join(', ') || 'Ninguno'}]`,

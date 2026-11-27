@@ -77,7 +77,7 @@ export class AdminAppsController {
 
   @ApiOperation({
     summary:
-      'Lista de apps registradas en el microservicio. Devuelve id_app, identificador_app y activo. No devuelve la key ni la encryptionKey.',
+      'Lista de apps registradas en el microservicio. Devuelve id_app, user_app y activo. No devuelve la key ni la encryptionKey.',
   })
   @RequireCmd('listar_apps')
   @HttpCode(HttpStatus.OK)
@@ -88,7 +88,7 @@ export class AdminAppsController {
 
   @ApiOperation({
     summary:
-      'Actualiza los datos de una app consumidora (identificador, nombre, desarrollador, ruc, email). ' +
+      'Actualiza los datos de una app consumidora (user_app, nombre, desarrollador, ruc, email). ' +
       'No devuelve la key ni la encryptionKey: serán actualizados en otra función.',
   })
   @RequireCmd('actualizar_app')

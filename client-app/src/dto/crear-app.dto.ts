@@ -22,20 +22,20 @@ import {
 export class CrearAppDto {
   @ApiProperty({
     description:
-      'Identificador único de la app (minúsculas, sin espacios). Sirve como ' +
-      'identificador_app en POST /auth/login.',
+      'user_app único de la app (minúsculas, sin espacios). Sirve como ' +
+      'user_app en POST /auth/login.',
     example: 'mi-app-nueva',
     minLength: 3,
     maxLength: 50,
   })
-  @IsString({ message: 'identificador_app debe ser texto' })
-  @IsNotEmpty({ message: 'identificador_app es requerido' })
+  @IsString({ message: 'user_app debe ser texto' })
+  @IsNotEmpty({ message: 'user_app es requerido' })
   @Matches(/^[a-z0-9][a-z0-9_-]{2,49}$/, {
     message:
-      'identificador_app debe ser minúsculas sin espacios: 3 a 50 caracteres ' +
+      'user_app debe ser minúsculas sin espacios: 3 a 50 caracteres ' +
       'alfanuméricos, guion o guion bajo',
   })
-  identificador_app: string;
+  user_app: string;
 
   @ApiPropertyOptional({
     description: 'Nombre comercial de la app (tabla info_app)',

@@ -27,7 +27,7 @@ function crearGuard(
   const jwtService = {
     verifyAsync:
       opciones.verifyAsync ??
-      jest.fn().mockResolvedValue({ id_app: 1, identificador: 'mi-app' }),
+      jest.fn().mockResolvedValue({ id_app: 1, user_app: 'mi-app' }),
   };
   const reflector = {
     getAllAndOverride: jest.fn().mockReturnValue(opciones.publico ?? false),
@@ -42,7 +42,7 @@ function crearGuard(
       opciones.enviar ??
       jest.fn().mockResolvedValue({
         id_app: 1,
-        identificador: 'mi-app',
+        user_app: 'mi-app',
         servicios: [],
         permisos: [],
       }),
@@ -90,7 +90,7 @@ describe('ApiKeyGuard', () => {
     });
     rpc.enviar.mockResolvedValue({
       id_app: 1,
-      identificador: 'mi-app',
+      user_app: 'mi-app',
       servicios: ['SPR_PRODUBANCO'],
       permisos: ['generar_pago'],
     });
@@ -98,7 +98,7 @@ describe('ApiKeyGuard', () => {
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request.appAuth).toEqual({
       id_app: 1,
-      identificador: 'mi-app',
+      user_app: 'mi-app',
       servicios: ['SPR_PRODUBANCO'],
       permisos: ['generar_pago'],
     });

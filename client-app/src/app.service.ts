@@ -31,7 +31,7 @@ export class AppService {
   }
 
   /**
-   * Alta de una app consumidora. El microservicio genera identificador,
+   * Alta de una app consumidora. El microservicio genera user_app,
    * key (hash scrypt en BD) y encryptionKey en una transacción, y devuelve
    * las credenciales EN CLARO una sola vez.
    */

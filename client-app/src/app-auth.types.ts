@@ -1,7 +1,7 @@
 /** Datos que el ApiKeyGuard inyecta en `request.appAuth` tras validar el JWT. */
 export interface AppAuth {
   id_app?: number;
-  identificador?: string;
+  user_app?: string;
   servicios?: string[];
   permisos?: string[];
 }

@@ -35,7 +35,7 @@ export class AdminProdubancoController {
   @ApiOperation({
     summary:
       'Lista transacciones Produbanco de todas las apps (paginado). Incluye ' +
-      'appId, appIdentificador y appNombre por ítem. Los filtros cedula/cuenta ' +
+      'appId, appUserApp y appNombre por ítem. Los filtros cedula/cuenta ' +
       'requieren idApp porque el hash de búsqueda usa la llave de esa app.',
   })
   @RequireCmd('transacciones_admin')

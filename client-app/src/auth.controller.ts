@@ -45,12 +45,12 @@ export class AuthController {
       // 1. Validamos las credenciales contra el microservicio
       const appInfo = await this.rpc.enviar<{
         id_app: number;
-        identificador: string;
+        user_app: string;
         servicios?: string[];
         permisos?: string[];
       }>(
         { cmd: 'validar_app' },
-        { identificador: credentials.identificador_app, key: credentials.app_key },
+        { user_app: credentials.user_app, key: credentials.app_key },
       );
 
       if (!appInfo) {
@@ -60,13 +60,13 @@ export class AuthController {
       // 2. Firma con el secret y expiración de JwtModule (única fuente)
       const payload = {
         id_app: appInfo.id_app,
-        sub: appInfo.identificador,
+        sub: appInfo.user_app,
         servicios: appInfo.servicios,
         permisos: appInfo.permisos,
       };
       const access_token = this.jwtService.sign(payload);
 
-      this.logger.log(`Login OK: ${appInfo.identificador}`);
+      this.logger.log(`Login OK: ${appInfo.user_app}`);
       return {
         access_token,
         expires_in: 3600,
@@ -78,10 +78,10 @@ export class AuthController {
         throw error;
       }
 
-      // Un solo mensaje al cliente (sin revelar si el identificador_app existe o no);
+      // Un solo mensaje al cliente (sin revelar si el user_app existe o no);
       // el detalle se guarda en el log del servidor.
       this.logger.warn(
-        `Login fallido: ${credentials.identificador_app} — ${
+        `Login fallido: ${credentials.user_app} — ${
           error instanceof Error ? error.message : JSON.stringify(error)
         }`,
       );

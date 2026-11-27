@@ -15,7 +15,7 @@ Todas las operaciones (excepto login) requieren un token JWT.
 POST /auth/login
 Content-Type: application/json
 
-{ "identificador_app": "tu_identificador_app", "app_key": "tu_app_key" }
+{ "user_app": "tu_user_app", "app_key": "tu_app_key" }
 ```
 
 Respuesta:
@@ -44,7 +44,7 @@ Los endpoints de **consulta** de data encriptada (`GET /transacciones` y
 `GET /transacciones/estado/:dato`) exigen, **además del JWT**, enviar la
 `encryptionKey` de tu app en el header `X-Encryption-Key` (32 caracteres).
 
-- Tu app recibe tres credenciales: `identificador_app` (identificación),
+- Tu app recibe tres credenciales: `user_app` (identificación),
   `key` (para autenticarte en `/auth/login`) y `encryptionKey` (para ver la
   data encriptada).
 - El back **valida** que la llave enviada coincida con la registrada y la usa
@@ -486,7 +486,7 @@ La respuesta del admin es **idéntica** a la de la app cliente, más:
 | `estadoTransaccion` | listado y detalle | Estado verbatim de la cabecera del banco |
 | `cargaRespuestaBanco` | sólo detalle | XML crudo de la carga al banco (diagnóstico) |
 | `appId` | listado y detalle | `id_app` dueña de la transacción |
-| `appIdentificador` | listado y detalle | Identificador de esa app |
+| `appUserApp` | listado y detalle | Identificador de esa app |
 | `appNombre` | listado y detalle | Nombre de esa app |
 | `banco` | sólo detalle | Respuesta en vivo de Produbanco (`orden` / `movimientos` SOAP) |
 

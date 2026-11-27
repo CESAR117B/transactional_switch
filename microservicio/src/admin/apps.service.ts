@@ -29,7 +29,7 @@ const CAMPOS_SECRETOS_AUDITORIA = ['key', 'encryptionKey'];
  * Funciones administrativas sobre la tabla `app`.
  *
  * `crearApp()` es HOY la única puerta de credenciales del sistema: genera
- * identificador + key + encryptionKey en una sola transacción.
+ * user_app + key + encryptionKey en una sola transacción.
  *  - `key`      → se guarda con hash scrypt (AuthService.hashKey) y se
  *                  devuelve CRUDA una única vez (el hash es irreversible).
  *  - `encryptionKey` → se guarda en claro (los servicios la necesitan para
@@ -181,7 +181,7 @@ export class AppsService {
         statusExito: 201,
         responsePayload: (creada) => ({
           id_app: creada.id_app,
-          identificador_app: creada.identificador_app,
+          user_app: creada.user_app,
           activo: creada.activo,
           info_app: creada.info_app,
           servicios: [] as number[],
@@ -193,18 +193,18 @@ export class AppsService {
   }
 
   private async crearAppInterno(idAppAdmin: number, dto: CrearAppDto) {
-    const identificador = dto.identificador_app;
+    const userApp = dto.user_app;
 
-    // 1. Unicidad del identificador (también cubierta por el índice único
+    // 1. Unicidad del user_app (también cubierta por el índice único
     //    de la BD, pero acá devolvemos un 409 legible).
     const existente = await this.prisma.app.findUnique({
-      where: { identificador_app: identificador },
+      where: { user_app: userApp },
       select: { id_app: true },
     });
     if (existente) {
       throw new RpcException({
         statusCode: 409,
-        message: `El identificador_app '${identificador}' ya está registrado (id_app=${existente.id_app})`,
+        message: `El user_app '${userApp}' ya está registrado (id_app=${existente.id_app})`,
         error: 'Conflict',
       });
     }
@@ -223,7 +223,7 @@ export class AppsService {
           data: {
             key: keyHash,
             activo: dto.activo ?? true,
-            identificador_app: identificador,
+            user_app: userApp,
             encryptionKey,
             fecha_creacion: hoy,
             fecha_actualizacion: hoy,
@@ -241,7 +241,7 @@ export class AppsService {
       });
 
       this.logger.log(
-        `App registrada id_app=${creada.id_app} identificador=${identificador} ` +
+        `App registrada id_app=${creada.id_app} user_app=${userApp} ` +
           `por idAppAdmin=${idAppAdmin} (sin servicios asignados)`,
       );
 
@@ -249,7 +249,7 @@ export class AppsService {
       //    encryptionKey almacenada no salen de acá.
       return {
         id_app: creada.id_app,
-        identificador_app: creada.identificador_app,
+        user_app: creada.user_app,
         activo: creada.activo,
         key,
         encryptionKey,
@@ -261,13 +261,13 @@ export class AppsService {
           'servicios asignados.',
       };
     } catch (error: unknown) {
-      // Carrera contra otra alta con el mismo identificador → 409.
+      // Carrera contra otra alta con el mismo user_app → 409.
       // (P2002 = violación de índice único de Prisma.)
       const codigo = (error as { code?: string } | null)?.code;
       if (codigo === 'P2002') {
         throw new RpcException({
           statusCode: 409,
-          message: `El identificador_app '${identificador}' ya está registrado`,
+          message: `El user_app '${userApp}' ya está registrado`,
           error: 'Conflict',
         });
       }
@@ -340,21 +340,21 @@ export class AppsService {
 
     const bloqueada = await this.prisma.app.findUnique({
       where: { id_app: idApp },
-      select: { identificador_app: true },
+      select: { user_app: true },
     });
-    const identificador = bloqueada?.identificador_app ?? `id_app=${idApp}`;
+    const userApp = bloqueada?.user_app ?? `id_app=${idApp}`;
 
     this.logger.log(
-      `App bloqueada id_app=${idApp} identificador=${identificador} ` +
+      `App bloqueada id_app=${idApp} user_app=${userApp} ` +
         `por idAppAdmin=${idAppAdmin}`,
     );
 
     return {
       id_app: idApp,
-      identificador_app: bloqueada?.identificador_app ?? null,
+      user_app: bloqueada?.user_app ?? null,
       activo: false,
       mensaje:
-        `App ${identificador} bloqueada. No podrá autenticarse en /auth/login ` +
+        `App ${userApp} bloqueada. No podrá autenticarse en /auth/login ` +
         'y sus requests en curso serán rechazados de inmediato.',
     };
   }
@@ -377,7 +377,7 @@ export class AppsService {
 
     return apps.map((app) => ({
       id_app: app.id_app,
-      identificador_app: app.identificador_app,
+      user_app: app.user_app,
       activo: app.activo,
       info_app: app.info_app,
     }));
@@ -406,7 +406,7 @@ export class AppsService {
       select: {
         id_app: true,
         activo: true,
-        identificador_app: true,
+        user_app: true,
         info_app: {
           select: { nombre: true, desarrollador: true, ruc: true, email: true },
         },
@@ -424,7 +424,7 @@ export class AppsService {
     const updatedApp = await this.prisma.app.update({
       where: { id_app: idApp },
       data: {
-        identificador_app: dto.identificador_app,
+        user_app: dto.user_app,
         info_app: {
           update: {
             nombre: dto.nombre ?? appExistente.info_app?.nombre,
@@ -465,7 +465,7 @@ export class AppsService {
 
     const appExistente = await this.prisma.app.findUnique({
       where: { id_app: idApp },
-      select: { id_app: true, identificador_app: true, key: true },
+      select: { id_app: true, user_app: true, key: true },
     });
 
     if (!appExistente) {
@@ -485,13 +485,13 @@ export class AppsService {
     });
 
     this.logger.log(
-      `Nueva key generada para app id_app=${idApp} identificador=${appExistente.identificador_app} ` +
+      `Nueva key generada para app id_app=${idApp} user_app=${appExistente.user_app} ` +
         `por idAppAdmin=${idAppAdmin}`,
     );
 
     return {
       id_app: appExistente.id_app,
-      identificador_app: appExistente.identificador_app,
+      user_app: appExistente.user_app,
       key,
       mensaje:
         'Se generó una nueva key para la app. Esta key se entrega en claro UNA sola vez ' +
@@ -527,7 +527,7 @@ export class AppsService {
 
     const appExistente = await this.prisma.app.findUnique({
       where: { id_app: idApp },
-      select: { id_app: true, identificador_app: true, encryptionKey: true },
+      select: { id_app: true, user_app: true, encryptionKey: true },
     });
 
     if (!appExistente) {
@@ -641,13 +641,13 @@ export class AppsService {
     }
 
     this.logger.log(
-      `Nueva encryptionKey generada para app id_app=${idApp} identificador=${appExistente.identificador_app} ` +
+      `Nueva encryptionKey generada para app id_app=${idApp} user_app=${appExistente.user_app} ` +
         `por idAppAdmin=${idAppAdmin} (historial re-cifrado)`,
     );
 
     return {
       id_app: appExistente.id_app,
-      identificador_app: appExistente.identificador_app,
+      user_app: appExistente.user_app,
       encryptionKey,
       mensaje:
         'Se generó una nueva encryptionKey para la app y se re-cifró su historial ' +

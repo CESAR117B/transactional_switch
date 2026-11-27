@@ -8,7 +8,7 @@ import { UpdateAppDto } from './update-app.dto';
  * - `idApp`: la app consumidora a actualizar.
  * - `idAppAdmin`: la app administradora que ejecuta la acción (auditoría).
  *   Obligatorio: sin actor identificado no se puede auditar la operación.
- * - `data`: los datos a actualizar (identificador, nombre, desarrollador, ruc, email).
+ * - `data`: los datos a actualizar (user_app, nombre, desarrollador, ruc, email).
  */
 export class ActualizarAppPayloadDto {
   @Type(() => Number)

@@ -15,7 +15,7 @@ import {
 /** Identidad que el ApiKeyGuard global inyecta tras validar el JWT. */
 interface AppAuth {
   id_app?: number;
-  identificador?: string;
+  user_app?: string;
 }
 
 /** Request autenticado: `appAuth` lo agrega ApiKeyGuard en cada petición. */
@@ -60,7 +60,7 @@ export class AppController {
 
     this.logger.debug(
       `Verificación de autenticación OK: ${
-        appAuth.identificador ?? appAuth.id_app
+        appAuth.user_app ?? appAuth.id_app
       }`,
     );
 

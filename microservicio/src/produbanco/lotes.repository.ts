@@ -471,7 +471,7 @@ export class LotesRepository {
     Map<
       number,
       {
-        identificadorApp: string | null;
+        userApp: string | null;
         nombreApp: string | null;
         encryptionKey: string | null;
       }
@@ -485,7 +485,7 @@ export class LotesRepository {
             where: { id_app: { in: ids } },
             select: {
               id_app: true,
-              identificador_app: true,
+              user_app: true,
               encryptionKey: true,
               info_app: { select: { nombre: true } },
             },
@@ -495,7 +495,7 @@ export class LotesRepository {
       apps.map((app) => [
         app.id_app,
         {
-          identificadorApp: app.identificador_app,
+          userApp: app.user_app,
           nombreApp: app.info_app?.nombre ?? null,
           encryptionKey: app.encryptionKey ?? null,
         },

@@ -7,9 +7,9 @@ import { UpdateAppDto } from './update-app.dto';
  * DTO para actualizar los datos de una app consumidora.
  *
  * - `idApp`: la app consumidora a actualizar.
- * - `data`: los datos a actualizar (identificador, nombre, desarrollador, ruc, email).
+ * - `data`: los datos a actualizar (user_app, nombre, desarrollador, ruc, email).
  *    Estructura esperada (viene del DTO UpdateAppDto):
- *    - identificador_app: string (requerido)
+ *    - user_app: string (requerido)
  *    - nombre?: string
  *    - desarrollador?: string
  *    - ruc?: string
@@ -29,9 +29,9 @@ export class ActualizarAppDto {
     description: 'Datos de la app a actualizar.',
     type: 'object',
     properties: {
-      identificador_app: {
+      user_app: {
         type: 'string',
-        description: 'Identificador único de la app (minúsculas, sin espacios).',
+        description: 'user_app único de la app (minúsculas, sin espacios).',
         example: 'mi-app-nueva',
       },
       nombre: {

@@ -3,15 +3,15 @@ import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class LoginDto {
   @ApiProperty({
-    description: 'El identificador único asignado a la aplicación cliente.',
+    description: 'El user_app único asignado a la aplicación cliente.',
     example: 'app_symfony_pay_01',
     type: String,
     required: true,
   })
-  @IsString({ message: 'El identificador_app debe ser una cadena de texto.' })
-  @IsNotEmpty({ message: 'El identificador_app es obligatorio para iniciar sesión.' })
-  @MaxLength(100, { message: 'El identificador_app no puede exceder 100 caracteres.' })
-  identificador_app: string;
+  @IsString({ message: 'El user_app debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El user_app es obligatorio para iniciar sesión.' })
+  @MaxLength(100, { message: 'El user_app no puede exceder 100 caracteres.' })
+  user_app: string;
 
   @ApiProperty({
     description:

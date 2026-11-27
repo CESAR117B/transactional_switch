@@ -8,11 +8,8 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @MessagePattern({ cmd: 'validar_app' })
-  validarApp(@Payload() data: { identificador: string; key: string }) {
-    return this.authService.validarCredencialesApp(
-      data.identificador,
-      data.key,
-    );
+  validarApp(@Payload() data: { user_app: string; key: string }) {
+    return this.authService.validarCredencialesApp(data.user_app, data.key);
   }
 
   /**

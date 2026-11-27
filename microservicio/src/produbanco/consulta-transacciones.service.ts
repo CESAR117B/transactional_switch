@@ -300,7 +300,7 @@ export class ConsultaTransaccionesService {
         return {
           ...this.formatearListado(tx, app?.encryptionKey ?? null, true),
           appId: tx.idApp,
-          appIdentificador: app?.identificadorApp ?? null,
+          appUserApp: app?.userApp ?? null,
           appNombre: app?.nombreApp ?? null,
         };
       }),
@@ -348,7 +348,7 @@ export class ConsultaTransaccionesService {
     return {
       ...this.formatearDetalleTransaccion(tx, secretKey, true),
       appId: tx.idApp,
-      appIdentificador: app?.identificadorApp ?? null,
+      appUserApp: app?.userApp ?? null,
       appNombre: app?.nombreApp ?? null,
       banco,
     };

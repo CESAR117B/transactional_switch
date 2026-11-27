@@ -4,11 +4,11 @@ import { resolverAppAuth } from './app-auth.decorator';
 describe('resolverAppAuth', () => {
   it('devuelve la identidad cuando el guard inyectó id_app', () => {
     const auth = resolverAppAuth({
-      appAuth: { id_app: 7, identificador: 'mi-app' },
+      appAuth: { id_app: 7, user_app: 'mi-app' },
     });
 
     expect(auth.id_app).toBe(7);
-    expect(auth.identificador).toBe('mi-app');
+    expect(auth.user_app).toBe('mi-app');
   });
 
   it('falla con 400 si no hay appAuth', () => {

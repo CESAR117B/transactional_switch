@@ -12,7 +12,7 @@ model app {
   id_app              Int             @id(map: "app_pk") @default(autoincrement())
   key                 String          @unique(map: "app_unique") @db.VarChar(300)
   activo              Boolean?        @default(true)
-  identificador_app   String          @unique(map: "app_unique_1") @db.VarChar(300)
+  user_app            String          @unique(map: "app_unique_1") @db.VarChar(300)
   encryptionKey       String?         @map("encryption_key") @db.VarChar(32)
   app_servicios       app_servicios[]
   info_app            info_app?

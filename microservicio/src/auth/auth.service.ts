@@ -89,15 +89,15 @@ export class AuthService {
     return timingSafeEqual(a, b);
   }
 
-  async validarCredencialesApp(identificador: string, key: string) {
+  async validarCredencialesApp(userApp: string, key: string) {
     // 1. Buscamos la App y viajamos por todas las relaciones hasta llegar al
     //    controlador, aplicando la activación global y por app.
     const app = await this.prisma.app.findUnique({
-      where: { identificador_app: identificador },
+      where: { user_app: userApp },
       include: INCLUDE_PERMISOS_APP,
     });
 
-    // Un SOLO mensaje para no revelar si el identificador existe, si está
+    // Un SOLO mensaje para no revelar si el user_app existe, si está
     // inactiva o si la key está mal (evita enumeración de apps).
     const CREDENCIALES_INVALIDAS = 'Credenciales inválidas';
     if (!app || app.activo === false) {
@@ -127,11 +127,11 @@ export class AuthService {
           data: { key: keyHash },
         });
         this.logger.log(
-          `app.key de ${app.identificador_app} migrada a hash scrypt`,
+          `app.key de ${app.user_app} migrada a hash scrypt`,
         );
       } catch (error: unknown) {
         this.logger.warn(
-          `No se pudo migrar app.key de ${app.identificador_app}: ${
+          `No se pudo migrar app.key de ${app.user_app}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
@@ -140,7 +140,7 @@ export class AuthService {
 
     return {
       id_app: app.id_app,
-      identificador: app.identificador_app,
+      user_app: app.user_app,
       ...this.construirPermisos(app),
     };
   }
@@ -170,7 +170,7 @@ export class AuthService {
 
     return {
       id_app: app.id_app,
-      identificador: app.identificador_app,
+      user_app: app.user_app,
       ...this.construirPermisos(app),
     };
   }
