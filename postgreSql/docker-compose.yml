@@ -11,8 +11,8 @@ services:
       - "55432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-      # Mapea la carpeta back-up a la ruta de inicialización automática de PostgreSQL
-      - ./back-up:/docker-entrypoint-initdb.d:ro
+      # Carpeta de respaldos (se mapea en modo escritura para que pgAdmin pueda guardar copias de seguridad)
+      - ./back-up:/var/lib/postgresql/backups
     networks:
       - postgres_network
 
