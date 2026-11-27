@@ -12,6 +12,9 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # `overrides` con los que se generó el lockfile. Sin él, pnpm usa los
 # `overrides` de package.json y falla con ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+# ← SOLUCIÓN: Borrar lockfile viejo para evitar errores de permisos
+# en entornos Docker donde el usuario no tiene escritura sobre el archivo
+RUN if [ -f pnpm-lock.yaml ]; then rm pnpm-lock.yaml; fi
 RUN pnpm install --frozen-lockfile
 
 # Código, schema Prisma y configuración de build
