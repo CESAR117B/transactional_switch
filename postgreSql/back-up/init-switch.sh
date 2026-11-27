@@ -1,21 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
-echo "=== Creando base de datos 'switch' ==="
+DB_NAME="switch_transaccional"
+DUMP_FILE="/docker-entrypoint-initdb.d/switch_transaccional.dump"
 
-# Crear la base de datos 'switch'
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    CREATE DATABASE switch;
-EOSQL
+DB_EXISTS=$(psql -U "$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'")
 
-echo "=== Copiando backup a /tmp para evitar problemas de permisos ==="
-cp /docker-entrypoint-initdb.d/switch_transaccional.dump /tmp/switch.dump
-chmod 666 /tmp/switch.dump
+if [ "$DB_EXISTS" != "1" ]; then
+  echo "Creando base de datos ${DB_NAME}..."
+  psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE \"${DB_NAME}\";"
+fi
 
-echo "=== Restaurando base de datos 'switch' ==="
-pg_restore --username "$POSTGRES_USER" --dbname "switch" --verbose /tmp/switch.dump || true
-
-# Limpieza
-rm -f /tmp/switch.dump
-
-echo "=== Restauración completada ==="
+if [ -f "$DUMP_FILE" ]; then
+  echo "Restaurando ${DUMP_FILE} en ${DB_NAME}..."
+  pg_restore -U "$POSTGRES_USER" -d "${DB_NAME}" --no-owner --no-privileges "$DUMP_FILE"
+fi

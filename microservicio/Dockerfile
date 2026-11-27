@@ -24,7 +24,6 @@ COPY src ./src
 # exige y el .env real queda fuera de la imagen (.dockerignore).
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" pnpm exec prisma generate
 # Push del schema a la BD de build (útil para que el cliente esté consistente)
-RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" pnpm exec prisma db push
 RUN pnpm run build
 
 # --- Etapa de runtime ---
