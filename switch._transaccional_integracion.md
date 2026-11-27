@@ -95,7 +95,7 @@ La respuesta devuelve **una sola vez**:
   "id_app": 25,
   "user_app": "app-externa",
   "key": "<app_key>",
-  "encryptionKey": "<encryptionKey>",
+  "encryption_key": "<encryption_key>",
   "servicios": []
 }
 ```
@@ -121,7 +121,7 @@ Content-Type: application/json
 
 ```json
 {
-  "idApp": 25,
+  "app_id": 25,
   "codigos": ["<CODIGO_SERVICIO_1>", "<CODIGO_SERVICIO_2>"]
 }
 ```
@@ -299,7 +299,7 @@ curl -s -X POST "$BASE_URL/admin/registrar_app" \
 curl -s -X POST "$BASE_URL/admin/asignar-servicios-app" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"idApp":<id_app_devuelto>,"codigos":["<CODIGO_SERVICIO>"]}'
+  -d '{"app_id":<app_id_devuelto>,"codigos":["<CODIGO_SERVICIO>"]}'
 
 # 4. Login de la app de prueba con las credenciales devueltas en el paso 2
 APP_TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" \
@@ -443,19 +443,19 @@ Las respuestas de los endpoints de app cliente
 
 | Campo | ¿Cliente? | ¿Admin? |
 |---|---|---|
-| `idTransaccion` | ❌ | ✅ |
+| `id_transaccion` | ❌ | ✅ |
 | `operacion` | ❌ | ✅ |
 | `status` | ❌ | ✅ |
-| `estadoTransaccion` | ❌ | ✅ |
-| `cargaRespuestaBanco` | ❌ | ✅ |
-| `referenciaLote` | ✅ | ✅ |
-| `statusServicio` | ✅ | ✅ |
-| `codigoBanco`, `mensajeBanco`, `fechaConsultaBanco` | ✅ | ✅ |
-| `envioId`, `errorMessage`, `fechaCreacion` | ✅ | ✅ |
-| `beneficiario*`, `registros`, `montoTotal`, `estadosDetalle`, `detalles` | ✅ | ✅ |
-| `entregados`, `entregaEfectiva`, `detalles[].entregaEfectiva` | ✅ | ✅ |
+| `estado_transaccion` | ❌ | ✅ |
+| `carga_respuesta_banco` | ❌ | ✅ |
+| `referencia_lote` | ✅ | ✅ |
+| `status_servicio` | ✅ | ✅ |
+| `codigo_banco`, `mensaje_banco`, `fecha_consulta_banco` | ✅ | ✅ |
+| `envio_id`, `error_message`, `fecha_creacion` | ✅ | ✅ |
+| `beneficiario*`, `registros`, `monto_total`, `estados_detalle`, `detalles` | ✅ | ✅ |
+| `entregados`, `entrega_efectiva`, `detalles[].entrega_efectiva` | ✅ | ✅ |
 
-El cliente identifica la operación por `referenciaLote`, no por `idTransaccion`.
+El cliente identifica la operación por `referencia_lote`, no por `id_transaccion`.
 Los campos internos sólo aparecen en:
 
 - `GET /admin/produbanco/transacciones`
@@ -463,14 +463,14 @@ Los campos internos sólo aparecen en:
 
 Fuera de esos cinco campos internos, **la respuesta del admin es la misma que
 la del cliente**, y le agrega sólo metadatos de la app
-(`appId`, `appUserApp`, `appNombre`) y, en el detalle, `banco` con la
+(`app_id`, `app_user_app`, `app_nombre`) y, en el detalle, `banco` con la
 respuesta en vivo. Así un mismo consumidor puede reutilizar el parseo entre
 ambos endpoints.
 
 #### Cómo saber si la operación salió bien
 
 Para la app cliente, el **único** indicador de estado de la cabecera es
-`statusServicio`. El campo numérico `status` y el estado verbatim del banco
+`status_servicio`. El campo numérico `status` y el estado verbatim del banco
 (`estadoTransaccion`) son internos y sólo los ve el admin.
 
 Valores posibles de `statusServicio`:
@@ -532,12 +532,12 @@ Ejemplo de un ítem entregado:
   "secuencia": 1,
   "nombre": "JUAN PEREZ",
   "cuenta": "2203456789",
-  "bancoCodigo": "0102",
+  "banco_codigo": "0102",
   "monto": 5,
   "estadoItem": "ENTREGADO OK",
   "entregaEfectiva": true,
-  "codigoRespuesta": "00",
-  "mensajeBanco": "PROCESADO OK"
+  "codigo_respuesta": "00",
+  "mensaje_banco": "PROCESADO OK"
 }
 ```
 
@@ -556,10 +556,10 @@ Reglas para el cliente:
 
 | Caso | Respuesta |
 |---|---|
-| `dato` vacío | `400` — `dato es requerido (idTransaccion o referenciaLote)` |
+| `dato` vacío | `400` — `dato es requerido (id_transaccion o referencia_lote)` |
 | Referencia inexistente o de otra app | `404` — `Transacción no encontrada.` |
 | Falta `X-Encryption-Key` | `400` |
-| `encryptionKey` inválida | `401`/`403` según validación de credenciales |
+| `encryption_key` inválida | `401`/`403` según validación de credenciales |
 
 ---
 

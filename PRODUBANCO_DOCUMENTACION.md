@@ -71,10 +71,10 @@ con la llave registrada.
 | `POST` | `/tramas-produbanco/transferencia-nacional` | Pago a otros bancos nacionales |
 | `POST` | `/tramas-produbanco/transferencia-internacional` | Pago al exterior (Transfer Full) |
 | `GET` | `/tramas-produbanco/transacciones` | Listar transacciones (paginado) |
-| `GET` | `/tramas-produbanco/transacciones/estado/:dato` | Estado en vivo por `referenciaLote` (cifrada o en claro) |
+| `GET` | `/tramas-produbanco/transacciones/estado/:dato` | Estado en vivo por `referencia_lote` (cifrada o en claro) |
 
 > **Lo que NO se envía** (lo inyecta el back): `cuentaEmpresa`,
-> `tipoCuentaEmpresa`, `empresa`, `idEmpresa` y `referenciaLote`.
+> `tipo_cuenta_empresa`, `empresa`, `id_empresa` y `referencia_lote`.
 > Sólo se envía la data del pago.
 
 La app cliente **no** recibe `idTransaccion` ni los demás campos internos: su
@@ -93,16 +93,16 @@ POST /tramas-produbanco/transferencia-nacional
 ```json
 {
   "servicio": "PV",
-  "idServicio": "75",
+  "id_servicio": "75",
   "detalles": [
     {
       "tipoId": "C",
       "identificacion": "1723456789",
       "nombre": "Juan Pérez",
-      "formaPago": "SPI",
-      "tipoCuenta": "CTE",
+      "forma_pago": "SPI",
+      "tipo_cuenta": "CTE",
       "cuenta": "0036001234567890",
-      "bancoCodigo": "0036",
+      "banco_codigo": "0036",
       "monto": 150.75,
       "referencia": "FAC-00123",
       "email": "jperez@email.com"
@@ -113,13 +113,13 @@ POST /tramas-produbanco/transferencia-nacional
 
 | Campo | Notas |
 |-------|-------|
-| `servicio` / `idServicio` | Obligatorios; los asigna Produbanco por operación (PV/75 = pago interbancario) |
-| `formaPago` | `CTA` cuenta Produbanco · `SPI` otro banco · `CHQ` cheque · `EFE` ventanilla |
-| `tipoCuenta` / `cuenta` / `bancoCodigo` | Obligatorios si `formaPago` es `CTA` o `SPI` |
+| `servicio` / `id_servicio` | Obligatorios; los asigna Produbanco por operación (PV/75 = pago interbancario) |
+| `forma_pago` | `CTA` cuenta Produbanco · `SPI` otro banco · `CHQ` cheque · `EFE` ventanilla |
+| `tipo_cuenta` / `cuenta` / `banco_codigo` | Obligatorios si `forma_pago` es `CTA` o `SPI` |
 | `referencia` | **Obligatoria**: número de factura que tu sistema genera (va al banco como referencia del pago) |
 | `fechaInicio` / `fechaVencimiento` | **No se envían**: el microservicio genera la vigencia del sobre automáticamente (hoy → hoy + 1) y la incluye en la trama al banco |
 
-> Los valores válidos de `tipoId`, `formaPago`, `tipoCuenta`, `moneda` y los
+> Los valores válidos de `tipo_id`, `forma_pago`, `tipo_cuenta`, `moneda` y los
 > códigos de banco para `bancoCodigo` están en la **sección 10** (Catálogos de
 > códigos).
 
@@ -127,26 +127,26 @@ POST /tramas-produbanco/transferencia-nacional
 
 ```json
 {
-  "referenciaLote": "OWFiYzoxYWJjZGVm[…]",
-  "montoTotal": 150.75
+  "referencia_lote": "OWFiYzoxYWJjZGVm[…]",
+  "monto_total": 150.75
 }
 ```
 
-> **`referenciaLote` viene ENRIPTADA** con la `encryptionKey` de tu app (no la
+> **`referencia_lote` viene ENRIPTADA** con la `encryption_key` de tu app (no la
 > desencripta el back al responder): guárdala tal cual en tu base de datos y
 > desencripta tú localmente cuando la necesites en claro. Su formato en claro
 > es `NOMBREAPP-{secuencia}-{yyyyMMddHHmmss}-{4 hex}` (ej:
 > `TIENDA-00001-20261016143052-a3f9`) y su valor cifrado es
 > `IV:AuthTag:Texto` (base64 separado por `:`).
 
-> **Ya NO se devuelven** `exito`, `idTransaccion`, `envioId` ni
-> `totalRegistros`: la respuesta se limita a `referenciaLote` y
-> `montoTotal`. Para obtener `envioId` consulta el listado (sección 5) o el
+> **Ya NO se devuelven** `exito`, `id_transaccion`, `envio_id` ni
+> `total_registros`: la respuesta se limita a `referencia_lote` y
+> `monto_total`. Para obtener `envio_id` consulta el listado (sección 5) o el
 > estado (sección 6) — esos sí lo incluyen.
 >
-> **`idTransaccion` no se expone a la app cliente**: es un identificador
+> **`id_transaccion` no se expone a la app cliente**: es un identificador
 > interno que sólo ve la consulta administrativa (sección 9). Guarda la
-> `referenciaLote` y úsala como identificador de la operación y como `:dato`
+> `referencia_lote` y úsala como identificador de la operación y como `:dato`
 > en la consulta de estado.
 
 > **Anti-duplicado (`429`):** se rechaza la transacción si la misma app ya
@@ -165,22 +165,22 @@ POST /tramas-produbanco/transferencia-internacional
 ```json
 {
   "servicio": "PE",
-  "idServicio": "80",
+  "id_servicio": "80",
   "detalles": [
     {
-      "tipoId": "P",
+      "tipo_id": "P",
       "identificacion": "AB123456",
-      "tipoCuenta": "CTE",
-      "beneficiarioNombre": "John Smith",
-      "beneficiarioDireccion": "123 Main St, New York, USA",
-      "beneficiarioCuenta": "DE89370400440532013000",
-      "bancoDestinoNombre": "Citibank N.A.",
-      "bancoDestinoDireccion": "111 Wall Street, New York, USA",
-      "codigoSwiftAba": "CITIUS33",
+      "tipo_cuenta": "CTE",
+      "beneficiario_nombre": "John Smith",
+      "beneficiario_direccion": "123 Main St, New York, USA",
+      "beneficiario_cuenta": "DE89370400440532013000",
+      "banco_destino_nombre": "Citibank N.A.",
+      "banco_destino_direccion": "111 Wall Street, New York, USA",
+      "codigo_swift_aba": "CITIUS33",
       "monto": 1500.50,
-      "motivoTransferencia": "106,0",
+      "motivo_transferencia": "106,0",
       "moneda": "USD",
-      "tipoComision": "SHA",
+      "tipo_comision": "SHA",
       "referencia": "FAC-00456"
     }
   ]
@@ -190,11 +190,11 @@ POST /tramas-produbanco/transferencia-internacional
 | Campo | Notas |
 |-------|-------|
 | `fechaInicio` / `fechaVencimiento` | **No se envían**: el microservicio genera la vigencia del sobre automáticamente (hoy → hoy + 1) y la incluye en la trama al banco |
-| `motivoTransferencia` | **Obligatoria**: `codigo,ejención` según catalogo SIB (ej: `106,0` = sin exención) |
-| `codigoSwiftAba` | SWIFT/BIC o ABA del banco destino, 8–11 mayusculas |
+| `motivo_transferencia` | **Obligatoria**: `codigo,ejención` según catalogo SIB (ej: `106,0` = sin exención) |
+| `codigo_swift_aba` | SWIFT/BIC o ABA del banco destino, 8–11 mayusculas |
 | `moneda` | ISO-3, default `USD` |
-| `tipoComision` | `OUR` ordenante · `BEN` beneficiario · `SHA` compartida |
-| `referencia` | Opcional (máx. 50); si falta, el back usa la `referenciaLote` generada |
+| `tipo_comision` | `OUR` ordenante · `BEN` beneficiario · `SHA` compartida |
+| `referencia` | Opcional (máx. 50); si falta, el back usa la `referencia_lote` generada |
 
 Misma respuesta que el pago nacional. Requiere **habilitación por contrato**
 con Produbanco para transferencias al exterior. El límite anti-duplicado de
@@ -224,7 +224,7 @@ Produbanco de **tu app**.
 
 | Parámetro | Ejemplo | Comportamiento |
 |-----------|---------|----------------|
-| `fechaDesde` / `fechaHasta` | `?fechaDesde=01/10/2026&fechaHasta=19/10/2026` | Formato `DD/MM/YYYY`, rango **inclusivo** de día completo en **horario Ecuador** (UTC-5). `400` si el formato es inválido, la fecha no existe (ej: `31/02`) o `fechaDesde > fechaHasta` |
+| `fecha_desde` / `fecha_hasta` | `?fecha_desde=01/10/2026&fecha_hasta=19/10/2026` | Formato `DD/MM/YYYY`, rango **inclusivo** de día completo en **horario Ecuador** (UTC-5). `400` si el formato es inválido, la fecha no existe (ej: `31/02`) o `fecha_desde > fecha_hasta` |
 | `cedula` | `?cedula=1723456789` | Match **exacto normalizado** (sin espacios ni guiones, mayúsculas): `04018 85397` también coincide con `0401885397` |
 | `cuenta` | `?cuenta=DE89370400440532013000` | Ídem exacto normalizado: un IBAN con espacios (`DE89 3704...`) también coincide |
 
@@ -241,8 +241,8 @@ Produbanco de **tu app**.
   "totalPages": 1,
   "items": [
     {
-      "referenciaLote": "TIENDA-00001-20261016143052-a3f9",
-      "statusServicio": "PROCESADO_BANCO",
+      "referencia_lote": "TIENDA-00001-20261016143052-a3f9",
+      "status_servicio": "PROCESADO_BANCO",
       "codigoBanco": null,
       "mensajeBanco": null,
       "fechaConsultaBanco": "15/10/2026 10:30:00",
@@ -254,8 +254,8 @@ Produbanco de **tu app**.
       "registros": 1,
       "montoTotal": 150.75,
       "entregados": 0,
-      "entregaEfectiva": false,
-      "estadosDetalle": { "Pendiente de envio por el banco": 1 }
+      "entrega_efectiva": false,
+      "estados_detalle": { "Pendiente de envio por el banco": 1 }
     }
   ]
 }
@@ -302,17 +302,17 @@ administrativa (`/admin/produbanco/transacciones/estado/:dato`, sección 9).
 {
   "referenciaLote": "TIENDA-00001-20261016143052-a3f9",
   "statusServicio": "PROCESADO_BANCO",
-  "codigoBanco": "0000",
-  "mensajeBanco": "CONSULTA EXITOSA",
-  "fechaConsultaBanco": "16/10/2026 09:15:00",
+  "codigo_banco": "0000",
+  "mensaje_banco": "CONSULTA EXITOSA",
+  "fecha_consulta_banco": "16/10/2026 09:15:00",
   "envioId": "12345678",
-  "errorMessage": null,
-  "fechaCreacion": "2026-10-15T10:00:00.000Z",
+  "error_message": null,
+  "fecha_creacion": "2026-10-15T10:00:00.000Z",
   "totales": {
     "registros": 1,
     "montoTotal": 150.75,
     "entregados": 1,
-    "entregaEfectiva": true
+    "entrega_efectiva": true
   },
   "detalles": [
     {
@@ -321,22 +321,22 @@ administrativa (`/admin/produbanco/transacciones/estado/:dato`, sección 9).
       "identificacion": "1723456789",
       "nombre": "Juan Pérez",
       "cuenta": "0036001234567890",
-      "bancoCodigo": "0036",
-      "formaPago": "SPI",
+      "banco_codigo": "0036",
+      "forma_pago": "SPI",
       "monto": 150.75,
       "moneda": "USD",
       "referenciaDocumento": "FAC-00123",
       "estadoItem": "ENTREGADO OK",
       "entregaEfectiva": true,
-      "codigoRespuesta": "0000",
-      "mensajeBanco": "PAGO PROCESADO"
+      "codigo_respuesta": "0000",
+      "mensaje_banco": "PAGO PROCESADO"
     }
   ]
 }
 ```
 
-> **Campos que NO se devuelven a la app cliente:** `idTransaccion`,
-> `operacion`, `status`, `estadoTransaccion` y `cargaRespuestaBanco`. Son
+> **Campos que NO se devuelven a la app cliente:** `id_transaccion`,
+> `operacion`, `status`, `estado_transaccion` y `cargaRespuestaBanco`. Son
 > internos y sólo aparecen en la consulta administrativa (sección 9). El
 > mismo criterio aplica al listado (sección 5).
 
@@ -345,7 +345,7 @@ administrativa (`/admin/produbanco/transacciones/estado/:dato`, sección 9).
 Para la app cliente, el **único** indicador de estado de la cabecera es
 `statusServicio`:
 
-| `statusServicio` | Significado | Qué hacer |
+| `status_servicio` | Significado | Qué hacer |
 |---|---|---|
 | `PENDIENTE` | Enviada, aún sin respuesta definitiva del banco | Consultar más tarde; **no** reenviar |
 | `PROCESADO_BANCO` | **La operación fue procesada por el banco** | Éxito del lote: revisar `detalles[]` |
@@ -354,9 +354,9 @@ Para la app cliente, el **único** indicador de estado de la cabecera es
 | `DESCONOCIDO` | Estado no mapeado (dato legado) | Tratar como `INCIERTO` y consultar |
 
 ```text
-statusServicio === "PROCESADO_BANCO"                       → operación exitosa
-statusServicio === "PENDIENTE" | "INCIERTO" | "DESCONOCIDO" → volver a consultar
-statusServicio === "ERROR"                                 → falló; no reintentar sin corregir
+status_servicio === "PROCESADO_BANCO"                       → operación exitosa
+status_servicio === "PENDIENTE" | "INCIERTO" | "DESCONOCIDO" → volver a consultar
+status_servicio === "ERROR"                                 → falló; no reintentar sin corregir
 ```
 
 > `PROCESADO_BANCO` indica que el **lote** fue procesado. El resultado de cada
@@ -368,8 +368,8 @@ Otros campos públicos:
 | Campo | Significado |
 |-------|-------------|
 | `estadoItem` (detalle) | Estado **verbatim de Produbanco** por pago dentro del lote (`Pendiente de envio por el banco`, `Aplica al banco`, `PROCESO OK`, `ENTREGADO OK`, `PROCESADAS ERROR`, ...). Se devuelve sin interpretar. |
-| `codigoBanco` / `mensajeBanco` | Último código/mensaje de la consulta al banco (`0005` = aún sin datos) |
-| `envioId` | Identificador del sobre en Produbanco, para trazabilidad |
+| `codigo_banco` / `mensaje_banco` | Último código/mensaje de la consulta al banco (`0005` = aún sin datos) |
+| `envio_id` | Identificador del sobre en Produbanco, para trazabilidad |
 
 ### Entrega efectiva del dinero
 
