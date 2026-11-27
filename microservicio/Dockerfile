@@ -32,7 +32,7 @@ COPY --chown=node:node --from=build /app/prisma.config.ts ./prisma.config.ts
 
 RUN chown -R node:node /app
 
-EXPOSE .env.PORT
+EXPOSE 3001
 
 USER node
 
