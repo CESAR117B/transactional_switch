@@ -7,7 +7,7 @@ export class ServicioController {
   constructor(private servicios: ServiciosService) {}
 
   @MessagePattern({ cmd: 'get_servicios' })
-  getServicios(@Payload() appID: number) {
-    return this.servicios.getServicios(appID);
+  getServicios(@Payload() payload: { id_app: number }) {
+    return this.servicios.getServicios(payload.id_app);
   }
 }

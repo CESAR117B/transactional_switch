@@ -5,8 +5,8 @@ import { IsInt, Min } from 'class-validator';
 /**
  * DTO para solicitar una nueva key para una app consumidora.
  *
- * - `idApp`: la app consumidora objetivo para la cual se generará la nueva key.
- * - `idAppAdmin`: la app administradora que ejecuta la acción (obtenido del token JWT).
+ * - `id_app`: la app consumidora objetivo para la cual se generará la nueva key.
+ * - `id_app_admin`: la app administradora que ejecuta la acción (obtenido del token JWT).
  */
 export class NuevokeyAppDto {
   @ApiProperty({
@@ -14,7 +14,7 @@ export class NuevokeyAppDto {
     example: 1,
   })
   @Type(() => Number)
-  @IsInt({ message: 'idApp debe ser un entero' })
-  @Min(1, { message: 'idApp debe ser mayor a 0' })
-  idApp: number;
+  @IsInt({ message: 'id_app debe ser un entero' })
+  @Min(1, { message: 'id_app debe ser mayor a 0' })
+  id_app: number;
 }

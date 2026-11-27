@@ -6,7 +6,7 @@ import { UpdateAppDto } from './update-app.dto';
 /**
  * DTO para actualizar los datos de una app consumidora.
  *
- * - `idApp`: la app consumidora a actualizar.
+ * - `id_app`: la app consumidora a actualizar.
  * - `data`: los datos a actualizar (user_app, nombre, desarrollador, ruc, email).
  *    Estructura esperada (viene del DTO UpdateAppDto):
  *    - user_app: string (requerido)
@@ -21,9 +21,9 @@ export class ActualizarAppDto {
     example: 1,
   })
   @Type(() => Number)
-  @IsInt({ message: 'idApp debe ser un entero' })
-  @Min(1, { message: 'idApp debe ser mayor a 0' })
-  idApp: number;
+  @IsInt({ message: 'id_app debe ser un entero' })
+  @Min(1, { message: 'id_app debe ser mayor a 0' })
+  id_app: number;
 
   @ApiProperty({
     description: 'Datos de la app a actualizar.',

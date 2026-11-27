@@ -227,7 +227,7 @@ export function hashContenidoLote(
   data: CrearPagoLoteDto | CrearTransferenciaLoteDto,
 ): string {
   const contenido = JSON.stringify(data, (key: string, value: unknown) =>
-    key === 'referenciaLote' ? undefined : value,
+    key === 'referencia_lote' ? undefined : value,
   );
   return sha256(contenido);
 }

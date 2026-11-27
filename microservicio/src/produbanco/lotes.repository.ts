@@ -173,17 +173,17 @@ export class LotesRepository {
 
   /** Respuesta pública de una transacción ya confirmada por el banco. */
   respuestaDeTransaccion(tx: TxConDetalles): {
-    referenciaLote: string;
-    montoTotal: number;
+    referencia_lote: string;
+    monto_total: number;
   } {
     const req = comoObjeto(tx.requestPayload);
     const detalles = Array.isArray(req['detalles']) ? req['detalles'] : [];
     // Montos como Decimal, no como float: la respuesta se devuelve igual como
     // número con 2 decimales.
-    const montoTotal = sumarMontos(
+    const monto_total = sumarMontos(
       detalles.map((detalle) => comoObjeto(detalle)['monto']),
     );
-    return { referenciaLote: tx.reference, montoTotal };
+    return { referencia_lote: tx.reference, monto_total };
   }
 
   // ==========================================
@@ -202,10 +202,10 @@ export class LotesRepository {
   ) {
     const secretKey = await this.getEncryptionKey(idApp);
     const referenceEncrypted = this.universalCryptoService.encrypt(
-      data.referenciaLote ?? '',
+      data.referencia_lote ?? '',
       secretKey,
     );
-    const referenceHash = sha256(data.referenciaLote ?? '');
+    const referenceHash = sha256(data.referencia_lote ?? '');
     const payloadCifrado = cifrarPayloadPago(
       data,
       referenceEncrypted,
@@ -255,10 +255,10 @@ export class LotesRepository {
   ) {
     const secretKey = await this.getEncryptionKey(idApp);
     const referenceEncrypted = this.universalCryptoService.encrypt(
-      data.referenciaLote ?? '',
+      data.referencia_lote ?? '',
       secretKey,
     );
-    const referenceHash = sha256(data.referenciaLote ?? '');
+    const referenceHash = sha256(data.referencia_lote ?? '');
     const payloadCifrado = cifrarPayloadTransferencia(
       data,
       referenceEncrypted,
@@ -383,7 +383,7 @@ export class LotesRepository {
   /**
    * Resuelve una transacción de Produbanco por un único campo `dato` SIN
    * acotar a una app (uso administrativo): si es numérico se intenta como
-   * idTransaccion y, si no existe, como referenciaLote (y viceversa).
+   * idTransaccion y, si no existe, como referencia_lote (y viceversa).
    * Solo permite operaciones de Produbanco (PAGO o TRANSFERENCIA_EXTERIOR).
    */
   async buscarTransaccionPorDato(
@@ -396,7 +396,7 @@ export class LotesRepository {
     if (!dato) {
       throw new RpcException({
         statusCode: 400,
-        message: 'Se requiere el campo dato (idTransaccion o referenciaLote).',
+        message: 'Se requiere el campo dato (idTransaccion o referencia_lote).',
       });
     }
 

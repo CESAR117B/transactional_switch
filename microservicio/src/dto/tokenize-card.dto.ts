@@ -46,5 +46,5 @@ export class TokenizeCardDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  idempotencyKey?: string;
+  idempotency_key?: string;
 }

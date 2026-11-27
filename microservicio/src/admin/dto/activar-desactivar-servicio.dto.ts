@@ -11,11 +11,11 @@ import { Type } from 'class-transformer';
 export class ActivarDesactivarServicioDto {
   @IsNotEmpty({ message: 'El ID del servicio es obligatorio' })
   @Type(() => Number)
-  idServicio: number;
+  id_servicio: number;
 
   /** App administradora que ejecuta la acción (auditoría). Obligatorio. */
   @Type(() => Number)
-  @IsInt({ message: 'idAppAdmin debe ser un entero' })
-  @Min(1, { message: 'idAppAdmin debe ser mayor a 0' })
-  idAppAdmin: number;
+  @IsInt({ message: 'id_app_admin debe ser un entero' })
+  @Min(1, { message: 'id_app_admin debe ser mayor a 0' })
+  id_app_admin: number;
 }

@@ -59,8 +59,8 @@ describe('idempotencia de lotes', () => {
     } as any);
 
     expect(respuesta).toEqual({
-      referenciaLote: 'ref-cifrada',
-      montoTotal: 13.75,
+      referencia_lote: 'ref-cifrada',
+      monto_total: 13.75,
     });
   });
 
@@ -77,7 +77,7 @@ describe('idempotencia de lotes', () => {
         },
         1,
       ),
-    ).resolves.toEqual({ referenciaLote: 'ref-cifrada', montoTotal: 5 });
+    ).resolves.toEqual({ referencia_lote: 'ref-cifrada', monto_total: 5 });
   });
 
   it('el hash de contenido ignora la referencia del lote', () => {
@@ -87,8 +87,8 @@ describe('idempotencia de lotes', () => {
       detalles: [{ monto: 1 }],
     };
 
-    expect(hashContenidoLote({ ...base, referenciaLote: 'A' } as any)).toBe(
-      hashContenidoLote({ ...base, referenciaLote: 'B' } as any),
+    expect(hashContenidoLote({ ...base, referencia_lote: 'A' } as any)).toBe(
+      hashContenidoLote({ ...base, referencia_lote: 'B' } as any),
     );
   });
 
@@ -225,3 +225,4 @@ describe('idempotencia de lotes', () => {
     ).toThrow(RpcException);
   });
 });
+

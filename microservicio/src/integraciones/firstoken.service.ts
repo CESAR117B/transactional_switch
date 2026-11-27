@@ -280,12 +280,12 @@ export class FirstokenService {
     const operation =
       tipo === 'TEMPORAL' ? 'TEMPORAL_TOKEN_CARD' : 'PERMANENT_TOKEN_CARD';
     const idempotencyKey = this.normalizarIdempotencyKey(
-      datosTarjeta.idempotencyKey,
+      datosTarjeta.idempotency_key,
     );
 
     // Payload que viaja a Firstoken: nunca incluye la llave local ni
     // `temporal`. El CVV sólo aplica al flujo temporal.
-    const { temporal, card_cvv, idempotencyKey: _key, ...resto } = datosTarjeta;
+    const { temporal, card_cvv, idempotency_key: _key, ...resto } = datosTarjeta;
     const payloadLimpio: JsonObject =
       tipo === 'TEMPORAL' ? { ...resto, card_cvv } : resto;
     const requestHash = this.hashContenidoTarjeta(payloadLimpio);
@@ -455,3 +455,4 @@ export class FirstokenService {
     }
   }
 }
+

@@ -23,7 +23,7 @@ const KEY_LONGITUD_BYTES = 24;
 const SERVICIO_AUDITORIA_ADMIN = 'ADMIN_APPS';
 
 /** Campos de credenciales que NUNCA deben quedar en la auditoría. */
-const CAMPOS_SECRETOS_AUDITORIA = ['key', 'encryptionKey'];
+const CAMPOS_SECRETOS_AUDITORIA = ['key', 'encryption_key', 'encryptionKey'];
 
 /**
  * Funciones administrativas sobre la tabla `app`.
@@ -252,7 +252,7 @@ export class AppsService {
         user_app: creada.user_app,
         activo: creada.activo,
         key,
-        encryptionKey,
+        encryption_key: encryptionKey,
         info_app: creada.info_app,
         servicios: [] as number[],
         mensaje:
@@ -438,7 +438,16 @@ export class AppsService {
       include: { info_app: true },
     });
 
-    return updatedApp;
+    return {
+      id_app: updatedApp.id_app,
+      user_app: updatedApp.user_app,
+      activo: updatedApp.activo,
+      key: updatedApp.key,
+      encryption_key: updatedApp.encryptionKey,
+      fecha_creacion: updatedApp.fecha_creacion,
+      fecha_actualizacion: updatedApp.fecha_actualizacion,
+      info_app: updatedApp.info_app,
+    };
   }
 
   async nuevokeyApp(idApp: number, idAppAdmin: number) {
@@ -648,7 +657,7 @@ export class AppsService {
     return {
       id_app: appExistente.id_app,
       user_app: appExistente.user_app,
-      encryptionKey,
+      encryption_key: encryptionKey,
       mensaje:
         'Se generó una nueva encryptionKey para la app y se re-cifró su historial ' +
         '(tarjetas, referencias y detalles bancarios). La key se entrega en claro UNA sola vez; ' +
@@ -707,7 +716,11 @@ export class AppsService {
       unknown
     >;
 
-    for (const campo of ['cuentaEmpresa', 'referenciaLote']) {
+    for (const campo of [
+      'cuentaEmpresa',
+      'referencia_lote',
+      'referenciaLote',
+    ]) {
       const valor = copia[campo];
       if (typeof valor === 'string') {
         copia[campo] = this.reCifrarTexto(valor, llaveAnterior, llaveNueva);
@@ -723,7 +736,9 @@ export class AppsService {
         for (const campo of [
           'identificacion',
           'cuenta',
+          'beneficiario_cuenta',
           'beneficiarioCuenta',
+          'codigo_swift_aba',
           'codigoSwiftAba',
         ]) {
           const valor = item[campo];
@@ -783,8 +798,8 @@ export class AppsService {
         entidadId: idApp,
         requestPayload: { idApp, idAppAdmin, codigos: codigosUniq },
         responsePayload: (result) => ({
-          idApp,
-          codigosAsignados: result,
+          id_app: idApp,
+          codigos_asignados: result,
         }),
         statusExito: 200,
       },
@@ -887,7 +902,7 @@ export class AppsService {
         requestPayload: { idServicio, idAppAdmin },
         statusExito: 200,
         responsePayload: (result) => ({
-          idServicio: result.id_servicio,
+          id_servicio: result.id_servicio,
           codigo: result.codigo,
           activo: result.activo,
         }),
@@ -972,9 +987,9 @@ export class AppsService {
           codigos: codigosUniq,
         },
         responsePayload: (result) => ({
-          idApp,
-          codigosDesasignados: result.codigosDesasignados,
-          serviciosRestantes: result.serviciosRestantes,
+          id_app: idApp,
+          codigos_desasignados: result.codigosDesasignados,
+          servicios_restantes: result.serviciosRestantes,
         }),
         statusExito: 200,
       },
@@ -1082,7 +1097,7 @@ export class AppsService {
           activo,
         },
         responsePayload: (result) => ({
-          idApp,
+          id_app: idApp,
           codigo: result.codigo,
           activo: result.activo,
         }),

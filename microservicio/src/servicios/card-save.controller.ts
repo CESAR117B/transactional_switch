@@ -10,10 +10,10 @@ export class CardSaveController {
 
   @MessagePattern({ cmd: 'save_card' })
   async saveCard(@Payload() payload: SaveCardInternalDto) {
-    // Magia de TypeScript: extraemos idApp y metemos el resto en cardData
-    const { idApp, ...cardData } = payload;
+    // Magia de TypeScript: extraemos id_app y metemos el resto en cardData
+    const { id_app, ...cardData } = payload;
 
     // Le pasamos los dos parámetros por separado a tu servicio
-    return await this.cardSaveService.saveCard(idApp, cardData);
+    return await this.cardSaveService.saveCard(id_app, cardData);
   }
 }

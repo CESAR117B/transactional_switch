@@ -81,7 +81,7 @@ export class TramasProdubancoService {
       config,
       fechasVigenciaSobre(),
     );
-    datos.referenciaLote = await this.lotes.generarReferenciaLote(idApp);
+    datos.referencia_lote = await this.lotes.generarReferenciaLote(idApp);
     this.tramaBuilder.validarLotePago(datos);
     // Límite anti-duplicado: mismo monto + misma cuenta beneficiario en la
     // misma app dentro de la ventana (409). Antes de persistir: un
@@ -152,8 +152,8 @@ export class TramasProdubancoService {
       // transaccion.reference es el referenceEncrypted ya persistido; NO se
       // re-cifra aquí (el IV es aleatorio y no coincidiría).
       return {
-        referenciaLote: transaccion.reference,
-        montoTotal: sumarMontos(data.detalles.map((item) => item.monto)),
+        referencia_lote: transaccion.reference,
+        monto_total: sumarMontos(data.detalles.map((item) => item.monto)),
       };
     } catch (error: unknown) {
       const info = infoErrorConBanco(error);
@@ -207,12 +207,12 @@ export class TramasProdubancoService {
       config,
       fechasVigenciaSobre(),
     );
-    datos.referenciaLote = await this.lotes.generarReferenciaLote(idApp);
+    datos.referencia_lote = await this.lotes.generarReferenciaLote(idApp);
     this.tramaBuilder.validarLoteTransferencia(datos);
     await this.lotes.validarDuplicadosRecientes(
       idApp,
       datos.detalles.map((item) => ({
-        cuenta: item.beneficiarioCuenta,
+        cuenta: item.beneficiario_cuenta,
         monto: item.monto,
       })),
     );
@@ -267,8 +267,8 @@ export class TramasProdubancoService {
       );
 
       return {
-        referenciaLote: transaccion.reference,
-        montoTotal: sumarMontos(data.detalles.map((item) => item.monto)),
+        referencia_lote: transaccion.reference,
+        monto_total: sumarMontos(data.detalles.map((item) => item.monto)),
       };
     } catch (error: unknown) {
       const info = infoErrorConBanco(error);

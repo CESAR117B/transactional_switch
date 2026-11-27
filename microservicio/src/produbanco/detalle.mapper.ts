@@ -37,15 +37,15 @@ export function normalizarDetallePago(
   item: PagoDetalleItemDto,
 ): DetalleLoteNormalizado {
   return {
-    tipoId: item.tipoId,
+    tipoId: item.tipo_id,
     identificacion: item.identificacion,
     nombre: item.nombre,
     cuenta: item.cuenta ?? null,
     bancoCodigo:
-      item.formaPago === 'CTA' ? '0036' : item.bancoCodigo || null,
+      item.forma_pago === 'CTA' ? '0036' : item.banco_codigo || null,
     monto: item.monto,
     moneda: 'USD',
-    formaPago: item.formaPago,
+    formaPago: item.forma_pago,
     referenciaDocumento: item.referencia || null,
     codigoSwiftAba: null,
     conceptoInvisibles: null,
@@ -58,20 +58,20 @@ export function normalizarDetalleTransferencia(
   item: TransferenciaDetalleItemDto,
 ): DetalleLoteNormalizado {
   return {
-    tipoId: item.tipoId,
+    tipoId: item.tipo_id,
     identificacion: item.identificacion,
-    nombre: item.beneficiarioNombre,
-    cuenta: item.beneficiarioCuenta,
-    bancoCodigo: item.codigoSwiftAba
-      ? item.codigoSwiftAba.substring(0, 10)
+    nombre: item.beneficiario_nombre,
+    cuenta: item.beneficiario_cuenta,
+    bancoCodigo: item.codigo_swift_aba
+      ? item.codigo_swift_aba.substring(0, 10)
       : null,
     monto: item.monto,
     moneda: item.moneda || 'USD',
     formaPago: 'SPI',
     referenciaDocumento: item.referencia || null,
-    codigoSwiftAba: item.codigoSwiftAba || null,
-    conceptoInvisibles: item.conceptoInvisibles ?? null,
-    codigoExoneracionIsd: item.codigoExoneracionIsd || '0',
+    codigoSwiftAba: item.codigo_swift_aba || null,
+    conceptoInvisibles: item.concepto_invisibles ?? null,
+    codigoExoneracionIsd: item.codigo_exoneracion_isd || '0',
   };
 }
 
@@ -137,7 +137,7 @@ export function cifrarPayloadPago(
   return {
     ...JSON.parse(JSON.stringify(data)),
     cuentaEmpresa: crypto.encrypt(data.cuentaEmpresa, secretKey),
-    referenciaLote: referenceEncrypted,
+    referencia_lote: referenceEncrypted,
     detalles: data.detalles.map((d) => ({
       ...JSON.parse(JSON.stringify(d)),
       identificacion: crypto.encrypt(d.identificacion, secretKey),
@@ -156,13 +156,13 @@ export function cifrarPayloadTransferencia(
   return {
     ...JSON.parse(JSON.stringify(data)),
     cuentaEmpresa: crypto.encrypt(data.cuentaEmpresa, secretKey),
-    referenciaLote: referenceEncrypted,
+    referencia_lote: referenceEncrypted,
     detalles: data.detalles.map((d) => ({
       ...JSON.parse(JSON.stringify(d)),
-      beneficiarioCuenta: crypto.encrypt(d.beneficiarioCuenta, secretKey),
-      codigoSwiftAba: d.codigoSwiftAba
-        ? crypto.encrypt(d.codigoSwiftAba, secretKey)
-        : d.codigoSwiftAba,
+      beneficiario_cuenta: crypto.encrypt(d.beneficiario_cuenta, secretKey),
+      codigo_swift_aba: d.codigo_swift_aba
+        ? crypto.encrypt(d.codigo_swift_aba, secretKey)
+        : d.codigo_swift_aba,
     })),
   };
 }

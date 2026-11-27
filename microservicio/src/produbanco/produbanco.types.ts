@@ -97,10 +97,10 @@ export interface MovimientoBanco {
 /** Bloque de estado bancario incluido en la respuesta de consulta. */
 export interface EstadoBanco {
   consultado: boolean;
-  sinDatos?: boolean;
+  sin_datos?: boolean;
   /** Cómo se buscó la orden: por Envio_Id o, si el Envio_Id no sirve
    * (p. ej. 0), por la Referencia registrada en la carga (Manual §2.2.1). */
-  consultaPor?: 'envioId' | 'referencia';
+  consulta_por?: 'envioId' | 'referencia';
   /** CodRetorno del SOAP (ej. 0005 = sin datos). */
   codigo?: string | null;
   /** MsjRetorno verbatim del banco. */

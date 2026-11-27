@@ -138,13 +138,14 @@ describe('detalle.mapper', () => {
         fechaVencimiento: '13/11/2026',
       },
     );
-    data.referenciaLote = 'LOTE-1';
+    data.referencia_lote = 'LOTE-1';
 
     const payload = cifrarPayloadPago(data, 'ref-cifrada', SECRET, crypto);
 
     expect(payload.cuentaEmpresa).not.toBe('1234567890');
-    expect(payload.referenciaLote).toBe('ref-cifrada');
+    expect(payload.referencia_lote).toBe('ref-cifrada');
     expect(payload.detalles[0].identificacion).not.toBe('1712345678');
     expect(payload.detalles[0].cuenta).not.toBe('1234567890');
   });
 });
+

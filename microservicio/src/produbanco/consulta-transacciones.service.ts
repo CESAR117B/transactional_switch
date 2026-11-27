@@ -59,22 +59,22 @@ export class ConsultaTransaccionesService {
     idApp: number,
     params: {
       page?: number;
-      pageSize?: number;
+      page_size?: number;
       status?: number;
       operation?: string;
-      fechaDesde?: string;
-      fechaHasta?: string;
+      fecha_desde?: string;
+      fecha_hasta?: string;
       cedula?: string;
       cuenta?: string;
       /** EncryptionKey de la app, obligatoria: se valida contra BD y se usa
        * para desencriptar la respuesta y para el hash de búsqueda. */
-      llaveDesencriptacion?: string;
+      llave_desencriptacion?: string;
     },
   ) {
     const page = Math.max(1, Math.trunc(Number(params.page) || 1));
-    const pageSize = Math.min(
+    const page_size = Math.min(
       50,
-      Math.max(1, Math.trunc(Number(params.pageSize) || 20)),
+      Math.max(1, Math.trunc(Number(params.page_size) || 20)),
     );
     const where: Prisma.TransaccionesServiciosWhereInput = {
       idApp,
@@ -93,7 +93,7 @@ export class ConsultaTransaccionesService {
     }
 
     // Fecha de creación (created_at se almacena en UTC; Ecuador = UTC-5 fijo)
-    const rango = this.rangoCreacion(params.fechaDesde, params.fechaHasta);
+    const rango = this.rangoCreacion(params.fecha_desde, params.fecha_hasta);
     if (rango) {
       where.createdAt = rango;
     }
@@ -102,7 +102,7 @@ export class ConsultaTransaccionesService {
     // criterios deben cumplirse en el MISMO detalle (AND dentro de `some`).
     const secretKey = await this.lotes.validarLlaveCliente(
       idApp,
-      params.llaveDesencriptacion,
+      params.llave_desencriptacion,
     );
     const cedula = params.cedula?.trim();
     const cuenta = params.cuenta?.trim();
@@ -125,8 +125,8 @@ export class ConsultaTransaccionesService {
       this.prisma.transaccionesServicios.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (page - 1) * page_size,
+        take: page_size,
         include: {
           detalles: {
             select: {
@@ -144,9 +144,9 @@ export class ConsultaTransaccionesService {
 
     return {
       page,
-      pageSize,
+      page_size,
       total,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      total_pages: Math.max(1, Math.ceil(total / page_size)),
       items: items.map((tx) => this.formatearListado(tx, secretKey)),
     };
   }
@@ -163,12 +163,12 @@ export class ConsultaTransaccionesService {
     idApp: number,
     params: {
       dato?: string | number;
-      llaveDesencriptacion?: string;
+      llave_desencriptacion?: string;
     },
   ) {
     const secretKey = await this.lotes.validarLlaveCliente(
       idApp,
-      params.llaveDesencriptacion,
+      params.llave_desencriptacion,
     );
     const tx = await this.lotes.resolverTransaccion(idApp, params);
     await this.consultarBanco(tx, secretKey);
@@ -189,20 +189,20 @@ export class ConsultaTransaccionesService {
   async transaccionesAdmin(
     params: {
       page?: number;
-      pageSize?: number;
+      page_size?: number;
       status?: number;
       operation?: string;
-      fechaDesde?: string;
-      fechaHasta?: string;
+      fecha_desde?: string;
+      fecha_hasta?: string;
       cedula?: string;
       cuenta?: string;
-      idApp?: number;
+      id_app?: number;
     } = {},
   ) {
     const page = Math.max(1, Math.trunc(Number(params.page) || 1));
-    const pageSize = Math.min(
+    const page_size = Math.min(
       50,
-      Math.max(1, Math.trunc(Number(params.pageSize) || 20)),
+      Math.max(1, Math.trunc(Number(params.page_size) || 20)),
     );
     const where: Prisma.TransaccionesServiciosWhereInput = {
       operation: { in: OPERACIONES_PRODUBANCO },
@@ -220,8 +220,8 @@ export class ConsultaTransaccionesService {
     }
 
     const idApp =
-      params.idApp !== undefined && params.idApp !== null
-        ? Number(params.idApp)
+      params.id_app !== undefined && params.id_app !== null
+        ? Number(params.id_app)
         : undefined;
     if (idApp !== undefined) {
       if (!Number.isInteger(idApp) || idApp <= 0) {
@@ -233,7 +233,7 @@ export class ConsultaTransaccionesService {
       where.idApp = idApp;
     }
 
-    const rango = this.rangoCreacion(params.fechaDesde, params.fechaHasta);
+    const rango = this.rangoCreacion(params.fecha_desde, params.fecha_hasta);
     if (rango) {
       where.createdAt = rango;
     }
@@ -270,8 +270,8 @@ export class ConsultaTransaccionesService {
       this.prisma.transaccionesServicios.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (page - 1) * page_size,
+        take: page_size,
         include: {
           detalles: {
             select: {
@@ -292,16 +292,16 @@ export class ConsultaTransaccionesService {
 
     return {
       page,
-      pageSize,
+      page_size,
       total,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      total_pages: Math.max(1, Math.ceil(total / page_size)),
       items: items.map((tx) => {
         const app = apps.get(tx.idApp);
         return {
           ...this.formatearListado(tx, app?.encryptionKey ?? null, true),
-          appId: tx.idApp,
-          appUserApp: app?.userApp ?? null,
-          appNombre: app?.nombreApp ?? null,
+          app_id: tx.idApp,
+          app_user_app: app?.userApp ?? null,
+          app_nombre: app?.nombreApp ?? null,
         };
       }),
     };
@@ -319,13 +319,13 @@ export class ConsultaTransaccionesService {
   async estadoTransaccionAdmin(
     params: {
       dato?: string | number;
-      idApp?: number;
+      id_app?: number;
     } = {},
   ) {
     const tx = await this.lotes.buscarTransaccionPorDato(params.dato);
 
-    if (params.idApp !== undefined && params.idApp !== null) {
-      const idApp = Number(params.idApp);
+    if (params.id_app !== undefined && params.id_app !== null) {
+      const idApp = Number(params.id_app);
       if (!Number.isInteger(idApp) || idApp <= 0) {
         throw new RpcException({
           statusCode: 400,
@@ -347,9 +347,9 @@ export class ConsultaTransaccionesService {
 
     return {
       ...this.formatearDetalleTransaccion(tx, secretKey, true),
-      appId: tx.idApp,
-      appUserApp: app?.userApp ?? null,
-      appNombre: app?.nombreApp ?? null,
+      app_id: tx.idApp,
+      app_user_app: app?.userApp ?? null,
+      app_nombre: app?.nombreApp ?? null,
       banco,
     };
   }
@@ -388,8 +388,8 @@ export class ConsultaTransaccionesService {
    * desde > hasta.
    */
   private rangoCreacion(
-    fechaDesde?: string,
-    fechaHasta?: string,
+    fecha_desde?: string,
+    fecha_hasta?: string,
   ): { gte?: Date; lte?: Date } | null {
     const dia = (fecha: string, inicio: boolean): number => {
       const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(fecha.trim());
@@ -416,12 +416,12 @@ export class ConsultaTransaccionesService {
       return inicio ? inicioDia : inicioDia + 86_400_000 - 1;
     };
 
-    const desde = fechaDesde?.trim() ? dia(fechaDesde, true) : undefined;
-    const hasta = fechaHasta?.trim() ? dia(fechaHasta, false) : undefined;
+    const desde = fecha_desde?.trim() ? dia(fecha_desde, true) : undefined;
+    const hasta = fecha_hasta?.trim() ? dia(fecha_hasta, false) : undefined;
     if (desde !== undefined && hasta !== undefined && desde > hasta) {
       throw new RpcException({
         statusCode: 400,
-        message: 'fechaDesde no puede ser mayor que fechaHasta',
+        message: 'fecha_desde no puede ser mayor que fecha_hasta',
       });
     }
     if (desde === undefined && hasta === undefined) return null;
@@ -454,7 +454,9 @@ export class ConsultaTransaccionesService {
     // idServicio SÓLO viene en el request (varía por operación); idEmpresa
     // se inyecta desde config al crear el lote y queda en requestPayload
     // (fallback a config por si algún lote no lo guardó).
-    const idServicio = aTexto(req['idServicio']);
+    // `id_servicio` es la clave nueva; `idServicio` se conserva para lotes
+    // persistidos antes del estándar snake_case.
+    const idServicio = aTexto(req['id_servicio'] ?? req['idServicio']);
     let idEmpresa = aTexto(req['idEmpresa']);
     if (!idEmpresa) {
       try {
@@ -484,7 +486,7 @@ export class ConsultaTransaccionesService {
       return banco;
     }
 
-    const consultaPor: NonNullable<EstadoBanco['consultaPor']> = envioIdUtil
+    const consultaPor: NonNullable<EstadoBanco['consulta_por']> = envioIdUtil
       ? 'envioId'
       : 'referencia';
     const tramas: TramaSoap[] = [];
@@ -514,10 +516,10 @@ export class ConsultaTransaccionesService {
           );
           return {
             consultado: true,
-            sinDatos: false,
+            sin_datos: false,
             codigo: orden.codigo ?? null,
             mensaje: orden.mensaje ?? null,
-            consultaPor,
+            consulta_por: consultaPor,
             motivo:
               'La referencia devuelta por el banco no coincide con la del lote; no se sincroniza.',
             orden: null,
@@ -542,10 +544,10 @@ export class ConsultaTransaccionesService {
       await this.sincronizarEstadoBanco(tx, sobre, movimientos, orden);
       banco = {
         consultado: true,
-        sinDatos: orden.sinDatos,
+        sin_datos: orden.sinDatos,
         codigo: orden.codigo ?? null,
         mensaje: orden.mensaje ?? null,
-        consultaPor,
+        consulta_por: consultaPor,
         orden: sobre,
         movimientos,
         tramas,
@@ -555,7 +557,7 @@ export class ConsultaTransaccionesService {
       banco = {
         consultado: false,
         error: info.message,
-        consultaPor,
+        consulta_por: consultaPor,
         tramas,
       };
       this.logger.warn(
@@ -600,9 +602,9 @@ export class ConsultaTransaccionesService {
     const texto = (k: string): string | null =>
       typeof response[k] === 'string' ? response[k] : null;
     return {
-      codigoBanco: texto('codigoBanco'),
-      mensajeBanco: texto('mensajeBanco'),
-      fechaConsultaBanco: texto('fechaConsultaBanco'),
+      codigo_banco: texto('codigoBanco'),
+      mensaje_banco: texto('mensajeBanco'),
+      fecha_consulta_banco: texto('fechaConsultaBanco'),
     };
   }
 
@@ -628,36 +630,36 @@ export class ConsultaTransaccionesService {
       // conocer el id interno, la operación, el status ni el estado verbatim.
       ...(incluirCamposInternos
         ? {
-            idTransaccion: tx.idTransaccion.toString(),
+            id_transaccion: tx.idTransaccion.toString(),
             operacion: tx.operation,
             status: tx.status,
-            estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
+            estado_transaccion: this.estadoTransaccionOFallback(tx, response),
           }
         : {}),
-      referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
+      referencia_lote: this.desencriptarSeguro(tx.reference, secretKey),
       // Único indicador de estado visible para la app cliente: `status`
       // (numérico interno) queda reservado al admin.
-      statusServicio: textoEstado(tx.status),
+      status_servicio: textoEstado(tx.status),
       ...this.camposBancoResponse(response),
-      envioId,
-      errorMessage: tx.errorMessage,
-      fechaCreacion: tx.createdAt,
-      beneficiarioIdentificacion: primero
+      envio_id: envioId,
+      error_message: tx.errorMessage,
+      fecha_creacion: tx.createdAt,
+      beneficiario_identificacion: primero
         ? this.desencriptarSeguro(primero.beneficiarioIdentificacion, secretKey)
         : null,
-      beneficiarioCuenta: primero
+      beneficiario_cuenta: primero
         ? this.desencriptarSeguro(primero.beneficiarioCuenta, secretKey)
         : null,
       registros: tx.detalles.length,
-      montoTotal: sumarMontos(tx.detalles.map((d) => d.monto)),
+      monto_total: sumarMontos(tx.detalles.map((d) => d.monto)),
       // Mismo criterio de entrega que el detalle (`totales.entregados` /
-      // `totales.entregaEfectiva`), para que listado y detalle coincidan.
+      // `totales.entrega_efectiva`), para que listado y detalle coincidan.
       entregados: tx.detalles.filter((d) => entregaEfectiva(d.estadoItem))
         .length,
-      entregaEfectiva:
+      entrega_efectiva:
         tx.detalles.length > 0 &&
         tx.detalles.every((d) => entregaEfectiva(d.estadoItem)),
-      estadosDetalle,
+      estados_detalle: estadosDetalle,
     };
   }
 
@@ -676,57 +678,57 @@ export class ConsultaTransaccionesService {
       // ni el XML crudo de la carga al banco.
       ...(incluirCamposInternos
         ? {
-            idTransaccion: tx.idTransaccion.toString(),
+            id_transaccion: tx.idTransaccion.toString(),
             operacion: tx.operation,
             status: tx.status,
-            estadoTransaccion: this.estadoTransaccionOFallback(tx, response),
+            estado_transaccion: this.estadoTransaccionOFallback(tx, response),
             // XML crudo de CargaDirectaXml (diagnóstico, ej. Envio_Id=0 no
             // documentado); solo en el detalle, no en el listado.
-            cargaRespuestaBanco:
+            carga_respuesta_banco:
               typeof response['cargaRespuestaBanco'] === 'string'
                 ? response['cargaRespuestaBanco']
                 : null,
           }
         : {}),
-      referenciaLote: this.desencriptarSeguro(tx.reference, secretKey),
+      referencia_lote: this.desencriptarSeguro(tx.reference, secretKey),
       // Único indicador de estado visible para la app cliente: `status`
       // (numérico interno) queda reservado al admin.
-      statusServicio: textoEstado(tx.status),
+      status_servicio: textoEstado(tx.status),
       ...this.camposBancoResponse(response),
-      envioId,
-      errorMessage: tx.errorMessage,
-      fechaCreacion: tx.createdAt,
+      envio_id: envioId,
+      error_message: tx.errorMessage,
+      fecha_creacion: tx.createdAt,
       totales: {
         registros: tx.detalles.length,
-        montoTotal: sumarMontos(tx.detalles.map((d) => d.monto)),
+        monto_total: sumarMontos(tx.detalles.map((d) => d.monto)),
         // Cuántos ítems tienen el dinero efectivamente entregado por el banco
         // (Estado_Proceso = ENTREGADO OK) y si el lote entero lo está.
         entregados: tx.detalles.filter((d) => entregaEfectiva(d.estadoItem))
           .length,
-        entregaEfectiva:
+        entrega_efectiva:
           tx.detalles.length > 0 &&
           tx.detalles.every((d) => entregaEfectiva(d.estadoItem)),
       },
       detalles: tx.detalles.map((d) => ({
         secuencia: d.secuencia,
-        tipoId: d.beneficiarioTipoId,
+        tipo_id: d.beneficiarioTipoId,
         identificacion: this.desencriptarSeguro(
           d.beneficiarioIdentificacion,
           secretKey,
         ),
         nombre: d.beneficiarioNombre,
         cuenta: this.desencriptarSeguro(d.beneficiarioCuenta, secretKey),
-        bancoCodigo: d.beneficiarioBancoCodigo,
-        formaPago: d.formaPago,
+        banco_codigo: d.beneficiarioBancoCodigo,
+        forma_pago: d.formaPago,
         monto: Number(d.monto),
         moneda: d.moneda,
-        referenciaDocumento: d.referenciaDocumento,
+        referencia_documento: d.referenciaDocumento,
         // Estado verbatim de Produbanco: se muestra tal cual lo reporta.
-        estadoItem: d.estadoItem,
+        estado_item: d.estadoItem,
         // Atajo para el cliente: el dinero llegó a la cuenta del beneficiario.
-        entregaEfectiva: entregaEfectiva(d.estadoItem),
-        codigoRespuesta: d.codigoRespuesta,
-        mensajeBanco: d.mensajeRespuesta,
+        entrega_efectiva: entregaEfectiva(d.estadoItem),
+        codigo_respuesta: d.codigoRespuesta,
+        mensaje_banco: d.mensajeRespuesta,
       })),
     };
   }

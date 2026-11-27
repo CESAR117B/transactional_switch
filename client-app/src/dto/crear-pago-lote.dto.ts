@@ -28,8 +28,8 @@ export class PagoDetalleItemDto {
     example: 'C',
     enum: ['C', 'R', 'P'],
   })
-  @IsEnum(['C', 'R', 'P'], { message: 'tipoId debe ser C, R o P' })
-  tipoId: TipoIdentificacion;
+  @IsEnum(['C', 'R', 'P'], { message: 'tipo_id debe ser C, R o P' })
+  tipo_id: TipoIdentificacion;
 
   @ApiProperty({
     description: 'Número de identificación del beneficiario',
@@ -62,9 +62,9 @@ export class PagoDetalleItemDto {
     enum: ['CTA', 'SPI', 'CHQ', 'EFE'],
   })
   @IsEnum(['CTA', 'SPI', 'CHQ', 'EFE'], {
-    message: 'formaPago debe ser CTA, SPI, CHQ o EFE',
+    message: 'forma_pago debe ser CTA, SPI, CHQ o EFE',
   })
-  formaPago: FormaPago;
+  forma_pago: FormaPago;
 
   @ApiPropertyOptional({
     description:
@@ -74,9 +74,9 @@ export class PagoDetalleItemDto {
   })
   @IsOptional()
   @IsEnum(['CTE', 'AHO', 'TAR'], {
-    message: 'tipoCuenta debe ser CTE, AHO o TAR',
+    message: 'tipo_cuenta debe ser CTE, AHO o TAR',
   })
-  tipoCuenta?: TipoCuenta;
+  tipo_cuenta?: TipoCuenta;
 
   @ApiPropertyOptional({
     description:
@@ -101,8 +101,8 @@ export class PagoDetalleItemDto {
   })
   @IsOptional()
   @IsString()
-  @Length(2, 10, { message: 'bancoCodigo entre 2 y 10 caracteres' })
-  bancoCodigo?: string;
+  @Length(2, 10, { message: 'banco_codigo entre 2 y 10 caracteres' })
+  banco_codigo?: string;
 
   @ApiProperty({
     description: 'Monto a pagar al beneficiario con máximo 2 decimales',
@@ -157,7 +157,7 @@ export class PagoDetalleItemDto {
 export class CrearPagoLoteDto {
   // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa e
   // idEmpresa) ya NO se envía desde el cliente: la inyecta el microservicio
-  // desde su config (atributos_integraciones). servicio/idServicio sí se
+  // desde su config (atributos_integraciones). servicio/id_servicio sí se
   // envían porque varían entre pago interbancario y pago al exterior.
 
   @ApiProperty({
@@ -176,8 +176,8 @@ export class CrearPagoLoteDto {
     type: String,
   })
   @IsString()
-  @IsNotEmpty({ message: 'idServicio es requerido' })
-  idServicio: string;
+  @IsNotEmpty({ message: 'id_servicio es requerido' })
+  id_servicio: string;
 
   // fechaInicio/fechaVencimiento YA no se envían al microservicio: el back
   // genera la vigencia del sobre (hoy → hoy + 1) y la incluye en el
@@ -203,9 +203,9 @@ export class GenerarPagoPayloadDto {
     example: 123,
     type: Number,
   })
-  @IsNumber({}, { message: 'idApp debe ser número' })
-  @IsNotEmpty({ message: 'idApp es requerido' })
-  idApp: number;
+  @IsNumber({}, { message: 'id_app debe ser número' })
+  @IsNotEmpty({ message: 'id_app es requerido' })
+  id_app: number;
 
   @ApiProperty({
     description: 'Datos del lote de pagos a generar',

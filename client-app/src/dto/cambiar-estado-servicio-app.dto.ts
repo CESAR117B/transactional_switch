@@ -15,9 +15,9 @@ import { IsBoolean, IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
  *
  * Uso en el gateway:
  *   POST /admin/activar-desactivar-servicio-app
- *   Body: { "idApp": 2, "codigo": "PAYMENT", "activo": false }
+ *   Body: { "id_app": 2, "codigo": "PAYMENT", "activo": false }
  *
- * `idApp` es la app OBJETIVO sobre la que actúa el administrador (no la app
+ * `id_app` es la app OBJETIVO sobre la que actúa el administrador (no la app
  * del token, que es el actor que ejecuta la acción).
  *
  * Protección: requiere @RequireService('ADMIN_APPS') y
@@ -30,9 +30,9 @@ export class CambiarEstadoServicioAppDto {
     minimum: 1,
   })
   @Type(() => Number)
-  @IsInt({ message: 'idApp debe ser un entero' })
-  @Min(1, { message: 'idApp debe ser mayor o igual a 1' })
-  idApp: number;
+  @IsInt({ message: 'id_app debe ser un entero' })
+  @Min(1, { message: 'id_app debe ser mayor o igual a 1' })
+  id_app: number;
 
   @ApiProperty({
     description: 'Código alfanumérico del servicio (campo `codigo` de `servicios`).',

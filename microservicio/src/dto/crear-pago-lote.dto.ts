@@ -21,8 +21,8 @@ export type FormaPago = 'CTA' | 'SPI' | 'CHQ' | 'EFE'; // CTA: Produbanco, SPI: 
 export type TipoCuenta = 'CTE' | 'AHO' | 'TAR'; // CTE: Corriente, AHO: Ahorros, TAR: Tarjeta
 
 export class PagoDetalleItemDto {
-  @IsEnum(['C', 'R', 'P'], { message: 'tipoId debe ser C, R o P' })
-  tipoId: TipoIdentificacion;
+  @IsEnum(['C', 'R', 'P'], { message: 'tipo_id debe ser C, R o P' })
+  tipo_id: TipoIdentificacion;
 
   @IsString()
   @IsNotEmpty({ message: 'identificacion es requerida' })
@@ -35,15 +35,15 @@ export class PagoDetalleItemDto {
   nombre: string;
 
   @IsEnum(['CTA', 'SPI', 'CHQ', 'EFE'], {
-    message: 'formaPago debe ser CTA, SPI, CHQ o EFE',
+    message: 'forma_pago debe ser CTA, SPI, CHQ o EFE',
   })
-  formaPago: FormaPago;
+  forma_pago: FormaPago;
 
   @IsOptional()
   @IsEnum(['CTE', 'AHO', 'TAR'], {
-    message: 'tipoCuenta debe ser CTE, AHO o TAR',
+    message: 'tipo_cuenta debe ser CTE, AHO o TAR',
   })
-  tipoCuenta?: TipoCuenta; // Requerido para CTA y SPI
+  tipo_cuenta?: TipoCuenta; // Requerido para CTA y SPI
 
   @IsOptional()
   @IsString()
@@ -52,8 +52,8 @@ export class PagoDetalleItemDto {
 
   @IsOptional()
   @IsString()
-  @Length(2, 10, { message: 'bancoCodigo entre 2 y 10 caracteres' })
-  bancoCodigo?: string; // Código de banco destino (ej: "0036" para Produbanco)
+  @Length(2, 10, { message: 'banco_codigo entre 2 y 10 caracteres' })
+  banco_codigo?: string; // Código de banco destino (ej: "0036" para Produbanco)
 
   @IsNumber(
     { maxDecimalPlaces: 2 },
@@ -91,12 +91,12 @@ export class CrearPagoLoteDto {
   servicio: string; // Varía por operación (ej: "PV" pago interbancario)
 
   @IsString()
-  @IsNotEmpty({ message: 'idServicio es requerido' })
-  idServicio: string; // ID de servicio asignado por Produbanco (ej: "75")
+  @IsNotEmpty({ message: 'id_servicio es requerido' })
+  id_servicio: string; // ID de servicio asignado por Produbanco (ej: "75")
 
   // Interno: lo genera el back (NOMBREAPP-{secuencia}-{timestamp}-{hex});
   // no se envía en el request (ValidationPipe whitelist la trunca).
-  referenciaLote?: string;
+  referencia_lote?: string;
 
   // fechaInicio/fechaVencimiento YA no se envían: el back genera la
   // vigencia del sobre (hoy → hoy + 1) en tramas-produbanco.service
@@ -111,14 +111,14 @@ export class CrearPagoLoteDto {
 }
 
 export class GenerarPagoPayloadDto {
-  @IsNumber({}, { message: 'idApp debe ser número' })
-  @IsNotEmpty({ message: 'idApp es requerido' })
-  idApp: number;
+  @IsNumber({}, { message: 'id_app debe ser número' })
+  @IsNotEmpty({ message: 'id_app es requerido' })
+  id_app: number;
 
   @IsString()
-  @IsNotEmpty({ message: 'idempotencyKey es requerida' })
+  @IsNotEmpty({ message: 'idempotency_key es requerida' })
   @MaxLength(100)
-  idempotencyKey: string;
+  idempotency_key: string;
 
   @ValidateNested()
   @Type(() => CrearPagoLoteDto)

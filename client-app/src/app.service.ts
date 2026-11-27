@@ -17,13 +17,13 @@ export class AppService {
   // conexión con el microservicio a una alerta 503.
   constructor(private readonly rpc: MicroserviceRpcService) {}
 
-  async obtenerServiciosPorApp(appId: number) {
-    return this.rpc.enviar({ cmd: 'get_servicios' }, appId);
+  async obtenerServiciosPorApp(id_app: number) {
+    return this.rpc.enviar({ cmd: 'get_servicios' }, { id_app });
   }
 
-  async guardarTarjeta(idApp: number, cardData: TokenizeCardDto) {
+  async guardarTarjeta(id_app: number, cardData: TokenizeCardDto) {
     const payloadInterno = {
-      idApp: Number(idApp),
+      id_app: Number(id_app),
       ...cardData, // Agrega card_number, card_holder, etc.
     };
 
@@ -35,38 +35,38 @@ export class AppService {
    * key (hash scrypt en BD) y encryptionKey en una transacción, y devuelve
    * las credenciales EN CLARO una sola vez.
    */
-  async crearApp(idAppAdmin: number, data: CrearAppDto) {
-    const payload = { idApp: Number(idAppAdmin), data };
+  async crearApp(id_app_admin: number, data: CrearAppDto) {
+    const payload = { id_app: Number(id_app_admin), data };
     return this.rpc.enviar({ cmd: 'crear_app' }, payload);
   }
 
   /**
    * Bloquea una app consumidora (activo = false).
    *
-   * `idAppAdmin` viaja para auditoría y para que el microservicio impida que
+   * `id_app_admin` viaja para auditoría y para que el microservicio impida que
    * una app se bloquee a sí misma. El bloqueo aplica de inmediato: el
    * ApiKeyGuard revalida el estado de la app en cada request, además de
    * impedir nuevos logins.
    */
-  async bloquearApp(idAppAdmin: number, data: BloquearAppDto) {
-    const payload = { idApp: Number(data.id_app), idAppAdmin: Number(idAppAdmin) };
+  async bloquearApp(id_app_admin: number, data: BloquearAppDto) {
+    const payload = { id_app: Number(data.id_app), id_app_admin: Number(id_app_admin) };
     return this.rpc.enviar({ cmd: 'bloquear_app' }, payload);
   }
 
-  async listarApps(idAppAdmin: number) {
-    // idApp viaja para la auditoría del microservicio (actor de la acción).
-    const payload = { idApp: Number(idAppAdmin) };
+  async listarApps(id_app_admin: number) {
+    // id_app viaja para la auditoría del microservicio (actor de la acción).
+    const payload = { id_app: Number(id_app_admin) };
     return this.rpc.enviar({ cmd: 'listar_apps' }, payload);
   }
 
   async actualizarApp(
-    idAppAdmin: number,
-    idApp: number,
+    id_app_admin: number,
+    id_app: number,
     data: UpdateAppDto,
   ) {
     const payload = {
-      idApp: Number(idApp),
-      idAppAdmin: Number(idAppAdmin),
+      id_app: Number(id_app),
+      id_app_admin: Number(id_app_admin),
       data,
     };
     return this.rpc.enviar({ cmd: 'actualizar_app' }, payload);
@@ -81,10 +81,10 @@ export class AppService {
    * la nueva key.
    *
    * Nota: una app no puede generar una nueva key para sí misma
-   * (idApp === idAppAdmin está prohibido).
+   * (id_app === id_app_admin está prohibido).
    */
-  async nuevokeyApp(idAppAdmin: number, idApp: number) {
-    const payload = { idAppAdmin: Number(idAppAdmin), idApp: Number(idApp) };
+  async nuevokeyApp(id_app_admin: number, id_app: number) {
+    const payload = { id_app_admin: Number(id_app_admin), id_app: Number(id_app) };
     return this.rpc.enviar({ cmd: 'nuevokey_app' }, payload);
   }
 
@@ -97,67 +97,67 @@ export class AppService {
    * la nueva encryptionKey.
    *
    * Nota: una app no puede generar una nueva encryptionKey para sí misma
-   * (idApp === idAppAdmin está prohibido).
+   * (id_app === id_app_admin está prohibido).
    */
-  async nuevoencryptionkeyApp(idAppAdmin: number, idApp: number) {
-    const payload = { idAppAdmin: Number(idAppAdmin), idApp: Number(idApp) };
+  async nuevoencryptionkeyApp(id_app_admin: number, id_app: number) {
+    const payload = { id_app_admin: Number(id_app_admin), id_app: Number(id_app) };
     return this.rpc.enviar({ cmd: 'nuevoencryptionkey_app' }, payload);
   }
 
 
   async generarPago(
-    idApp: number,
+    id_app: number,
     data: CrearPagoLoteDto,
-    idempotencyKey: string,
+    idempotency_key: string,
   ) {
-    const payload = { idApp: Number(idApp), idempotencyKey, data };
+    const payload = { id_app: Number(id_app), idempotency_key, data };
     return this.rpc.enviar({ cmd: 'generar_pago' }, payload);
   }
 
   async generarTransferencia(
-    idApp: number,
+    id_app: number,
     data: CrearTransferenciaLoteDto,
-    idempotencyKey: string,
+    idempotency_key: string,
   ) {
-    const payload = { idApp: Number(idApp), idempotencyKey, data };
+    const payload = { id_app: Number(id_app), idempotency_key, data };
     return this.rpc.enviar({ cmd: 'generar_transferencia' }, payload);
   }
 
   async consultarTransacciones(
-    idApp: number,
+    id_app: number,
     query: {
       page?: number;
-      pageSize?: number;
+      page_size?: number;
       status?: number;
       operation?: string;
-      fechaDesde?: string;
-      fechaHasta?: string;
+      fecha_desde?: string;
+      fecha_hasta?: string;
       cedula?: string;
       cuenta?: string;
     },
     llave: string,
   ): Promise<unknown> {
     const payload = {
-      idApp: Number(idApp),
+      id_app: Number(id_app),
       ...query,
       // EncryptionKey de la app: el microservicio la valida contra BD y la
       // usa para desencriptar la respuesta (llega del header X-Encryption-Key).
-      llaveDesencriptacion: llave,
+      llave_desencriptacion: llave,
     };
     return this.rpc.enviar<unknown>({ cmd: 'consultar_transacciones' }, payload);
   }
 
   async consultarEstadoTransaccion(
-    idApp: number,
+    id_app: number,
     dato: string,
     llave: string,
   ): Promise<unknown> {
     const payload = {
-      idApp: Number(idApp),
+      id_app: Number(id_app),
       dato,
       // EncryptionKey de la app: el microservicio la valida contra BD y la
       // usa para desencriptar la respuesta (llega del header X-Encryption-Key).
-      llaveDesencriptacion: llave,
+      llave_desencriptacion: llave,
     };
     return this.rpc.enviar<unknown>(
       { cmd: 'consultar_estado_transaccion' },
@@ -176,13 +176,13 @@ export class AppService {
   }
 
   /**
-   * Estado admin de una transacción Produbanco. `idApp` es opcional y, si se
+   * Estado admin de una transacción Produbanco. `id_app` es opcional y, si se
    * envía, acota la búsqueda a esa app (404 si pertenece a otra).
    */
-  async estadoTransaccionAdmin(dato: string, idApp?: number): Promise<unknown> {
+  async estadoTransaccionAdmin(dato: string, id_app?: number): Promise<unknown> {
     const payload = {
       dato,
-      ...(idApp !== undefined ? { idApp: Number(idApp) } : {}),
+      ...(id_app !== undefined ? { id_app: Number(id_app) } : {}),
     };
     return this.rpc.enviar<unknown>(
       { cmd: 'estado_transaccion_admin' },
@@ -198,19 +198,19 @@ export class AppService {
    *
    * Emite auditoría con `operation: 'ADMIN_ASIGNAR_SERVICIOS_APP'`.
    *
-   * @param idApp ID de la app administradora que ejecuta la acción.
+   * @param id_app ID de la app administradora que ejecuta la acción.
    * @param codigos Array de códigos de servicio (strings alfanuméricos),
    *   ej: ['PAYMENT', 'REPORT']. Se deduplican internamente.
    * @returns Lista de objetos `{ id_servicio, codigo, nombre }` asignados.
    */
   async asignarServiciosApp(
-    idAppAdmin: number,
-    idApp: number,
+    id_app_admin: number,
+    id_app: number,
     codigos: string[],
   ): Promise<unknown> {
     const payload = {
-      idApp: Number(idApp),
-      idAppAdmin: Number(idAppAdmin),
+      id_app: Number(id_app),
+      id_app_admin: Number(id_app_admin),
       codigos,
     };
     return this.rpc.enviar<unknown>({ cmd: 'asignar_servicios_app' }, payload);
@@ -224,13 +224,13 @@ export class AppService {
    * Emite auditoría con `operation: 'ADMIN_DESASIGNAR_SERVICIOS_APP'`.
    */
   async desasignarServiciosApp(
-    idAppAdmin: number,
-    idApp: number,
+    id_app_admin: number,
+    id_app: number,
     codigos: string[],
   ): Promise<unknown> {
     const payload = {
-      idApp: Number(idApp),
-      idAppAdmin: Number(idAppAdmin),
+      id_app: Number(id_app),
+      id_app_admin: Number(id_app_admin),
       codigos,
     };
     return this.rpc.enviar<unknown>(
@@ -250,14 +250,14 @@ export class AppService {
    * Emite auditoría con `operation: 'ADMIN_CAMBIAR_ESTADO_SERVICIO_APP'`.
    */
   async cambiarEstadoServicioApp(
-    idAppAdmin: number,
-    idApp: number,
+    id_app_admin: number,
+    id_app: number,
     codigo: string,
     activo: boolean,
   ): Promise<unknown> {
     const payload = {
-      idApp: Number(idApp),
-      idAppAdmin: Number(idAppAdmin),
+      id_app: Number(id_app),
+      id_app_admin: Number(id_app_admin),
       codigo,
       activo,
     };
@@ -273,12 +273,12 @@ export class AppService {
   }
 
   async activarDesactivarServicioGlobal(
-    idAppAdmin: number,
-    idServicio: number,
+    id_app_admin: number,
+    id_servicio: number,
   ) {
     return this.rpc.enviar<unknown>(
       { cmd: 'activar_desactivar_servicio' },
-      { idServicio, idAppAdmin: Number(idAppAdmin) },
+      { id_servicio, id_app_admin: Number(id_app_admin) },
     );
   }
 }

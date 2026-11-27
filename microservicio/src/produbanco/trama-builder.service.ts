@@ -18,8 +18,8 @@ export class TramaBuilderService {
     const items = data.detalles.map(
       (item: PagoDetalleItemDto, indice: number) => {
         const esTransferenciaBancaria =
-          item.formaPago === 'CTA' || item.formaPago === 'SPI';
-        const esVentanilla = item.formaPago === 'EFE';
+          item.forma_pago === 'CTA' || item.forma_pago === 'SPI';
+        const esVentanilla = item.forma_pago === 'EFE';
 
         // 1) Código de orientación
         const codigo = 'PA';
@@ -38,16 +38,16 @@ export class TramaBuilderService {
         // 7) Valor: 11 enteros + 2 decimales = 13 dígitos sin punto decimal
         const valor = String(Math.round(item.monto * 100)).padStart(13, '0');
         // 8) Forma de pago
-        const formaPago = item.formaPago;
+        const formaPago = item.forma_pago;
         // 9) Código de institución financiera (4 dígitos)
         const banco =
-          item.bancoCodigo || (item.formaPago === 'SPI' ? '0001' : '0036');
+          item.banco_codigo || (item.forma_pago === 'SPI' ? '0001' : '0036');
         // 10) Tipo de cuenta (vacío para CHQ/EFE)
-        const tipoCuenta = esVentanilla ? '' : item.tipoCuenta || '';
+        const tipoCuenta = esVentanilla ? '' : item.tipo_cuenta || '';
         // 11) Número de cuenta (vacío para CHQ/EFE)
         const cuenta = esVentanilla ? '' : item.cuenta || '';
         // 12) Tipo de identificación
-        const tipoId = item.tipoId;
+        const tipoId = item.tipo_id;
         // 13) Número de identificación
         const identificacion = item.identificacion;
         // 14) Nombre del beneficiario (máx 40)
@@ -99,10 +99,10 @@ export class TramaBuilderService {
     const items = data.detalles.map(
       (item: TransferenciaDetalleItemDto, indice: number) => {
         // F20 RFB obligatorio: detalle!relación!gastos! (máx 43 chars, sin espacios)
-        const rfb = `PAGO!COMERCIAL!${item.tipoComision || 'BEN'}!`;
+        const rfb = `PAGO!COMERCIAL!${item.tipo_comision || 'BEN'}!`;
         // F23 (INV) Facturas: referencia sin espacios, máx 26; si no viene,
         // usa la referenciaLote del lote (doc: campo opcional en exterior)
-        const refFacturas = (item.referencia || data.referenciaLote || '')
+        const refFacturas = (item.referencia || data.referencia_lote || '')
           .replace(/\s+/g, '')
           .substring(0, 26);
 
@@ -111,16 +111,16 @@ export class TramaBuilderService {
           cuentaEmpresa, // F2  Cuenta empresa (11 dígitos)
           String(indice + 1), // F3  Secuencial (comienza en uno)
           item.comprobante || '', // F4  Comprobante (opcional)
-          item.beneficiarioCuenta.substring(0, 34), // F5  Contrapartida (cuenta beneficiario)
+          item.beneficiario_cuenta.substring(0, 34), // F5  Contrapartida (cuenta beneficiario)
           item.moneda || 'USD', // F6  Moneda (default USD)
           String(Math.round(item.monto * 100)).padStart(13, '0'), // F7  Valor 11+2 sin punto
           'CTA', // F8  Forma de pago (formato exterior solo CTA)
-          item.codigoSwiftAba, // F9  SWIFT/ABA banco destino
-          item.tipoCuenta, // F10 Tipo de cuenta destino
-          item.beneficiarioCuenta.substring(0, 34), // F11 Número de cuenta beneficiario
-          item.tipoId, // F12 Tipo ID beneficiario
+          item.codigo_swift_aba, // F9  SWIFT/ABA banco destino
+          item.tipo_cuenta, // F10 Tipo de cuenta destino
+          item.beneficiario_cuenta.substring(0, 34), // F11 Número de cuenta beneficiario
+          item.tipo_id, // F12 Tipo ID beneficiario
           item.identificacion, // F13 Número ID beneficiario
-          item.beneficiarioNombre
+          item.beneficiario_nombre
             .substring(0, 70)
             .replace(/[\t\r\n]/g, ' '), // F14 Nombre
           '', // F15 Dirección (no ingresar)
@@ -132,7 +132,7 @@ export class TramaBuilderService {
           '', // F21 (opcional)
           '', // F22 (opcional)
           refFacturas, // F23 (INV) Facturas / doc referencia
-          item.motivoTransferencia, // F24 Motivo SIB "codigo,exencion"
+          item.motivo_transferencia, // F24 Motivo SIB "codigo,exencion"
           '', // F25 (opcional)
           '', // F26 (opcional)
           '', // F27 (opcional)
@@ -141,8 +141,8 @@ export class TramaBuilderService {
           '', // F30 DAU/DAI (opcional)
           '', // F31 Registro (opcional)
           '', // F32 Fecha registro (opcional)
-          item.codigoExoneracionIsd || '', // F33 Nro. Formulario ISD (opcional)
-          (item.bancoIntermediarioSwift || '').substring(0, 11), // F34 Banco intermediario
+          item.codigo_exoneracion_isd || '', // F33 Nro. Formulario ISD (opcional)
+          (item.banco_intermediario_swift || '').substring(0, 11), // F34 Banco intermediario
           '', // F35 Cta. banco intermediario (opcional)
           '', // F36 Contrato reaseguro (opcional)
           '', // F37 Código cotización (opcional)
@@ -158,22 +158,22 @@ export class TramaBuilderService {
   validarLotePago(data: DatosPago): void {
     this.validarCabecera(data, 'pagos');
     for (const [indice, item] of data.detalles.entries()) {
-      if (item.formaPago === 'CTA' || item.formaPago === 'SPI') {
-        if (!item.cuenta || !item.tipoCuenta) {
+      if (item.forma_pago === 'CTA' || item.forma_pago === 'SPI') {
+        if (!item.cuenta || !item.tipo_cuenta) {
           throw new RpcException({
             statusCode: 400,
-            message: `Detalle posición ${indice + 1}: cuenta y tipoCuenta son requeridos para formaPago ${item.formaPago}.`,
+            message: `Detalle posición ${indice + 1}: cuenta y tipoCuenta son requeridos para formaPago ${item.forma_pago}.`,
           });
         }
       }
-      this.validarIdentificacion(item.tipoId, item.identificacion, indice);
+      this.validarIdentificacion(item.tipo_id, item.identificacion, indice);
     }
   }
 
   validarLoteTransferencia(data: DatosTransferencia): void {
     this.validarCabecera(data, 'transferencias');
     for (const [indice, item] of data.detalles.entries()) {
-      this.validarIdentificacion(item.tipoId, item.identificacion, indice);
+      this.validarIdentificacion(item.tipo_id, item.identificacion, indice);
     }
   }
 
@@ -191,10 +191,10 @@ export class TramaBuilderService {
   <Empresa>${escapeXml(data.empresa)}</Empresa>
   <Id_Empresa>${escapeXml(data.idEmpresa)}</Id_Empresa>
   <Servicio>${escapeXml(data.servicio)}</Servicio>
-  <Id_Servicio>${escapeXml(data.idServicio)}</Id_Servicio>
+  <Id_Servicio>${escapeXml(data.id_servicio)}</Id_Servicio>
   <TipoCuenta>${escapeXml(data.tipoCuentaEmpresa)}</TipoCuenta>
   <NumeroCuenta>${cuentaEmpresa}</NumeroCuenta>
-  <Referencia>${escapeXml(data.referenciaLote ?? '')}</Referencia>
+  <Referencia>${escapeXml(data.referencia_lote ?? '')}</Referencia>
   <FechaInicio>${data.fechaInicio}</FechaInicio>
   <FechaVencimiento>${data.fechaVencimiento}</FechaVencimiento>
   <Cabecera></Cabecera>
@@ -207,7 +207,7 @@ ${itemsXml}
     data: DatosPago | DatosTransferencia,
     tipoLote: string,
   ): void {
-    if (!data.cuentaEmpresa || !data.referenciaLote) {
+    if (!data.cuentaEmpresa || !data.referencia_lote) {
       throw new RpcException({
         statusCode: 400,
         message: 'Falta la cuenta de origen o la referencia del lote.',

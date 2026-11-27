@@ -9,7 +9,7 @@ import { ApiProperty } from '@nestjs/swagger';
  * Los códigos son cadenas de texto que corresponden al campo `codigo` de la
  * tabla `servicios` (ej: 'PAYMENT', 'REPORT', 'INVENTARIO').
  *
- * `idApp` es la app OBJETIVO sobre la que actúa el administrador (no la app
+ * `id_app` es la app OBJETIVO sobre la que actúa el administrador (no la app
  * del token, que es el actor que ejecuta la acción).
  *
  * Si algún código no existe, el microservicio devuelve un 400 indicando cuáles.
@@ -21,9 +21,9 @@ export class DesasignarServiciosAppDto {
     minimum: 1,
   })
   @Type(() => Number)
-  @IsInt({ message: 'idApp debe ser un entero' })
-  @Min(1, { message: 'idApp debe ser mayor o igual a 1' })
-  idApp: number;
+  @IsInt({ message: 'id_app debe ser un entero' })
+  @Min(1, { message: 'id_app debe ser mayor o igual a 1' })
+  id_app: number;
 
   @ApiProperty({
     description: 'Array de códigos de los servicios a desasignar',

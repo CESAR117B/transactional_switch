@@ -26,7 +26,7 @@ export class ListarTransaccionesQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  pageSize?: number;
+  page_size?: number;
 
   @ApiPropertyOptional({
     description:
@@ -56,9 +56,9 @@ export class ListarTransaccionesQueryDto {
   })
   @IsOptional()
   @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
-    message: 'fechaDesde debe tener el formato DD/MM/YYYY',
+    message: 'fecha_desde debe tener el formato DD/MM/YYYY',
   })
-  fechaDesde?: string;
+  fecha_desde?: string;
 
   @ApiPropertyOptional({
     description:
@@ -68,9 +68,9 @@ export class ListarTransaccionesQueryDto {
   })
   @IsOptional()
   @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
-    message: 'fechaHasta debe tener el formato DD/MM/YYYY',
+    message: 'fecha_hasta debe tener el formato DD/MM/YYYY',
   })
-  fechaHasta?: string;
+  fecha_hasta?: string;
 
   @ApiPropertyOptional({
     description:

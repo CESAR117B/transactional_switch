@@ -21,8 +21,8 @@ export type TipoIdentificacion = 'C' | 'R' | 'P'; // C: Cédula, R: RUC, P: Pasa
 export type TipoCuentaBanco = 'CTE' | 'AHO'; // CTE: Corriente, AHO: Ahorros
 
 export class TransferenciaDetalleItemDto {
-  @IsEnum(['C', 'R', 'P'], { message: 'tipoId debe ser C, R o P' })
-  tipoId: TipoIdentificacion;
+  @IsEnum(['C', 'R', 'P'], { message: 'tipo_id debe ser C, R o P' })
+  tipo_id: TipoIdentificacion;
 
   @IsString()
   @IsNotEmpty({ message: 'identificacion es requerida' })
@@ -30,9 +30,9 @@ export class TransferenciaDetalleItemDto {
   identificacion: string; // F12/F13 Tipo y Número ID beneficiario (obligatorio)
 
   @IsEnum(['CTE', 'AHO'], {
-    message: 'tipoCuenta debe ser CTE o AHO',
+    message: 'tipo_cuenta debe ser CTE o AHO',
   })
-  tipoCuenta: TipoCuentaBanco; // F10 Tipo de cuenta destino (obligatorio)
+  tipo_cuenta: TipoCuentaBanco; // F10 Tipo de cuenta destino (obligatorio)
 
   @IsOptional()
   @IsString()
@@ -47,51 +47,51 @@ export class TransferenciaDetalleItemDto {
   moneda?: string; // F6 Moneda (opcional, default USD)
 
   @IsString()
-  @IsNotEmpty({ message: 'motivoTransferencia es requerido' })
+  @IsNotEmpty({ message: 'motivo_transferencia es requerido' })
   @Matches(/^\d{1,3},\d{1,2}$/, {
     message:
-      'motivoTransferencia debe ser "codigo,ejencion" (ej: 106,0) según catálogo SIB',
+      'motivo_transferencia debe ser "codigo,ejencion" (ej: 106,0) según catálogo SIB',
   })
-  motivoTransferencia: string; // F24 Motivo de la transferencia + código de exención
+  motivo_transferencia: string; // F24 Motivo de la transferencia + código de exención
 
   @IsString()
-  @IsNotEmpty({ message: 'beneficiarioNombre es requerido' })
-  @Length(3, 100, { message: 'beneficiarioNombre entre 3 y 100 caracteres' })
-  beneficiarioNombre: string;
+  @IsNotEmpty({ message: 'beneficiario_nombre es requerido' })
+  @Length(3, 100, { message: 'beneficiario_nombre entre 3 y 100 caracteres' })
+  beneficiario_nombre: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'beneficiarioDireccion es requerida' })
-  @Length(3, 100, { message: 'beneficiarioDireccion entre 3 y 100 caracteres' })
-  beneficiarioDireccion: string;
+  @IsNotEmpty({ message: 'beneficiario_direccion es requerida' })
+  @Length(3, 100, { message: 'beneficiario_direccion entre 3 y 100 caracteres' })
+  beneficiario_direccion: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'beneficiarioCuenta es requerida' })
-  @Length(5, 34, { message: 'beneficiarioCuenta entre 5 y 34 caracteres' })
-  beneficiarioCuenta: string; // IBAN o Número de Cuenta Internacional
+  @IsNotEmpty({ message: 'beneficiario_cuenta es requerida' })
+  @Length(5, 34, { message: 'beneficiario_cuenta entre 5 y 34 caracteres' })
+  beneficiario_cuenta: string; // IBAN o Número de Cuenta Internacional
 
   @IsString()
-  @IsNotEmpty({ message: 'bancoDestinoNombre es requerido' })
-  @Length(3, 100, { message: 'bancoDestinoNombre entre 3 y 100 caracteres' })
-  bancoDestinoNombre: string;
+  @IsNotEmpty({ message: 'banco_destino_nombre es requerido' })
+  @Length(3, 100, { message: 'banco_destino_nombre entre 3 y 100 caracteres' })
+  banco_destino_nombre: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(100, { message: 'bancoDestinoDireccion máx 100 caracteres' })
-  bancoDestinoDireccion?: string;
+  @MaxLength(100, { message: 'banco_destino_direccion máx 100 caracteres' })
+  banco_destino_direccion?: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'codigoSwiftAba es requerido' })
+  @IsNotEmpty({ message: 'codigo_swift_aba es requerido' })
   @Matches(/^[A-Z0-9]{8,11}$/, {
-    message: 'codigoSwiftAba debe ser SWIFT/BIC 8-11 alfanumérico mayúsculas',
+    message: 'codigo_swift_aba debe ser SWIFT/BIC 8-11 alfanumérico mayúsculas',
   })
-  codigoSwiftAba: string; // Código SWIFT (BIC) o ABA del banco destino
+  codigo_swift_aba: string; // Código SWIFT (BIC) o ABA del banco destino
 
   @IsOptional()
   @IsString()
   @Matches(/^[A-Z0-9]{8,11}$/, {
-    message: 'bancoIntermediarioSwift debe ser SWIFT 8-11',
+    message: 'banco_intermediario_swift debe ser SWIFT 8-11',
   })
-  bancoIntermediarioSwift?: string; // Opcional: SWIFT del banco intermediario
+  banco_intermediario_swift?: string; // Opcional: SWIFT del banco intermediario
 
   @IsNumber(
     { maxDecimalPlaces: 2 },
@@ -105,19 +105,19 @@ export class TransferenciaDetalleItemDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(100, { message: 'conceptoInvisibles máx 100 caracteres' })
-  conceptoInvisibles?: string; // Informativo; la trama usa RFB fijo PAGO!COMERCIAL!
+  @MaxLength(100, { message: 'concepto_invisibles máx 100 caracteres' })
+  concepto_invisibles?: string; // Informativo; la trama usa RFB fijo PAGO!COMERCIAL!
 
   @IsOptional()
   @IsString()
-  @MaxLength(10, { message: 'codigoExoneracionIsd máx 10 caracteres' })
-  codigoExoneracionIsd?: string; // Código exoneración ISD (si aplica)
+  @MaxLength(10, { message: 'codigo_exoneracion_isd máx 10 caracteres' })
+  codigo_exoneracion_isd?: string; // Código exoneración ISD (si aplica)
 
   @IsOptional()
   @IsEnum(['OUR', 'BEN', 'SHA'], {
-    message: 'tipoComision debe ser OUR, BEN o SHA',
+    message: 'tipo_comision debe ser OUR, BEN o SHA',
   })
-  tipoComision?: TipoComision;
+  tipo_comision?: TipoComision;
 
   @IsOptional()
   @IsString()
@@ -135,12 +135,12 @@ export class CrearTransferenciaLoteDto {
   servicio: string; // Varía por operación (ej: servicio de exterior)
 
   @IsString()
-  @IsNotEmpty({ message: 'idServicio es requerido' })
-  idServicio: string; // ID de servicio de exterior asignado por Produbanco
+  @IsNotEmpty({ message: 'id_servicio es requerido' })
+  id_servicio: string; // ID de servicio de exterior asignado por Produbanco
 
   // Interno: lo genera el back (NOMBREAPP-{secuencia}-{timestamp}-{hex});
   // no se envía en el request (ValidationPipe whitelist la trunca).
-  referenciaLote?: string;
+  referencia_lote?: string;
 
   // fechaInicio/fechaVencimiento YA no se envían: el back genera la
   // vigencia del sobre (hoy → hoy + 1) en tramas-produbanco.service
@@ -155,14 +155,14 @@ export class CrearTransferenciaLoteDto {
 }
 
 export class GenerarTransferenciaPayloadDto {
-  @IsNumber({}, { message: 'idApp debe ser número' })
-  @IsNotEmpty({ message: 'idApp es requerido' })
-  idApp: number;
+  @IsNumber({}, { message: 'id_app debe ser número' })
+  @IsNotEmpty({ message: 'id_app es requerido' })
+  id_app: number;
 
   @IsString()
-  @IsNotEmpty({ message: 'idempotencyKey es requerida' })
+  @IsNotEmpty({ message: 'idempotency_key es requerida' })
   @MaxLength(100)
-  idempotencyKey: string;
+  idempotency_key: string;
 
   @ValidateNested()
   @Type(() => CrearTransferenciaLoteDto)

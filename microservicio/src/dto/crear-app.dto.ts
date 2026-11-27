@@ -63,12 +63,12 @@ export class CrearAppDto {
 
 /**
  * Wrapper del patrón RPC del proyecto: el gateway siempre manda
- * { idApp, data }, donde idApp es la App administradora que pide el alta.
+ * { id_app, data }, donde id_app es la App administradora que pide el alta.
  */
 export class CrearAppPayloadDto {
-  @IsNumber({}, { message: 'idApp debe ser número' })
-  @IsNotEmpty({ message: 'idApp es requerido' })
-  idApp: number;
+  @IsNumber({}, { message: 'id_app debe ser número' })
+  @IsNotEmpty({ message: 'id_app es requerido' })
+  id_app: number;
 
   @IsNotEmpty({ message: 'data es requerida' })
   @ValidateNested()

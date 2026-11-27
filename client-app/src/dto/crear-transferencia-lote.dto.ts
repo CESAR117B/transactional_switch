@@ -27,8 +27,8 @@ export class TransferenciaDetalleItemDto {
     example: 'C',
     enum: ['C', 'R', 'P'],
   })
-  @IsEnum(['C', 'R', 'P'], { message: 'tipoId debe ser C, R o P' })
-  tipoId: TipoIdentificacion;
+  @IsEnum(['C', 'R', 'P'], { message: 'tipo_id debe ser C, R o P' })
+  tipo_id: TipoIdentificacion;
 
   @ApiProperty({
     description:
@@ -49,9 +49,9 @@ export class TransferenciaDetalleItemDto {
     enum: ['CTE', 'AHO'],
   })
   @IsEnum(['CTE', 'AHO'], {
-    message: 'tipoCuenta debe ser CTE o AHO',
+    message: 'tipo_cuenta debe ser CTE o AHO',
   })
-  tipoCuenta: TipoCuentaBanco; // F10 Tipo de cuenta destino (obligatorio)
+  tipo_cuenta: TipoCuentaBanco; // F10 Tipo de cuenta destino (obligatorio)
 
   @ApiPropertyOptional({
     description: 'Comprobante de pago (egreso, planilla, etc.)',
@@ -84,12 +84,12 @@ export class TransferenciaDetalleItemDto {
     pattern: '^\\d{1,3},\\d{1,2}$',
   })
   @IsString()
-  @IsNotEmpty({ message: 'motivoTransferencia es requerido' })
+  @IsNotEmpty({ message: 'motivo_transferencia es requerido' })
   @Matches(/^\d{1,3},\d{1,2}$/, {
     message:
-      'motivoTransferencia debe ser "codigo,ejencion" (ej: 106,0) según catálogo SIB',
+      'motivo_transferencia debe ser "codigo,ejencion" (ej: 106,0) según catálogo SIB',
   })
-  motivoTransferencia: string; // F24 Motivo de la transferencia + código de exención
+  motivo_transferencia: string; // F24 Motivo de la transferencia + código de exención
 
   @ApiProperty({
     description: 'Nombre completo o razón social del beneficiario',
@@ -99,9 +99,9 @@ export class TransferenciaDetalleItemDto {
     maxLength: 100,
   })
   @IsString()
-  @IsNotEmpty({ message: 'beneficiarioNombre es requerido' })
-  @Length(3, 100, { message: 'beneficiarioNombre entre 3 y 100 caracteres' })
-  beneficiarioNombre: string;
+  @IsNotEmpty({ message: 'beneficiario_nombre es requerido' })
+  @Length(3, 100, { message: 'beneficiario_nombre entre 3 y 100 caracteres' })
+  beneficiario_nombre: string;
 
   @ApiProperty({
     description: 'Dirección completa del beneficiario',
@@ -111,9 +111,9 @@ export class TransferenciaDetalleItemDto {
     maxLength: 100,
   })
   @IsString()
-  @IsNotEmpty({ message: 'beneficiarioDireccion es requerida' })
-  @Length(3, 100, { message: 'beneficiarioDireccion entre 3 y 100 caracteres' })
-  beneficiarioDireccion: string;
+  @IsNotEmpty({ message: 'beneficiario_direccion es requerida' })
+  @Length(3, 100, { message: 'beneficiario_direccion entre 3 y 100 caracteres' })
+  beneficiario_direccion: string;
 
   @ApiProperty({
     description: 'Número de cuenta o IBAN del beneficiario',
@@ -123,9 +123,9 @@ export class TransferenciaDetalleItemDto {
     maxLength: 34,
   })
   @IsString()
-  @IsNotEmpty({ message: 'beneficiarioCuenta es requerida' })
-  @Length(5, 34, { message: 'beneficiarioCuenta entre 5 y 34 caracteres' })
-  beneficiarioCuenta: string; // IBAN o Número de Cuenta Internacional
+  @IsNotEmpty({ message: 'beneficiario_cuenta es requerida' })
+  @Length(5, 34, { message: 'beneficiario_cuenta entre 5 y 34 caracteres' })
+  beneficiario_cuenta: string; // IBAN o Número de Cuenta Internacional
 
   @ApiProperty({
     description:
@@ -136,9 +136,9 @@ export class TransferenciaDetalleItemDto {
     maxLength: 100,
   })
   @IsString()
-  @IsNotEmpty({ message: 'bancoDestinoNombre es requerido' })
-  @Length(3, 100, { message: 'bancoDestinoNombre entre 3 y 100 caracteres' })
-  bancoDestinoNombre: string;
+  @IsNotEmpty({ message: 'banco_destino_nombre es requerido' })
+  @Length(3, 100, { message: 'banco_destino_nombre entre 3 y 100 caracteres' })
+  banco_destino_nombre: string;
 
   @ApiPropertyOptional({
     description: 'Dirección del banco destino',
@@ -148,8 +148,8 @@ export class TransferenciaDetalleItemDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(100, { message: 'bancoDestinoDireccion máx 100 caracteres' })
-  bancoDestinoDireccion?: string;
+  @MaxLength(100, { message: 'banco_destino_direccion máx 100 caracteres' })
+  banco_destino_direccion?: string;
 
   @ApiProperty({
     description:
@@ -159,11 +159,11 @@ export class TransferenciaDetalleItemDto {
     pattern: '^[A-Z0-9]{8,11}$',
   })
   @IsString()
-  @IsNotEmpty({ message: 'codigoSwiftAba es requerido' })
+  @IsNotEmpty({ message: 'codigo_swift_aba es requerido' })
   @Matches(/^[A-Z0-9]{8,11}$/, {
-    message: 'codigoSwiftAba debe ser SWIFT/BIC 8-11 alfanumérico mayúsculas',
+    message: 'codigo_swift_aba debe ser SWIFT/BIC 8-11 alfanumérico mayúsculas',
   })
-  codigoSwiftAba: string; // Código SWIFT (BIC) o ABA del banco destino
+  codigo_swift_aba: string; // Código SWIFT (BIC) o ABA del banco destino
 
   @ApiPropertyOptional({
     description: 'Código SWIFT/BIC del banco intermediario (cuando aplica)',
@@ -174,9 +174,9 @@ export class TransferenciaDetalleItemDto {
   @IsOptional()
   @IsString()
   @Matches(/^[A-Z0-9]{8,11}$/, {
-    message: 'bancoIntermediarioSwift debe ser SWIFT 8-11',
+    message: 'banco_intermediario_swift debe ser SWIFT 8-11',
   })
-  bancoIntermediarioSwift?: string; // Opcional: SWIFT del banco intermediario
+  banco_intermediario_swift?: string; // Opcional: SWIFT del banco intermediario
 
   @ApiProperty({
     description: 'Monto de la transferencia con máximo 2 decimales',
@@ -203,8 +203,8 @@ export class TransferenciaDetalleItemDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(100, { message: 'conceptoInvisibles máx 100 caracteres' })
-  conceptoInvisibles?: string; // Informativo; la trama usa RFB fijo PAGO!COMERCIAL!
+  @MaxLength(100, { message: 'concepto_invisibles máx 100 caracteres' })
+  concepto_invisibles?: string; // Informativo; la trama usa RFB fijo PAGO!COMERCIAL!
 
   @ApiPropertyOptional({
     description:
@@ -215,8 +215,8 @@ export class TransferenciaDetalleItemDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(10, { message: 'codigoExoneracionIsd máx 10 caracteres' })
-  codigoExoneracionIsd?: string; // Código exoneración ISD (si aplica)
+  @MaxLength(10, { message: 'codigo_exoneracion_isd máx 10 caracteres' })
+  codigo_exoneracion_isd?: string; // Código exoneración ISD (si aplica)
 
   @ApiPropertyOptional({
     description:
@@ -226,16 +226,16 @@ export class TransferenciaDetalleItemDto {
   })
   @IsOptional()
   @IsEnum(['OUR', 'BEN', 'SHA'], {
-    message: 'tipoComision debe ser OUR, BEN o SHA',
+    message: 'tipo_comision debe ser OUR, BEN o SHA',
   })
-  tipoComision?: TipoComision;
+  tipo_comision?: TipoComision;
 
   @ApiPropertyOptional({
     description:
       'Número de factura o referencia del documento generado por el sistema ' +
       'cliente que se conecta al microservicio; se envía a Produbanco en el ' +
       'campo INV (F23, máx 26 chars sin espacios). Si no se envía, el back ' +
-      'usa la referenciaLote generada por el back',
+      'usa la referencia_lote generada por el back',
     example: 'FAC-00123',
     type: String,
     maxLength: 50,
@@ -249,7 +249,7 @@ export class TransferenciaDetalleItemDto {
 export class CrearTransferenciaLoteDto {
   // Parametrización bancaria (cuentaEmpresa, tipoCuentaEmpresa, empresa e
   // idEmpresa) ya NO se envía desde el cliente: la inyecta el microservicio
-  // desde su config (atributos_integraciones). servicio/idServicio sí se
+  // desde su config (atributos_integraciones). servicio/id_servicio sí se
   // envían porque varían entre pago interbancario y pago al exterior.
 
   @ApiProperty({
@@ -268,8 +268,8 @@ export class CrearTransferenciaLoteDto {
     type: String,
   })
   @IsString()
-  @IsNotEmpty({ message: 'idServicio es requerido' })
-  idServicio: string;
+  @IsNotEmpty({ message: 'id_servicio es requerido' })
+  id_servicio: string;
 
   // fechaInicio/fechaVencimiento YA no se envían al microservicio: el back
   // genera la vigencia del sobre (hoy → hoy + 1) y la incluye en el
@@ -296,9 +296,9 @@ export class GenerarTransferenciaPayloadDto {
     example: 123,
     type: Number,
   })
-  @IsNumber({}, { message: 'idApp debe ser número' })
-  @IsNotEmpty({ message: 'idApp es requerido' })
-  idApp: number;
+  @IsNumber({}, { message: 'id_app debe ser número' })
+  @IsNotEmpty({ message: 'id_app es requerido' })
+  id_app: number;
 
   @ApiProperty({
     description: 'Datos del lote de transferencias a generar',

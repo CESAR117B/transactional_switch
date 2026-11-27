@@ -31,12 +31,13 @@ export class SaveCardsController {
   @Post('guardar-tarjeta')
   async guardarTarjeta(
     @AppAuth() auth: AppAuthConId,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Headers('idempotency-key') idempotency_key: string | undefined,
     @Body() cardData: TokenizeCardDto,
   ) {
     return this.appService.guardarTarjeta(auth.id_app, {
       ...cardData,
-      idempotencyKey: requerirIdempotencyKey(idempotencyKey),
+      idempotency_key: requerirIdempotencyKey(idempotency_key),
     });
   }
 }
+

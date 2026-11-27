@@ -173,16 +173,16 @@ export class ApiKeyGuard implements CanActivate {
    * en `servicios` o `app_servicios` bloquee la sesión actual de inmediato.
    */
   private async obtenerPermisosVigentes(
-    idApp: unknown,
+    id_app: unknown,
   ): Promise<PermisosVigentes> {
-    const id = Number(idApp);
+    const id = Number(id_app);
     if (!Number.isInteger(id) || id <= 0) {
       throw new UnauthorizedException('Token inválido o corrupto.');
     }
 
     return this.rpc.enviar<PermisosVigentes>(
       { cmd: 'validar_permisos_app' },
-      { idApp: id },
+      { id_app: id },
     );
   }
 }

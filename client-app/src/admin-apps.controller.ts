@@ -98,11 +98,11 @@ export class AdminAppsController {
     @AppAuth() auth: AppAuthConId,
     @Body() dto: ActualizarAppDto,
   ): Promise<unknown> {
-    const { idApp } = dto;
-    if (!idApp) {
-      throw new BadRequestException('idApp es requerido para actualizar_app');
+    const { id_app } = dto;
+    if (!id_app) {
+      throw new BadRequestException('id_app es requerido para actualizar_app');
     }
-    return this.appService.actualizarApp(auth.id_app, idApp, dto.data);
+    return this.appService.actualizarApp(auth.id_app, id_app, dto.data);
   }
 
   @ApiOperation({
@@ -119,13 +119,13 @@ export class AdminAppsController {
     @AppAuth() auth: AppAuthConId,
     @Body() dto: NuevokeyAppDto,
   ): Promise<unknown> {
-    const { idApp } = dto;
-    if (!idApp) {
-      throw new BadRequestException('idApp es requerido para nuevokey_app');
+    const { id_app } = dto;
+    if (!id_app) {
+      throw new BadRequestException('id_app es requerido para nuevokey_app');
     }
-    // La app admin genera una nueva key para la app especificada (idApp).
+    // La app admin genera una nueva key para la app especificada (id_app).
     // Se valida que la app objetivo sea diferente a la app administradora.
-    return this.appService.nuevokeyApp(idApp, auth.id_app);
+    return this.appService.nuevokeyApp(id_app, auth.id_app);
   }
 
   @ApiOperation({
@@ -142,14 +142,14 @@ export class AdminAppsController {
     @AppAuth() auth: AppAuthConId,
     @Body() dto: NuevoencryptionkeyAppDto,
   ): Promise<unknown> {
-    const { idApp } = dto;
-    if (!idApp) {
+    const { id_app } = dto;
+    if (!id_app) {
       throw new BadRequestException(
-        'idApp es requerido para nuevoencryptionkey_app',
+        'id_app es requerido para nuevoencryptionkey_app',
       );
     }
-    // Se genera una nueva encryptionKey para la app especificada (idApp).
-    return this.appService.nuevoencryptionkeyApp(idApp, auth.id_app);
+    // Se genera una nueva encryptionKey para la app especificada (id_app).
+    return this.appService.nuevoencryptionkeyApp(id_app, auth.id_app);
   }
 
   /**
@@ -164,7 +164,7 @@ export class AdminAppsController {
     summary:
       'Asigna uno o más servicios a una app objetivo usando códigos alfanuméricos. ' +
       'Valida que los códigos existan en la base de datos y actualiza la ' +
-      'relación de servicios de la app indicada en `idApp`.',
+      'relación de servicios de la app indicada en `id_app`.',
   })
   @RequireCmd('asignar_servicios_app')
   @HttpCode(HttpStatus.OK)
@@ -174,10 +174,10 @@ export class AdminAppsController {
     @Body() dto: AsignarServiciosAppDto,
   ): Promise<unknown> {
     // El token identifica a la app administradora (actor). La app objetivo
-    // sobre la que se opera viene en el body (`dto.idApp`).
+    // sobre la que se opera viene en el body (`dto.id_app`).
     return this.appService.asignarServiciosApp(
       auth.id_app,
-      dto.idApp,
+      dto.id_app,
       dto.codigos,
     );
   }
@@ -208,14 +208,14 @@ export class AdminAppsController {
   ): Promise<unknown> {
     return this.appService.activarDesactivarServicioGlobal(
       auth.id_app,
-      dto.idServicio,
+      dto.id_servicio,
     );
   }
 
   @ApiOperation({
     summary:
       'Desasigna uno o más servicios de una app objetivo usando códigos alfanuméricos. ' +
-      'Elimina solo las asignaciones especificadas de la app indicada en `idApp`, ' +
+      'Elimina solo las asignaciones especificadas de la app indicada en `id_app`, ' +
       'dejando intactas las demás.',
   })
   @RequireCmd('desasignar_servicios_app')
@@ -226,10 +226,10 @@ export class AdminAppsController {
     @Body() dto: DesasignarServiciosAppDto,
   ): Promise<unknown> {
     // El token identifica a la app administradora (actor). La app objetivo
-    // sobre la que se opera viene en el body (`dto.idApp`).
+    // sobre la que se opera viene en el body (`dto.id_app`).
     return this.appService.desasignarServiciosApp(
       auth.id_app,
-      dto.idApp,
+      dto.id_app,
       dto.codigos,
     );
   }
@@ -248,10 +248,10 @@ export class AdminAppsController {
     @Body() dto: CambiarEstadoServicioAppDto,
   ): Promise<unknown> {
     // El token identifica a la app administradora (actor). La app objetivo
-    // sobre la que se opera viene en el body (`dto.idApp`).
+    // sobre la que se opera viene en el body (`dto.id_app`).
     return this.appService.cambiarEstadoServicioApp(
       auth.id_app,
-      dto.idApp,
+      dto.id_app,
       dto.codigo,
       dto.activo,
     );

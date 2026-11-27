@@ -18,14 +18,14 @@ export class AuthController {
    * por app aplique de inmediato, sin esperar la expiración del JWT.
    */
   @MessagePattern({ cmd: 'validar_permisos_app' })
-  validarPermisosApp(@Payload() data: { idApp?: number }) {
-    const idApp = Number(data?.idApp);
-    if (!Number.isInteger(idApp) || idApp <= 0) {
+  validarPermisosApp(@Payload() data: { id_app?: number }) {
+    const id_app = Number(data?.id_app);
+    if (!Number.isInteger(id_app) || id_app <= 0) {
       throw new RpcException({
         status: 400,
-        message: 'idApp es requerido para validar_permisos_app',
+        message: 'id_app es requerido para validar_permisos_app',
       });
     }
-    return this.authService.obtenerPermisosVigentes(idApp);
+    return this.authService.obtenerPermisosVigentes(id_app);
   }
 }

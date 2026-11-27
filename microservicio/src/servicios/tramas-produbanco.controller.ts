@@ -14,11 +14,11 @@ export class TramasProdubancoController {
 
   @MessagePattern({ cmd: 'generar_pago' })
   async generarPago(@Payload() payload: GenerarPagoPayloadDto) {
-    const { idApp, data, idempotencyKey } = payload;
-    if (idApp === undefined || idApp === null) {
+    const { id_app, data, idempotency_key } = payload;
+    if (id_app === undefined || id_app === null) {
       throw new RpcException({
         statusCode: 400,
-        message: 'idApp es requerido',
+        message: 'id_app es requerido',
       });
     }
     if (!data) {
@@ -28,12 +28,12 @@ export class TramasProdubancoController {
       });
     }
     this.logger.log(
-      `generarPago idApp=${idApp} referenciaLote=${data.referenciaLote} registros=${data.detalles?.length ?? 0}`,
+      `generarPago id_app=${id_app} referenciaLote=${data.referencia_lote} registros=${data.detalles?.length ?? 0}`,
     );
     return this.tramasProdubancoService.generarPago(
-      idApp,
+      id_app,
       data,
-      idempotencyKey,
+      idempotency_key,
     );
   }
 
@@ -41,11 +41,11 @@ export class TramasProdubancoController {
   async generarTransferencia(
     @Payload() payload: GenerarTransferenciaPayloadDto,
   ) {
-    const { idApp, data, idempotencyKey } = payload;
-    if (idApp === undefined || idApp === null) {
+    const { id_app, data, idempotency_key } = payload;
+    if (id_app === undefined || id_app === null) {
       throw new RpcException({
         statusCode: 400,
-        message: 'idApp es requerido',
+        message: 'id_app es requerido',
       });
     }
     if (!data) {
@@ -55,49 +55,49 @@ export class TramasProdubancoController {
       });
     }
     this.logger.log(
-      `generarTransferencia idApp=${idApp} referenciaLote=${data.referenciaLote} registros=${data.detalles?.length ?? 0}`,
+      `generarTransferencia id_app=${id_app} referenciaLote=${data.referencia_lote} registros=${data.detalles?.length ?? 0}`,
     );
     return this.tramasProdubancoService.generarTransferencia(
-      idApp,
+      id_app,
       data,
-      idempotencyKey,
+      idempotency_key,
     );
   }
 
   @MessagePattern({ cmd: 'consultar_transacciones' })
   async consultarTransacciones(@Payload() payload: ConsultarTransaccionesCmd) {
-    const { idApp, llaveDesencriptacion } = payload ?? {};
-    if (idApp === undefined || idApp === null) {
+    const { id_app, llave_desencriptacion } = payload ?? {};
+    if (id_app === undefined || id_app === null) {
       throw new RpcException({
         statusCode: 400,
-        message: 'idApp es requerido',
+        message: 'id_app es requerido',
       });
     }
     if (
-      typeof llaveDesencriptacion !== 'string' ||
-      llaveDesencriptacion.trim() === ''
+      typeof llave_desencriptacion !== 'string' ||
+      llave_desencriptacion.trim() === ''
     ) {
       throw new RpcException({
         statusCode: 400,
-        message: 'llaveDesencriptacion es requerida.',
+        message: 'llave_desencriptacion es requerida.',
       });
     }
     this.logger.log(
-      `consultarTransacciones idApp=${idApp} page=${payload?.page ?? 1} ` +
-        `fechas=${payload?.fechaDesde ?? '*'}..${payload?.fechaHasta ?? '*'} ` +
+      `consultarTransacciones id_app=${id_app} page=${payload?.page ?? 1} ` +
+        `fechas=${payload?.fecha_desde ?? '*'}..${payload?.fecha_hasta ?? '*'} ` +
         `cedula=${payload?.cedula?.trim() ? 'si' : 'no'} ` +
         `cuenta=${payload?.cuenta?.trim() ? 'si' : 'no'}`,
     );
-    return this.tramasProdubancoService.consultarTransacciones(idApp, payload);
+    return this.tramasProdubancoService.consultarTransacciones(id_app, payload);
   }
 
   @MessagePattern({ cmd: 'consultar_estado_transaccion' })
   async consultarEstadoTransaccion(@Payload() payload: ConsultarEstadoCmd) {
-    const { idApp, dato, llaveDesencriptacion } = payload ?? {};
-    if (idApp === undefined || idApp === null) {
+    const { id_app, dato, llave_desencriptacion } = payload ?? {};
+    if (id_app === undefined || id_app === null) {
       throw new RpcException({
         statusCode: 400,
-        message: 'idApp es requerido',
+        message: 'id_app es requerido',
       });
     }
     if (dato === undefined || dato === null || String(dato).trim() === '') {
@@ -107,20 +107,20 @@ export class TramasProdubancoController {
       });
     }
     if (
-      typeof llaveDesencriptacion !== 'string' ||
-      llaveDesencriptacion.trim() === ''
+      typeof llave_desencriptacion !== 'string' ||
+      llave_desencriptacion.trim() === ''
     ) {
       throw new RpcException({
         statusCode: 400,
-        message: 'llaveDesencriptacion es requerida.',
+        message: 'llave_desencriptacion es requerida.',
       });
     }
     this.logger.log(
-      `consultarEstadoTransaccion idApp=${idApp} dato=${String(dato)}`,
+      `consultarEstadoTransaccion id_app=${id_app} dato=${String(dato)}`,
     );
-    return this.tramasProdubancoService.consultarEstadoTransaccion(idApp, {
+    return this.tramasProdubancoService.consultarEstadoTransaccion(id_app, {
       dato,
-      llaveDesencriptacion,
+      llave_desencriptacion,
     });
   }
 
@@ -133,32 +133,32 @@ export class TramasProdubancoController {
   async transaccionesAdmin(@Payload() payload: TransaccionesAdminCmd) {
     const {
       page,
-      pageSize,
+      page_size,
       status,
       operation,
-      fechaDesde,
-      fechaHasta,
+      fecha_desde,
+      fecha_hasta,
       cedula,
       cuenta,
-      idApp,
+      id_app,
     } = payload ?? {};
 
     this.logger.log(
-      `transaccionesAdmin idApp=${idApp ?? '*'} page=${page ?? 1} ` +
-        `fechas=${fechaDesde ?? '*'}..${fechaHasta ?? '*'} ` +
+      `transaccionesAdmin id_app=${id_app ?? '*'} page=${page ?? 1} ` +
+        `fechas=${fecha_desde ?? '*'}..${fecha_hasta ?? '*'} ` +
         `cedula=${cedula?.trim() ? 'si' : 'no'} ` +
         `cuenta=${cuenta?.trim() ? 'si' : 'no'}`,
     );
     return this.tramasProdubancoService.transaccionesAdmin({
       page,
-      pageSize,
+      page_size,
       status,
       operation,
-      fechaDesde,
-      fechaHasta,
+      fecha_desde,
+      fecha_hasta,
       cedula,
       cuenta,
-      idApp,
+      id_app,
     });
   }
 
@@ -169,7 +169,7 @@ export class TramasProdubancoController {
    */
   @MessagePattern({ cmd: 'estado_transaccion_admin' })
   async estadoTransaccionAdmin(@Payload() payload: EstadoTransaccionAdminCmd) {
-    const { dato, idApp } = payload ?? {};
+    const { dato, id_app } = payload ?? {};
     if (dato === undefined || dato === null || String(dato).trim() === '') {
       throw new RpcException({
         statusCode: 400,
@@ -178,56 +178,56 @@ export class TramasProdubancoController {
     }
 
     this.logger.log(
-      `estadoTransaccionAdmin idApp=${idApp ?? '*'} dato=${String(dato)}`,
+      `estadoTransaccionAdmin id_app=${id_app ?? '*'} dato=${String(dato)}`,
     );
     return this.tramasProdubancoService.estadoTransaccionAdmin({
       dato,
-      idApp,
+      id_app,
     });
   }
 }
 
 interface ConsultarTransaccionesCmd {
-  idApp?: number;
+  id_app?: number;
   page?: number;
-  pageSize?: number;
+  page_size?: number;
   status?: number;
   operation?: string;
-  fechaDesde?: string;
-  fechaHasta?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
   cedula?: string;
   cuenta?: string;
   /** EncryptionKey de la app (32 chars), obligatoria: llega vía header
    * X-Encryption-Key en el HTTP y se valida contra app.encryptionKey. */
-  llaveDesencriptacion?: string;
+  llave_desencriptacion?: string;
 }
 
 interface ConsultarEstadoCmd {
-  idApp?: number;
+  id_app?: number;
   dato?: string | number;
   /** EncryptionKey de la app (32 chars), obligatoria: llega vía header
    * X-Encryption-Key en el HTTP y se valida contra app.encryptionKey. */
-  llaveDesencriptacion?: string;
+  llave_desencriptacion?: string;
 }
 
 /** Payload RPC del listado admin: todos los filtros son opcionales. */
 interface TransaccionesAdminCmd {
   page?: number;
-  pageSize?: number;
+  page_size?: number;
   status?: number;
   operation?: string;
-  fechaDesde?: string;
-  fechaHasta?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
   /** Requerido si se envía cedula y/o cuenta (hash por llave de la app). */
   cedula?: string;
   cuenta?: string;
   /** Acota el listado a una app; sin valor = todas las apps. */
-  idApp?: number;
+  id_app?: number;
 }
 
 /** Payload RPC del estado admin: `dato` es obligatorio. */
 interface EstadoTransaccionAdminCmd {
   dato?: string | number;
   /** Opcional: 404 si la transacción pertenece a otra app. */
-  idApp?: number;
+  id_app?: number;
 }
