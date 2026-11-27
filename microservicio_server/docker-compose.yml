@@ -22,6 +22,9 @@ services:
         required: false
     networks:
       - postgres_network
+    # Ejecutar prisma generate y db push al iniciar el contenedor para
+    # mantener el cliente Prisma consistente con la base de datos.
+    command: sh -c "pnpm exec prisma generate && pnpm exec prisma db push"
 
   client-app:
     build:
