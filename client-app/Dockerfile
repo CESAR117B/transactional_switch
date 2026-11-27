@@ -15,7 +15,7 @@ COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 # ← SOLUCIÓN: Borrar lockfile viejo para evitar errores de permisos
 # en entornos Docker donde el usuario no tiene escritura sobre el archivo
 RUN if [ -f pnpm-lock.yaml ]; then rm pnpm-lock.yaml; fi
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # Código y configuración de build
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./

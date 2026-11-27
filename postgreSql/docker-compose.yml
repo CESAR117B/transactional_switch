@@ -13,7 +13,6 @@ services:
       - postgres_data:/var/lib/postgresql
       - ./back-up:/var/lib/postgresql/backups
       - ./back-up/init-switch.sh:/docker-entrypoint-initdb.d/init-switch.sh
-      - ./back-up/switch_transaccional.dump:/docker-entrypoint-initdb.d/switch_transaccional.dump
     networks:
       - postgres_network
 
@@ -30,8 +29,7 @@ services:
       - postgres
     volumes:
       - pgadmin_data:/var/lib/pgadmin
-      # Mapea directamente la carpeta de respaldos del usuario en pgAdmin hacia ./back-up
-      - ./back-up:/var/lib/pgadmin/storage/root_admin.com
+      - ./back-up:/var/lib/pgadmin/backups
     networks:
       - postgres_network
 
