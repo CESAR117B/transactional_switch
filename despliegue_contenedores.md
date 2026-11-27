@@ -59,7 +59,7 @@ El despliegue se realiza en dos fases: primero la base de datos y su administrad
 
 2. Reconstruye las imágenes e inicia los contenedores(util si se realiza un cambio en el Dockerfile o en el código fuente):
    ```bash
-   docker compose up -d
+    docker compose up -d --force-recreate  
    ```
 
 3. **Verificación:**
